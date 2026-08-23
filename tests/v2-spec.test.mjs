@@ -52,8 +52,30 @@ test("customer info validation remains actionable",async()=>{
  assert.doesNotMatch(tsx,/InfoStep[\s\S]{0,2500}disabled=\{!valid\}/);
 });
 
-test("category rail uses requested symbols",async()=>{
- const tsx=await read("app/components/KioskApp.tsx");
- for(const symbol of ["VACUUM","PREMIUM","🦴"])assert.match(tsx,new RegExp(symbol));
- assert.doesNotMatch(tsx,/\?"眞"|\?"品"|\?"骨"/);
+test("category rail uses Korean-first hierarchy",async()=>{
+ const [tsx,css]=await Promise.all([read("app/components/KioskApp.tsx"),read("app/globals.css")]);
+ for(const assist of ["VACUUM","PREMIUM","LA"])assert.match(tsx,new RegExp(assist));
+ assert.match(tsx,/category-name/);
+ assert.match(tsx,/category-assist/);
+ assert.match(css,/button\.single \.category-name/);
+ assert.doesNotMatch(tsx,/🦴|category-symbol/);
+});
+test("custom order and settings workflows are durable",async()=>{
+ const [kiosk,custom,customApi,settings,settingsApi,d1]=await Promise.all([
+  read("app/components/KioskApp.tsx"),
+  read("app/components/CustomOrderApp.tsx"),
+  read("app/api/custom-orders/route.ts"),
+  read("app/components/SettingsApp.tsx"),
+  read("app/api/settings/route.ts"),
+  read("drizzle/0001_confused_swarm.sql"),
+ ]);
+ for(const route of ["/admin","/workshop","/settings","/kiosk/custom"])assert.match(kiosk,new RegExp(route.replaceAll("/","\\/")));
+ assert.match(kiosk,/category-name omeat/);
+ assert.match(kiosk,/category-name omeat/);
+ assert.match(custom,/idempotencyKey/);
+ assert.match(customApi,/custom_order_events/);
+ assert.match(settings,/제품 사진 URL/);
+ assert.match(settingsApi,/OPERATOR_USER_IDS/);
+ assert.match(settingsApi,/configuration_events/);
+ assert.match(d1,/custom_orders_no_hard_delete/);
 });

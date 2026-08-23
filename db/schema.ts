@@ -13,6 +13,8 @@ export const products = sqliteTable("products", {
   badge: text("badge"),
   displayOrder: integer("display_order").notNull().default(0),
   active: integer("active", { mode: "boolean" }).notNull().default(true),
+  version: integer("version").notNull().default(1),
+  updatedAt: text("updated_at"),
 }, (table) => [
   index("idx_products_active_order").on(table.active, table.displayOrder),
   index("idx_products_category").on(table.category),
@@ -25,6 +27,8 @@ export const salesSeasons = sqliteTable("sales_seasons", {
   salesStartDate: text("sales_start_date").notNull(),
   salesEndDate: text("sales_end_date").notNull(),
   active: integer("active", { mode: "boolean" }).notNull().default(true),
+  version: integer("version").notNull().default(1),
+  updatedAt: text("updated_at"),
 });
 
 export const orders = sqliteTable("orders", {
@@ -80,6 +84,35 @@ export const packages = sqliteTable("packages", {
   index("idx_packages_status").on(table.packageStatus),
 ]);
 
+export const customOrderRequests = sqliteTable("custom_order_requests", {
+  id: text("id").primaryKey(),
+  requestNo: text("request_no").notNull().unique(),
+  customerName: text("customer_name").notNull(),
+  customerPhone: text("customer_phone").notNull(),
+  giftType: text("gift_type").notNull(),
+  quantity: integer("quantity").notNull(),
+  budgetRange: text("budget_range").notNull(),
+  fulfillmentPreference: text("fulfillment_preference").notNull(),
+  preferredSchedule: text("preferred_schedule").notNull().default(""),
+  note: text("note").notNull().default(""),
+  status: text("status").notNull().default("submitted"),
+  idempotencyKey: text("idempotency_key").notNull(),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, (table) => [
+  uniqueIndex("idx_custom_orders_idempotency").on(table.idempotencyKey),
+  index("idx_custom_orders_status_created").on(table.status, table.createdAt),
+  index("idx_custom_orders_phone").on(table.customerPhone),
+]);
+
+export const customOrderEvents = sqliteTable("custom_order_events", {
+  id: text("id").primaryKey(),
+  requestId: text("request_id").notNull().references(() => customOrderRequests.id),
+  eventType: text("event_type").notNull(),
+  afterData: text("after_data"),
+  actorId: text("actor_id"),
+  createdAt: text("created_at").notNull(),
+}, (table) => [index("idx_custom_order_events_request").on(table.requestId, table.createdAt)]);
 export const operationalAlerts = sqliteTable("operational_alerts", {
   id: text("id").primaryKey(),
   type: text("type").notNull(),
@@ -103,3 +136,12 @@ export const orderEvents = sqliteTable("order_events", {
   actorId: text("actor_id"),
   createdAt: text("created_at").notNull(),
 }, (table) => [index("idx_order_events_order").on(table.orderId, table.createdAt)]);
+export const configurationEvents = sqliteTable("configuration_events", {
+  id: text("id").primaryKey(),
+  entityType: text("entity_type").notNull(),
+  entityId: text("entity_id").notNull(),
+  beforeData: text("before_data"),
+  afterData: text("after_data"),
+  actorId: text("actor_id").notNull(),
+  createdAt: text("created_at").notNull(),
+}, (table) => [index("idx_configuration_events_entity").on(table.entityType, table.entityId, table.createdAt)]);
