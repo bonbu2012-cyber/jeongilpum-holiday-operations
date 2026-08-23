@@ -51,3 +51,9 @@ test("customer info validation remains actionable",async()=>{
  assert.match(tsx,/attempted&&!phoneValid/);
  assert.doesNotMatch(tsx,/InfoStep[\s\S]{0,2500}disabled=\{!valid\}/);
 });
+
+test("category rail uses requested symbols",async()=>{
+ const tsx=await read("app/components/KioskApp.tsx");
+ for(const symbol of ["VACUUM","PREMIUM","🦴"])assert.match(tsx,new RegExp(symbol));
+ assert.doesNotMatch(tsx,/\?"眞"|\?"品"|\?"骨"/);
+});
