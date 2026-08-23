@@ -20,8 +20,8 @@ function StaffHelp(){
  const[open,setOpen]=useState(false);
  return <><button className="staff-help" onClick={()=>setOpen(true)}><span>?</span> 직원 도움</button>{open&&<div className="help-toast" role="status"><b>직원을 호출했습니다</b><span>입력하신 내용은 그대로 유지됩니다.</span><button onClick={()=>setOpen(false)}>확인</button></div>}</>
 }
-function Field({label,value,onChange,placeholder,type="text",wide=false}:{label:string;value:string;onChange:(v:string)=>void;placeholder:string;type?:string;wide?:boolean}){
- return <label className={wide?"field wide":"field"}><span>{label}</span><input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} inputMode={type==="tel"?"numeric":undefined}/></label>
+function Field({label,value,onChange,placeholder,type="text",wide=false,error}:{label:string;value:string;onChange:(v:string)=>void;placeholder:string;type?:string;wide?:boolean;error?:string}){
+ return <label className={wide?"field wide":"field"}><span>{label}</span><input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} inputMode={type==="tel"?"numeric":undefined} aria-invalid={Boolean(error)}/>{error&&<small className="field-error">{error}</small>}</label>
 }
 
 export default function KioskApp(){
@@ -47,9 +47,9 @@ export default function KioskApp(){
    </motion.div>:<FlowStep key={step} step={step} direction={direction} back={back} help>
     {step==="cart"&&<CartStep products={selected} draft={draft} setQty={setQty} totalQty={totalQty} total={total} next={()=>go("fulfillment")}/>}
     {step==="fulfillment"&&<Fulfillment choose={type=>{setDraft(d=>({...d,fulfillmentType:type}));go(type==="pickup"?"pickup-info":"shipping-sender")}}/>}
-    {step==="pickup-info"&&<InfoStep title="주문자 정보를 알려주세요" description="방문수령 안내에 필요한 정보입니다." draft={draft} setDraft={setDraft} next={()=>go("pickup-time")} valid={draft.buyerName.trim().length>1&&draft.buyerPhone.replace(/\D/g,"").length>=10}/>}
+    {step==="pickup-info"&&<InfoStep title="주문자 정보를 알려주세요" description="방문수령 안내에 필요한 정보입니다." draft={draft} setDraft={setDraft} next={()=>go("pickup-time")} valid={draft.buyerName.trim().length>0&&draft.buyerPhone.replace(/\D/g,"").length>=10}/>}
     {step==="pickup-time"&&<PickupTime draft={draft} setDraft={setDraft} next={()=>go("review")}/>}
-    {step==="shipping-sender"&&<InfoStep title="보내는 분은 누구인가요?" description="주문 확인 연락을 드릴 정보를 입력해주세요." draft={draft} setDraft={setDraft} next={()=>go("shipping-recipient")} valid={draft.buyerName.trim().length>1&&draft.buyerPhone.replace(/\D/g,"").length>=10}/>}
+    {step==="shipping-sender"&&<InfoStep title="보내는 분은 누구인가요?" description="주문 확인 연락을 드릴 정보를 입력해주세요." draft={draft} setDraft={setDraft} next={()=>go("shipping-recipient")} valid={draft.buyerName.trim().length>0&&draft.buyerPhone.replace(/\D/g,"").length>=10}/>}
     {step==="shipping-recipient"&&<RecipientStep draft={draft} setDraft={setDraft} next={()=>go("shipping-address")}/>}
     {step==="shipping-address"&&<AddressStep draft={draft} setDraft={setDraft} next={()=>go("review")}/>}
     {step==="review"&&<Review draft={draft} products={selected} totalQty={totalQty} total={total} submitting={submitting} error={submitError} submit={submit}/>}
@@ -61,7 +61,7 @@ export default function KioskApp(){
 }
 
 function FlowStep({children,step,direction,back,help}:{children:React.ReactNode;step:Step;direction:number;back:()=>void;help?:boolean}){
- return <motion.section className="flow-shell" custom={direction} initial={{opacity:0,x:direction*70}} animate={{opacity:1,x:0}} exit={{opacity:0,x:direction*-70}} transition={transition}><header className="flow-header">{step!=="done"?<button onClick={back} aria-label="이전">←</button>:<span/>}<div className="flow-progress"><i style={{width:Math.min(100,(["cart","fulfillment","pickup-info","shipping-sender","pickup-time","shipping-recipient","shipping-address","review","done"].indexOf(step)+1)*14)+"%"}}/></div><span>{step==="done"?"접수 완료":"주문 진행"}</span></header><div className="flow-content">{children}</div>{help&&step!=="done"&&<StaffHelp/>}</motion.section>
+ return <motion.section className="flow-shell" custom={direction} initial={{opacity:0,x:direction*70}} animate={{opacity:1,x:0}} exit={{opacity:0,x:direction*-70}} transition={transition}><header className="flow-header">{step!=="done"?<button onClick={back} aria-label="이전 단계">← <span>이전</span></button>:<span/>}<div className="flow-progress"><i style={{width:Math.min(100,(["cart","fulfillment","pickup-info","shipping-sender","pickup-time","shipping-recipient","shipping-address","review","done"].indexOf(step)+1)*14)+"%"}}/></div><span>{step==="done"?"접수 완료":"주문 진행"}</span></header><div className="flow-content">{children}</div>{step!=="done"&&<button className="flow-back-bottom" onClick={back}>← 이전 단계로</button>}{help&&step!=="done"&&<StaffHelp/>}</motion.section>
 }
 function CartStep({products,draft,setQty,totalQty,total,next}:{products:Product[];draft:OrderDraft;setQty:(id:string,n:number)=>void;totalQty:number;total:number;next:()=>void}){
  return <div className="flow-card"><div className="flow-heading"><small>STEP 1</small><h1>주문 상품을 확인해주세요</h1><p>수량과 상품이 맞는지 한 번 더 확인합니다.</p></div><div className="cart-review">{products.map(p=><article key={p.id}><Photo product={p}/><div><h2>{p.name}</h2><span>{won(p.price)}</span></div><Quantity big value={draft.cart[p.id]} onChange={n=>setQty(p.id,n)}/></article>)}</div><div className="flow-total"><span>총 {totalQty}세트</span><b>{won(total)}</b></div><button className="main-cta" disabled={!totalQty} onClick={next}>다음 <span>→</span></button></div>
@@ -70,7 +70,9 @@ function Fulfillment({choose}:{choose:(t:"pickup"|"shipping")=>void}){
  return <div className="flow-card narrow"><div className="flow-heading center"><small>STEP 2</small><h1>어떻게 받으시겠어요?</h1><p>받는 방법에 따라 필요한 정보만 여쭤볼게요.</p></div><div className="fulfillment-buttons"><button onClick={()=>choose("pickup")}><span>⌂</span><b>방문수령</b><small>매장에서 직접 받기</small><i>→</i></button><button onClick={()=>choose("shipping")}><span>▣</span><b>택배발송</b><small>원하는 곳으로 보내기</small><i>→</i></button></div><p className="mixed-note">방문과 택배를 함께 이용하려면 <b>직원 도움</b>을 눌러주세요.</p></div>
 }
 function InfoStep({title,description,draft,setDraft,next,valid}:{title:string;description:string;draft:OrderDraft;setDraft:React.Dispatch<React.SetStateAction<OrderDraft>>;next:()=>void;valid:boolean}){
- return <div className="flow-card narrow"><div className="flow-heading"><small>고객정보</small><h1>{title}</h1><p>{description}</p></div><div className="form-stack"><Field label="성함" value={draft.buyerName} onChange={v=>setDraft(d=>({...d,buyerName:v}))} placeholder="성함을 입력해주세요"/><Field label="연락처" type="tel" value={draft.buyerPhone} onChange={v=>setDraft(d=>({...d,buyerPhone:v}))} placeholder="010-0000-0000"/><Field label="요청사항 (선택)" wide value={draft.note} onChange={v=>setDraft(d=>({...d,note:v}))} placeholder="예: 지방을 적게 부탁드립니다"/></div><button className="main-cta" disabled={!valid} onClick={next}>다음 <span>→</span></button></div>
+ const[attempted,setAttempted]=useState(false),nameValid=draft.buyerName.trim().length>0,phoneValid=draft.buyerPhone.replace(/\D/g,"").length>=10;
+ const handleNext=()=>{if(valid){next();return}setAttempted(true)};
+ return <div className="flow-card narrow"><div className="flow-heading"><small>고객정보</small><h1>{title}</h1><p>{description}</p></div><div className="form-stack"><Field label="성함" value={draft.buyerName} onChange={v=>setDraft(d=>({...d,buyerName:v}))} placeholder="성함을 입력해주세요" error={attempted&&!nameValid?"성함을 한 글자 이상 입력해주세요.":undefined}/><Field label="연락처" type="tel" value={draft.buyerPhone} onChange={v=>setDraft(d=>({...d,buyerPhone:v}))} placeholder="010-0000-0000" error={attempted&&!phoneValid?"휴대전화 번호를 숫자 10자리 이상 입력해주세요.":undefined}/><Field label="요청사항 (선택)" wide value={draft.note} onChange={v=>setDraft(d=>({...d,note:v}))} placeholder="예: 지방을 적게 부탁드립니다"/></div><div className={valid?"form-status ready":"form-status"}><span>{nameValid?"✓":"○"} 성함</span><span>{phoneValid?"✓":"○"} 연락처 10자리 이상</span></div><button className="main-cta" onClick={handleNext}>다음 <span>→</span></button></div>
 }
 function PickupTime({draft,setDraft,next}:{draft:OrderDraft;setDraft:React.Dispatch<React.SetStateAction<OrderDraft>>;next:()=>void}){
  const dates=["9월 21일 (월)","9월 22일 (화)","9월 23일 (수)","9월 24일 (목)"],times=["10:00–11:00","11:00–12:00","14:00–15:00","15:00–16:00","16:00–17:00"];

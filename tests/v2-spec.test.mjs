@@ -42,3 +42,12 @@ test("database migrations include P0 safeguards",async()=>{
  assert.match(supabase,/revoke all on function/);
  assert.match(supabase,/prevent_order_delete/);
 });
+
+test("customer info validation remains actionable",async()=>{
+ const tsx=await read("app/components/KioskApp.tsx");
+ assert.match(tsx,/flow-back-bottom/);
+ assert.match(tsx,/aria-label="이전 단계"/);
+ assert.match(tsx,/buyerName\.trim\(\)\.length>0/);
+ assert.match(tsx,/attempted&&!phoneValid/);
+ assert.doesNotMatch(tsx,/InfoStep[\s\S]{0,2500}disabled=\{!valid\}/);
+});
