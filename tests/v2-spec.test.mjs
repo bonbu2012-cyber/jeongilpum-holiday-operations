@@ -100,3 +100,16 @@ test("all operating surfaces share navigation and the kiosk rail stays sticky",a
  assert.match(css,/\.category-rail\{[^}]*position:sticky;top:92px;height:calc\(100vh - 92px\)/);
  assert.match(css,/\.category-rail\{padding:10px 6px 94px;top:116px;height:calc\(100vh - 116px\)/);
 });
+test("submitted orders stay visible across operations",async()=>{
+ const [admin,workshop,css]=await Promise.all([
+  read("app/components/AdminApp.tsx"),
+  read("app/components/WorkshopApp.tsx"),
+  read("app/globals.css"),
+ ]);
+ assert.match(admin,/setInterval\(\(\)=>\{void load\(\)\},8000\)/);
+ assert.match(admin,/submittedOrders/);
+ assert.match(admin,/recent-orders/);
+ assert.match(workshop,/\["submitted","confirmed","in_progress","ready"\]/);
+ assert.match(workshop,/work-action awaiting/);
+ assert.match(css,/\.work-action\.awaiting/);
+});
