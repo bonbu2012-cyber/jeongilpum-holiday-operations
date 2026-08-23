@@ -1,0 +1,93 @@
+/* eslint-disable @next/next/no-img-element */
+"use client";
+import { AnimatePresence, motion } from "framer-motion";
+import { useEffect, useMemo, useState } from "react";
+import type { OrderDraft, OrderRecord, Product } from "./types";
+
+type Step="products"|"cart"|"fulfillment"|"pickup-info"|"pickup-time"|"shipping-sender"|"shipping-recipient"|"shipping-address"|"review"|"done";
+const categories=["진공세트","프리미엄","LA갈비","뼈세트","O'meat"];
+const emptyDraft=():OrderDraft=>({cart:{},fulfillmentType:null,buyerName:"",buyerPhone:"",recipientName:"",recipientPhone:"",roadAddress:"",detailAddress:"",note:"",scheduleLabel:"",idempotencyKey:crypto.randomUUID()});
+const won=(n:number)=>n.toLocaleString("ko-KR")+"원";
+const transition={duration:.24,ease:[.22,1,.36,1] as [number,number,number,number]};
+
+function Photo({product,large=false}:{product:Product;large?:boolean}){
+ return <div className={"product-photo "+(large?"large":"")}>{product.imageUrl?<img src={product.imageUrl} alt={product.name}/>:<div className="photo-empty" role="img" aria-label={product.name+" 제품 사진 준비 중"}><span>▧</span><b>제품 사진</b><small>준비 중</small></div>}{product.badge&&<em>{product.badge}</em>}</div>
+}
+function Quantity({value,onChange,big=false}:{value:number;onChange:(n:number)=>void;big?:boolean}){
+ return <div className={"quantity "+(big?"big":"")}><button onClick={e=>{e.stopPropagation();onChange(Math.max(0,value-1))}} aria-label="수량 줄이기">−</button><b>{value}</b><button onClick={e=>{e.stopPropagation();onChange(value+1)}} aria-label="수량 늘리기">＋</button></div>
+}
+function StaffHelp(){
+ const[open,setOpen]=useState(false);
+ return <><button className="staff-help" onClick={()=>setOpen(true)}><span>?</span> 직원 도움</button>{open&&<div className="help-toast" role="status"><b>직원을 호출했습니다</b><span>입력하신 내용은 그대로 유지됩니다.</span><button onClick={()=>setOpen(false)}>확인</button></div>}</>
+}
+function Field({label,value,onChange,placeholder,type="text",wide=false}:{label:string;value:string;onChange:(v:string)=>void;placeholder:string;type?:string;wide?:boolean}){
+ return <label className={wide?"field wide":"field"}><span>{label}</span><input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} inputMode={type==="tel"?"numeric":undefined}/></label>
+}
+
+export default function KioskApp(){
+ const[products,setProducts]=useState<Product[]>([]),[loading,setLoading]=useState(true),[loadError,setLoadError]=useState("");
+ const[draft,setDraft]=useState<OrderDraft>(emptyDraft),[step,setStep]=useState<Step>("products"),[direction,setDirection]=useState(1),[category,setCategory]=useState(categories[0]),[detail,setDetail]=useState<Product|null>(null),[detailQty,setDetailQty]=useState(1),[submitting,setSubmitting]=useState(false),[submitError,setSubmitError]=useState(""),[completed,setCompleted]=useState<OrderRecord|null>(null);
+ useEffect(()=>{const frame=requestAnimationFrame(()=>{const saved=sessionStorage.getItem("jeongilpum-kiosk-draft");if(saved)try{setDraft(JSON.parse(saved))}catch{sessionStorage.removeItem("jeongilpum-kiosk-draft")};fetch("/api/products").then(r=>r.json() as Promise<{products?:Product[];error?:string}>).then(x=>{if(x.products)setProducts(x.products);else throw new Error(x.error)}).catch(()=>setLoadError("상품을 불러오지 못했습니다. 연결을 확인하고 다시 시도해주세요.")).finally(()=>setLoading(false))});return()=>cancelAnimationFrame(frame)},[]);
+ useEffect(()=>{if(step!=="done")sessionStorage.setItem("jeongilpum-kiosk-draft",JSON.stringify(draft))},[draft,step]);
+ const selected=useMemo(()=>products.filter(p=>draft.cart[p.id]>0),[products,draft.cart]);
+ const totalQty=selected.reduce((s,p)=>s+draft.cart[p.id],0),total=selected.reduce((s,p)=>s+p.price*draft.cart[p.id],0);
+ const setQty=(id:string,n:number)=>setDraft(d=>({...d,cart:{...d.cart,[id]:Math.max(0,n)}}));
+ const go=(next:Step,dir=1)=>{setDirection(dir);setStep(next);setSubmitError("")};
+ const back=()=>{const map:Partial<Record<Step,Step>>={cart:"products",fulfillment:"cart","pickup-info":"fulfillment","pickup-time":"pickup-info","shipping-sender":"fulfillment","shipping-recipient":"shipping-sender","shipping-address":"shipping-recipient",review:draft.fulfillmentType==="pickup"?"pickup-time":"shipping-address"};go(map[step]??"products",-1)};
+ const submit=async()=>{if(submitting)return;setSubmitting(true);setSubmitError("");try{const r=await fetch("/api/orders",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({idempotencyKey:draft.idempotencyKey,buyerName:draft.buyerName,buyerPhone:draft.buyerPhone,fulfillmentType:draft.fulfillmentType,scheduleLabel:draft.scheduleLabel,recipientName:draft.recipientName,recipientPhone:draft.recipientPhone,roadAddress:draft.roadAddress,detailAddress:draft.detailAddress,note:draft.note,items:selected.map(p=>({productId:p.id,quantity:draft.cart[p.id]}))})});const x=await r.json() as {order?:OrderRecord;error?:string};if(!r.ok||!x.order)throw new Error(x.error||"주문을 접수하지 못했습니다.");setCompleted(x.order);sessionStorage.removeItem("jeongilpum-kiosk-draft");go("done")}catch(e){setSubmitError(e instanceof Error?e.message:"주문이 아직 접수되지 않았습니다.")}finally{setSubmitting(false)}};
+ const reset=()=>{setDraft(emptyDraft());setCompleted(null);go("products",-1)};
+ const filtered=products.filter(p=>p.category===category);
+ return <div className="kiosk-app">
+  <header className="kiosk-header"><a className="kiosk-brand" href="/kiosk"><span>正</span><div><b>정일품</b><small>명절 선물세트</small></div></a><div className="kiosk-title"><b>좋은 선물을 골라주세요</b><span>2026 추석 예약</span></div><button className="cart-indicator" onClick={()=>totalQty&&go("cart")} aria-label={"장바구니 "+totalQty+"개"}>장바구니 <b>{totalQty}</b></button></header>
+  <AnimatePresence mode="wait" custom={direction}>
+   {step==="products"?<motion.div key="products" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} transition={transition} className="product-step">
+    <aside className="category-rail">{categories.map(c=><button key={c} className={category===c?"active":""} onClick={()=>setCategory(c)}><span>{c==="진공세트"?"眞":c==="프리미엄"?"品":c==="LA갈비"?"LA":c==="뼈세트"?"骨":"O"}</span>{c}</button>)}<button className="inquiry" onClick={()=>alert("직원을 호출했습니다. 현재 선택 내용은 유지됩니다.")}><span>?</span>맞춤 주문<br/><small>직원 문의</small></button></aside>
+    <section className="product-pane"><div className="pane-heading"><div><small>{category.toUpperCase()}</small><h1>{category}</h1></div><span>{filtered.length}개 상품</span></div>{loading?<div className="product-loading">상품을 준비하고 있습니다…</div>:loadError?<div className="product-error"><b>상품 연결이 필요합니다</b><span>{loadError}</span><button onClick={()=>location.reload()}>다시 시도</button></div>:<div className="product-grid">{filtered.map(p=><button className="product-card" key={p.id} onClick={()=>{setDetail(p);setDetailQty(Math.max(1,draft.cart[p.id]||1))}}><Photo product={p}/><div className="product-copy"><small>{p.customerDisplayWeight||p.category}</small><h2>{p.name}</h2><p>{p.subtitle}</p><strong>{won(p.price)}</strong><Quantity value={draft.cart[p.id]||0} onChange={n=>setQty(p.id,n)}/></div></button>)}</div>}</section>
+    <div className="kiosk-orderbar"><div><span>선택 <b>{totalQty}</b>세트</span><strong>{won(total)}</strong></div><button disabled={!totalQty} onClick={()=>go("cart")}>주문하기 <span>→</span></button></div><StaffHelp/>
+   </motion.div>:<FlowStep key={step} step={step} direction={direction} back={back} help>
+    {step==="cart"&&<CartStep products={selected} draft={draft} setQty={setQty} totalQty={totalQty} total={total} next={()=>go("fulfillment")}/>}
+    {step==="fulfillment"&&<Fulfillment choose={type=>{setDraft(d=>({...d,fulfillmentType:type}));go(type==="pickup"?"pickup-info":"shipping-sender")}}/>}
+    {step==="pickup-info"&&<InfoStep title="주문자 정보를 알려주세요" description="방문수령 안내에 필요한 정보입니다." draft={draft} setDraft={setDraft} next={()=>go("pickup-time")} valid={draft.buyerName.trim().length>1&&draft.buyerPhone.replace(/\D/g,"").length>=10}/>}
+    {step==="pickup-time"&&<PickupTime draft={draft} setDraft={setDraft} next={()=>go("review")}/>}
+    {step==="shipping-sender"&&<InfoStep title="보내는 분은 누구인가요?" description="주문 확인 연락을 드릴 정보를 입력해주세요." draft={draft} setDraft={setDraft} next={()=>go("shipping-recipient")} valid={draft.buyerName.trim().length>1&&draft.buyerPhone.replace(/\D/g,"").length>=10}/>}
+    {step==="shipping-recipient"&&<RecipientStep draft={draft} setDraft={setDraft} next={()=>go("shipping-address")}/>}
+    {step==="shipping-address"&&<AddressStep draft={draft} setDraft={setDraft} next={()=>go("review")}/>}
+    {step==="review"&&<Review draft={draft} products={selected} totalQty={totalQty} total={total} submitting={submitting} error={submitError} submit={submit}/>}
+    {step==="done"&&<Done order={completed} reset={reset}/>}
+   </FlowStep>}
+  </AnimatePresence>
+  <AnimatePresence>{detail&&<motion.div className="modal-backdrop" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} transition={transition} role="button" tabIndex={0} aria-label="상품 상세 닫기" onKeyDown={e=>{if(e.key==="Escape"||e.key==="Enter")setDetail(null)}} onMouseDown={()=>setDetail(null)}><motion.section className="product-modal" initial={{opacity:0,scale:.94}} animate={{opacity:1,scale:1}} exit={{opacity:0,scale:.94}} transition={transition} onMouseDown={e=>e.stopPropagation()} role="dialog" aria-modal="true"><button className="modal-x" onClick={()=>setDetail(null)}>×</button><Photo product={detail} large/><div className="modal-copy"><small>{detail.category}</small><h2>{detail.name}</h2><strong>{won(detail.price)}</strong><p>{detail.description}</p><dl><div><dt>구성 / 중량</dt><dd>{detail.customerDisplayWeight||detail.subtitle}</dd></div></dl><Quantity big value={detailQty} onChange={setDetailQty}/><button className="main-cta" onClick={()=>{setQty(detail.id,detailQty);setDetail(null)}}>장바구니 담기 <span>＋</span></button></div></motion.section></motion.div>}</AnimatePresence>
+ </div>
+}
+
+function FlowStep({children,step,direction,back,help}:{children:React.ReactNode;step:Step;direction:number;back:()=>void;help?:boolean}){
+ return <motion.section className="flow-shell" custom={direction} initial={{opacity:0,x:direction*70}} animate={{opacity:1,x:0}} exit={{opacity:0,x:direction*-70}} transition={transition}><header className="flow-header">{step!=="done"?<button onClick={back} aria-label="이전">←</button>:<span/>}<div className="flow-progress"><i style={{width:Math.min(100,(["cart","fulfillment","pickup-info","shipping-sender","pickup-time","shipping-recipient","shipping-address","review","done"].indexOf(step)+1)*14)+"%"}}/></div><span>{step==="done"?"접수 완료":"주문 진행"}</span></header><div className="flow-content">{children}</div>{help&&step!=="done"&&<StaffHelp/>}</motion.section>
+}
+function CartStep({products,draft,setQty,totalQty,total,next}:{products:Product[];draft:OrderDraft;setQty:(id:string,n:number)=>void;totalQty:number;total:number;next:()=>void}){
+ return <div className="flow-card"><div className="flow-heading"><small>STEP 1</small><h1>주문 상품을 확인해주세요</h1><p>수량과 상품이 맞는지 한 번 더 확인합니다.</p></div><div className="cart-review">{products.map(p=><article key={p.id}><Photo product={p}/><div><h2>{p.name}</h2><span>{won(p.price)}</span></div><Quantity big value={draft.cart[p.id]} onChange={n=>setQty(p.id,n)}/></article>)}</div><div className="flow-total"><span>총 {totalQty}세트</span><b>{won(total)}</b></div><button className="main-cta" disabled={!totalQty} onClick={next}>다음 <span>→</span></button></div>
+}
+function Fulfillment({choose}:{choose:(t:"pickup"|"shipping")=>void}){
+ return <div className="flow-card narrow"><div className="flow-heading center"><small>STEP 2</small><h1>어떻게 받으시겠어요?</h1><p>받는 방법에 따라 필요한 정보만 여쭤볼게요.</p></div><div className="fulfillment-buttons"><button onClick={()=>choose("pickup")}><span>⌂</span><b>방문수령</b><small>매장에서 직접 받기</small><i>→</i></button><button onClick={()=>choose("shipping")}><span>▣</span><b>택배발송</b><small>원하는 곳으로 보내기</small><i>→</i></button></div><p className="mixed-note">방문과 택배를 함께 이용하려면 <b>직원 도움</b>을 눌러주세요.</p></div>
+}
+function InfoStep({title,description,draft,setDraft,next,valid}:{title:string;description:string;draft:OrderDraft;setDraft:React.Dispatch<React.SetStateAction<OrderDraft>>;next:()=>void;valid:boolean}){
+ return <div className="flow-card narrow"><div className="flow-heading"><small>고객정보</small><h1>{title}</h1><p>{description}</p></div><div className="form-stack"><Field label="성함" value={draft.buyerName} onChange={v=>setDraft(d=>({...d,buyerName:v}))} placeholder="성함을 입력해주세요"/><Field label="연락처" type="tel" value={draft.buyerPhone} onChange={v=>setDraft(d=>({...d,buyerPhone:v}))} placeholder="010-0000-0000"/><Field label="요청사항 (선택)" wide value={draft.note} onChange={v=>setDraft(d=>({...d,note:v}))} placeholder="예: 지방을 적게 부탁드립니다"/></div><button className="main-cta" disabled={!valid} onClick={next}>다음 <span>→</span></button></div>
+}
+function PickupTime({draft,setDraft,next}:{draft:OrderDraft;setDraft:React.Dispatch<React.SetStateAction<OrderDraft>>;next:()=>void}){
+ const dates=["9월 21일 (월)","9월 22일 (화)","9월 23일 (수)","9월 24일 (목)"],times=["10:00–11:00","11:00–12:00","14:00–15:00","15:00–16:00","16:00–17:00"];
+ return <div className="flow-card narrow"><div className="flow-heading"><small>방문수령</small><h1>방문 날짜와 시간을 골라주세요</h1><p>선택한 시간에 맞춰 상품을 준비하겠습니다.</p></div><h3 className="option-label">방문 날짜</h3><div className="date-options">{dates.map((d,i)=><button key={d} disabled={i===3} className={draft.scheduleLabel.startsWith(d)?"active":""} onClick={()=>setDraft(x=>({...x,scheduleLabel:d}))}>{d}{i===3&&<small>예약마감</small>}</button>)}</div><h3 className="option-label">방문 시간</h3><div className="time-options">{times.map(t=><button key={t} className={draft.scheduleLabel.endsWith(t)?"active":""} disabled={!draft.scheduleLabel} onClick={()=>setDraft(x=>({...x,scheduleLabel:x.scheduleLabel.split(" · ")[0]+" · "+t}))}>{t}</button>)}</div><button className="main-cta" disabled={!draft.scheduleLabel.includes(" · ")} onClick={next}>최종 확인 <span>→</span></button></div>
+}
+function RecipientStep({draft,setDraft,next}:{draft:OrderDraft;setDraft:React.Dispatch<React.SetStateAction<OrderDraft>>;next:()=>void}){
+ const valid=draft.recipientName.trim().length>1&&draft.recipientPhone.replace(/\D/g,"").length>=10;
+ return <div className="flow-card narrow"><div className="flow-heading"><small>택배 2/3</small><h1>받는 분을 알려주세요</h1><p>배송 안내에 필요한 정보입니다.</p></div><div className="form-stack"><Field label="받는 분 성함" value={draft.recipientName} onChange={v=>setDraft(d=>({...d,recipientName:v}))} placeholder="받는 분 성함"/><Field label="받는 분 연락처" type="tel" value={draft.recipientPhone} onChange={v=>setDraft(d=>({...d,recipientPhone:v}))} placeholder="010-0000-0000"/></div><button className="main-cta" disabled={!valid} onClick={next}>주소 입력 <span>→</span></button></div>
+}
+function AddressStep({draft,setDraft,next}:{draft:OrderDraft;setDraft:React.Dispatch<React.SetStateAction<OrderDraft>>;next:()=>void}){
+ const[candidates,setCandidates]=useState<string[]>([]);
+ const search=()=>{if(draft.roadAddress.trim().length<2)return;setCandidates([draft.roadAddress+" 12 (정일동)",draft.roadAddress+" 27길 8 (정일동)"])};
+ return <div className="flow-card narrow"><div className="flow-heading"><small>택배 3/3</small><h1>배송 주소를 확인해주세요</h1><p>검색 결과를 선택해야 주소가 확정됩니다.</p></div><label className="field"><span>주소검색</span><div className="address-search"><input value={draft.roadAddress} onChange={e=>{setDraft(d=>({...d,roadAddress:e.target.value}));setCandidates([])}} placeholder="도로명 또는 건물명"/><button onClick={search}>검색</button></div></label>{candidates.length>0&&<div className="address-results"><small>이 주소가 맞나요?</small>{candidates.map(c=><button key={c} onClick={()=>{setDraft(d=>({...d,roadAddress:c}));setCandidates([])}}>{c}</button>)}</div>}<Field label="상세주소" value={draft.detailAddress} onChange={v=>setDraft(d=>({...d,detailAddress:v}))} placeholder="동·호수 또는 상세 위치"/><button className="main-cta" disabled={draft.roadAddress.length<5||!draft.detailAddress.trim()} onClick={next}>최종 확인 <span>→</span></button></div>
+}
+function Review({draft,products,totalQty,total,submitting,error,submit}:{draft:OrderDraft;products:Product[];totalQty:number;total:number;submitting:boolean;error:string;submit:()=>void}){
+ return <div className="flow-card review-card"><div className="flow-heading"><small>FINAL CHECK</small><h1>주문 내용을 확인해주세요</h1><p>접수 후 변경이 필요하면 판매장에 알려주세요.</p></div><div className="review-list"><section><h3>주문 상품</h3>{products.map(p=><p key={p.id}><span>{p.name} × {draft.cart[p.id]}</span><b>{won(p.price*draft.cart[p.id])}</b></p>)}</section><section><h3>{draft.fulfillmentType==="pickup"?"방문수령":"택배발송"}</h3><p><span>주문자</span><b>{draft.buyerName} · {draft.buyerPhone}</b></p>{draft.fulfillmentType==="shipping"&&<><p><span>받는 분</span><b>{draft.recipientName} · {draft.recipientPhone}</b></p><p><span>주소</span><b>{draft.roadAddress} {draft.detailAddress}</b></p></>}<p><span>일정</span><b>{draft.scheduleLabel}</b></p>{draft.note&&<p><span>요청사항</span><b>{draft.note}</b></p>}</section></div><div className="flow-total"><span>총 {totalQty}세트</span><b>{won(total)}</b></div>{error&&<div className="submit-error"><b>주문이 아직 접수되지 않았습니다</b><span>{error}</span></div>}<button className="main-cta" disabled={submitting} onClick={submit}>{submitting?"주문을 접수하고 있습니다…":"주문 접수"}<span>{submitting?"":"→"}</span></button><small className="idempotency-note">같은 주문이 중복으로 접수되지 않도록 안전하게 확인합니다.</small></div>
+}
+function Done({order,reset}:{order:OrderRecord|null;reset:()=>void}){
+ return <div className="done-card"><div className="done-mark">✓</div><small>ORDER COMPLETE</small><h1>주문 접수가 완료되었습니다</h1><p>정성껏 준비해 약속한 일정에 맞춰드리겠습니다.</p><div className="receipt"><span>주문번호</span><b>{order?.orderNo||"-"}</b><span>받는 방법</span><b>{order?.fulfillmentType==="pickup"?"방문수령":"택배발송"}</b><span>예정 일정</span><b>{order?.scheduleLabel||"-"}</b></div><button className="main-cta" onClick={reset}>새 주문 시작하기 <span>→</span></button></div>
+}
