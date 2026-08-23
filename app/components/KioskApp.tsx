@@ -3,6 +3,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 import type { OrderDraft, OrderRecord, Product } from "./types";
+import AppNav from "./AppNav";
 
 type Step="products"|"cart"|"fulfillment"|"pickup-info"|"pickup-time"|"shipping-sender"|"shipping-recipient"|"shipping-address"|"review"|"done";
 const categories=["진공세트","프리미엄","LA갈비","뼈세트","O'meat"];
@@ -38,7 +39,7 @@ export default function KioskApp(){
  const reset=()=>{setDraft(emptyDraft());setCompleted(null);go("products",-1)};
  const filtered=products.filter(p=>p.category===category);
  return <div className="kiosk-app">
-  <header className="kiosk-header"><a className="kiosk-brand" href="/kiosk"><span>正</span><div><b>정일품</b><small>명절 선물세트</small></div></a><div className="kiosk-title"><b>좋은 선물을 골라주세요</b><span>2026 추석 예약</span></div><nav className="kiosk-route-buttons" aria-label="운영 화면"><a href="/admin">판매장</a><a href="/workshop">작업장</a><a href="/settings">설정</a></nav><button className="cart-indicator" onClick={()=>totalQty&&go("cart")} aria-label={"장바구니 "+totalQty+"개"}>장바구니 <b>{totalQty}</b></button></header>
+  <header className="kiosk-header"><a className="kiosk-brand" href="/kiosk"><span>正</span><div><b>정일품</b><small>명절 선물세트</small></div></a><div className="kiosk-title"><b>좋은 선물을 골라주세요</b><span>2026 추석 예약</span></div><AppNav current="kiosk"/><button className="cart-indicator" onClick={()=>totalQty&&go("cart")} aria-label={"장바구니 "+totalQty+"개"}>장바구니 <b>{totalQty}</b></button></header>
   <AnimatePresence mode="wait" custom={direction}>
    {step==="products"?<motion.div key="products" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} transition={transition} className="product-step">
     <aside className="category-rail">{categories.map(c=><button key={c} className={(category===c?"active ":"")+(c==="뼈세트"?"single":"with-assist")} onClick={()=>setCategory(c)}><strong className={c==="O'meat"?"category-name omeat":"category-name"}>{c==="O'meat"?"O'":c}</strong>{c==="진공세트"?<small className="category-assist">VACUUM</small>:c==="프리미엄"?<small className="category-assist">PREMIUM</small>:c==="LA갈비"?<small className="category-assist">LA</small>:c==="O'meat"?<small className="category-assist omeat">meat</small>:null}</button>)}<a className="custom-order-link" href="/kiosk/custom"><strong>맞춤주문</strong><small>CUSTOM ORDER</small></a></aside>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import AppNav from "./AppNav";
 
 type EditableProduct = {
   id:string; category:string; code:string; name:string; subtitle:string; description:string;
@@ -65,7 +66,7 @@ export default function SettingsApp(){
   };
 
   return <main className="settings-app">
-    <header className="settings-header"><a href="/kiosk"><b>正</b><span>정일품 설정<small>운영자 전용</small></span></a><nav><a href="/kiosk">키오스크</a><a href="/admin">판매장</a><a href="/workshop">작업장</a></nav></header>
+    <header className="settings-header"><a href="/kiosk"><b>正</b><span>정일품 설정<small>운영자 전용</small></span></a><AppNav current="settings"/></header>
     <section className="settings-intro"><small>APP SETTINGS</small><h1>앱에서 바로 수정하세요</h1><p>저장한 상품 정보와 판매 일정은 키오스크에 즉시 반영됩니다.</p></section>
     {loading&&<div className="settings-loading">설정을 불러오고 있습니다…</div>}
     {error&&<div className="access-error"><b>설정 화면에 연결할 수 없습니다</b><span>{error}</span><a href="/signin-with-chatgpt?return_to=/settings">운영자 로그인</a></div>}

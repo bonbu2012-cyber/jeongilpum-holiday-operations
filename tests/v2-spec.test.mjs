@@ -61,15 +61,17 @@ test("category rail uses Korean-first hierarchy",async()=>{
  assert.doesNotMatch(tsx,/🦴|category-symbol/);
 });
 test("custom order and settings workflows are durable",async()=>{
- const [kiosk,custom,customApi,settings,settingsApi,d1]=await Promise.all([
+ const [kiosk,nav,custom,customApi,settings,settingsApi,d1]=await Promise.all([
   read("app/components/KioskApp.tsx"),
+  read("app/components/AppNav.tsx"),
   read("app/components/CustomOrderApp.tsx"),
   read("app/api/custom-orders/route.ts"),
   read("app/components/SettingsApp.tsx"),
   read("app/api/settings/route.ts"),
   read("drizzle/0001_confused_swarm.sql"),
  ]);
- for(const route of ["/admin","/workshop","/settings","/kiosk/custom"])assert.match(kiosk,new RegExp(route.replaceAll("/","\\/")));
+ for(const route of ["/admin","/workshop","/settings"])assert.match(nav,new RegExp(route.replaceAll("/","\\/")));
+ assert.match(kiosk,/\/kiosk\/custom/);
  assert.match(kiosk,/category-name omeat/);
  assert.match(kiosk,/category-name omeat/);
  assert.match(custom,/idempotencyKey/);
@@ -78,4 +80,23 @@ test("custom order and settings workflows are durable",async()=>{
  assert.match(settingsApi,/OPERATOR_USER_IDS/);
  assert.match(settingsApi,/configuration_events/);
  assert.match(d1,/custom_orders_no_hard_delete/);
+});
+
+test("all operating surfaces share navigation and the kiosk rail stays sticky",async()=>{
+ const [nav,kiosk,admin,workshop,settings,css]=await Promise.all([
+  read("app/components/AppNav.tsx"),
+  read("app/components/KioskApp.tsx"),
+  read("app/components/AdminApp.tsx"),
+  read("app/components/WorkshopApp.tsx"),
+  read("app/components/SettingsApp.tsx"),
+  read("app/globals.css"),
+ ]);
+ for(const href of ["/kiosk","/admin","/workshop","/settings"])assert.match(nav,new RegExp('href: "'+href.replaceAll("/","\\/")+'"'));
+ assert.match(nav,/aria-current/);
+ assert.match(kiosk,/AppNav current="kiosk"/);
+ assert.match(admin,/AppNav current="admin"/);
+ assert.match(workshop,/AppNav current="workshop"/);
+ assert.match(settings,/AppNav current="settings"/);
+ assert.match(css,/\.category-rail\{[^}]*position:sticky;top:92px;height:calc\(100vh - 92px\)/);
+ assert.match(css,/\.category-rail\{padding:10px 6px 94px;top:116px;height:calc\(100vh - 116px\)/);
 });
