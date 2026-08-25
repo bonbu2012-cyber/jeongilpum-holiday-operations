@@ -21,15 +21,16 @@ type SeasonPayload = {
 };
 type Payload = ProductPayload | SeasonPayload;
 
-const runtimeEnv=env as typeof env&{DB:D1Database;OPERATOR_USER_IDS?:string};
-function isOperator(id:string){return(runtimeEnv.OPERATOR_USER_IDS??"").split(",").map(v=>v.trim()).filter(Boolean).includes(id)}
+const runtimeEnv=env as typeof env&{DB:D1Database;OPERATOR_USER_IDS?:string;OPERATOR_EMAILS?:string};
+function configured(value:string|undefined){return(value??"").split(",").map(item=>item.trim()).filter(Boolean)}
+function isOperator(user:{userId:string;email:string}){return configured(runtimeEnv.OPERATOR_USER_IDS).includes(user.userId)||configured(runtimeEnv.OPERATOR_EMAILS).map(value=>value.toLowerCase()).includes(user.email.toLowerCase())}
 function product(row:ProductRow){return{id:row.id,category:row.category,code:row.code,name:row.name,subtitle:row.subtitle,description:row.description,price:row.price,customerDisplayWeight:row.customer_display_weight,imageUrl:row.image_url,badge:row.badge,displayOrder:row.display_order,active:Boolean(row.active),version:row.version,updatedAt:row.updated_at}}
 function season(row:SeasonRow){return{id:row.id,name:row.name,holidayDate:row.holiday_date,salesStartDate:row.sales_start_date,salesEndDate:row.sales_end_date,active:Boolean(row.active),version:row.version,updatedAt:row.updated_at}}
 
 async function authorize(){
   const user=await getChatGPTUser();
   if(!user)return{error:Response.json({error:"로그인이 필요합니다."},{status:401})};
-  if(!isOperator(user.userId))return{error:Response.json({error:"설정 권한이 없습니다."},{status:403})};
+  if(!isOperator(user))return{error:Response.json({error:"설정 권한이 없습니다."},{status:403})};
   return{user};
 }
 

@@ -15,10 +15,11 @@ type CreatePayload = {
   items?:{productId?:string;quantity?:number}[];
 };
 
-const runtimeEnv = env as typeof env & { DB:D1Database; OPERATOR_USER_IDS?:string };
+const runtimeEnv = env as typeof env & { DB:D1Database; OPERATOR_USER_IDS?:string; OPERATOR_EMAILS?:string };
 const isoDatePattern = /^\d{4}-\d{2}-\d{2}$/;
 
-function isOperator(userId:string){return (runtimeEnv.OPERATOR_USER_IDS??"").split(",").map(v=>v.trim()).filter(Boolean).includes(userId)}
+function configured(value:string|undefined){return(value??"").split(",").map(item=>item.trim()).filter(Boolean)}
+function isOperator(user:{userId:string;email:string}){return configured(runtimeEnv.OPERATOR_USER_IDS).includes(user.userId)||configured(runtimeEnv.OPERATOR_EMAILS).map(value=>value.toLowerCase()).includes(user.email.toLowerCase())}
 function normalizePhone(value:string){return value.replace(/\D/g,"")}
 function todayInSeoul(){const parts=new Intl.DateTimeFormat("en-US",{timeZone:"Asia/Seoul",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date());const value=(type:string)=>parts.find(part=>part.type===type)?.value??"";return `${value("year")}-${value("month")}-${value("day")}`}
 function validIsoDate(value:string){if(!isoDatePattern.test(value))return false;const [year,month,day]=value.split("-").map(Number),date=new Date(Date.UTC(year,month-1,day));return date.getUTCFullYear()===year&&date.getUTCMonth()===month-1&&date.getUTCDate()===day}
@@ -56,7 +57,7 @@ async function serializeOrders(rows:OrderRow[]){
 export async function GET(request:Request){
   const user=await getChatGPTUser();
   if(!user)return Response.json({error:"로그인이 필요합니다."},{status:401});
-  if(!isOperator(user.userId))return Response.json({error:"운영자 권한이 없습니다."},{status:403});
+  if(!isOperator(user))return Response.json({error:"운영자 권한이 없습니다."},{status:403});
   try{
     const params=new URL(request.url).searchParams,q=params.get("q")?.trim()??"",date=params.get("date")?.trim()??"",like=`%${q}%`;
     if(date&&!validIsoDate(date))return Response.json({error:"조회 날짜 형식을 확인해주세요."},{status:400});
@@ -70,7 +71,7 @@ export async function GET(request:Request){
     }else{
       result=await runtimeEnv.DB.prepare("SELECT * FROM orders ORDER BY created_at DESC LIMIT 100").all<OrderRow>();
     }
-    return Response.json({orders:await serializeOrders(result.results)},{headers:{"Cache-Control":"no-store"}});
+    return Response.json({orders:await serializeOrders(result.results)},{headers:{"Cache-Control":"no-store, no-cache, must-revalidate","Pragma":"no-cache","Expires":"0"}});
   }catch(error){return Response.json({error:error instanceof Error?error.message:"주문을 불러오지 못했습니다."},{status:500})}
 }
 

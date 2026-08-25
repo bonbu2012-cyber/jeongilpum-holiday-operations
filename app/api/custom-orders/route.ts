@@ -31,7 +31,7 @@ const budgets = new Set(["10만원 이하","10–20만원","20–30만원","30�
 const fulfillments = new Set(["방문수령","택배발송","방문+택배 혼합"]);
 
 function normalizePhone(value: string) {
-  return value.replace(/D/g, "");
+  return value.replace(/\D/g, "");
 }
 
 function createRequestNo() {

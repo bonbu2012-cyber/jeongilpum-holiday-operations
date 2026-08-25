@@ -131,3 +131,32 @@ test("sales and workshop refetch within three seconds and recover on focus and o
  assert.match(admin,/selectedDate/);
  assert.match(client,/date/);
 });
+
+test("P0 custom order validates, reviews, preserves, and then submits",async()=>{
+ const [custom,customApi]=await Promise.all([read("app/components/CustomOrderApp.tsx"),read("app/api/custom-orders/route.ts")]);
+ for(const step of ['"form"','"review"','"done"'])assert.match(custom,new RegExp(step));
+ assert.match(custom,/onSubmit=\{review\}/);
+ assert.match(custom,/setStep\("review"\)/);
+ assert.match(custom,/맞춤주문 최종확인/);
+ assert.match(custom,/draftStorageKey/);
+ assert.match(custom,/sessionStorage\.setItem/);
+ assert.match(custom,/fieldErrors\.customerPhone/);
+ assert.match(custom,/type="submit"/);
+ assert.match(custom,/replace\(\/\\D\/g/);
+ assert.match(customApi,/replace\(\/\\D\/g/);
+});
+
+test("P0 sales auth accepts configured user IDs or operator emails and disables response caches",async()=>{
+ const [orders,status,fulfillment,settings,client]=await Promise.all([read("app/api/orders/route.ts"),read("app/api/orders/status/route.ts"),read("app/api/orders/fulfillment/route.ts"),read("app/api/settings/route.ts"),read("app/lib/orders-client.ts")]);
+ for(const source of [orders,status,fulfillment,settings]){
+  assert.match(source,/OPERATOR_USER_IDS/);
+  assert.match(source,/OPERATOR_EMAILS/);
+  assert.match(source,/user\.email\.toLowerCase\(\)/);
+  assert.match(source,/isOperator\(user\)/);
+ }
+ assert.match(client,/cache:"no-store"/);
+ assert.match(orders,/no-store, no-cache, must-revalidate/);
+ assert.match(orders,/f\.fulfillment_type='pickup'/);
+ assert.match(orders,/f\.ship_date=\?/);
+ assert.match(orders,/ORDER BY o\.created_at DESC/);
+});
