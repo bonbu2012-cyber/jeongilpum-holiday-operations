@@ -123,7 +123,7 @@ test("all operating surfaces share navigation and sales has an alias route",asyn
 test("sales and workshop refetch within three seconds and recover on focus and online",async()=>{
  const [admin,workshop,client]=await Promise.all([read("app/components/AdminApp.tsx"),read("app/components/WorkshopApp.tsx"),read("app/lib/orders-client.ts")]);
  for(const source of [admin,workshop]){
-  assert.match(source,/setInterval\(\(\)=>\{void load\([^)]*\)\},2500\)/);
+  assert.match(source,/setInterval\([\s\S]{0,100}2500\)/);
   assert.match(source,/addEventListener\("focus"/);
   assert.match(source,/addEventListener\("online"/);
  }

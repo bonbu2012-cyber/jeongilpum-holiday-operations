@@ -9,7 +9,7 @@
         "dev": "vinext dev",
         "build": "vinext build",
         "start": "vinext start",
-        "test": "node --test tests/v2-spec.test.mjs",
+        "test": "node --test tests/v2-spec.test.mjs tests/legacy-fulfillment.test.mjs",
         "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
         "db:generate": "drizzle-kit generate",
         "typecheck": "tsc --noEmit"
@@ -27,7 +27,7 @@
         "@next/eslint-plugin-next": "16.2.6",
         "@tailwindcss/postcss": "4.2.1",
         "@types/node": "22.19.19",
-        "@types/react": "19.2.14",
+        "@types/react": "22.19.19",
         "@types/react-dom": "19.2.3",
         "@vitejs/plugin-react": "6.0.2",
         "@vitejs/plugin-rsc": "0.5.26",

@@ -6,4 +6,22 @@
 .sales-date-filter>button:disabled{background:#aaa}
 .actual-arrivals{margin:16px 0;display:grid;gap:10px}
 .actual-arrivals .arrival-alert{margin:0}
-@media(max-width:700px){.sales-date-filter{grid-template-columns:1fr 95px}}
+.legacy-order{border:2px solid #d7aa61;background:#fffdf8}
+.state.legacy{background:#8a5b20;color:#fff}
+.legacy-actions{display:grid;gap:10px;padding-top:14px;border-top:1px solid #eadbc4}
+.legacy-actions p{margin:0;color:#765d3d;font-size:12px;line-height:1.5}
+.legacy-schedule-editor{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:16px;border-radius:12px;background:#f7efe2}
+.legacy-schedule-editor h3{grid-column:1/-1;margin:0;font-size:17px}
+.legacy-schedule-editor label{display:grid;gap:6px;color:#5d452b;font-size:12px;font-weight:900}
+.legacy-schedule-editor input,.legacy-schedule-editor select{width:100%;height:48px;border:1px solid #cdb993;border-radius:10px;background:#fff;padding:0 12px;font:inherit}
+.legacy-editor-buttons{grid-column:1/-1;display:grid;grid-template-columns:1fr 2fr;gap:8px}
+.legacy-editor-buttons button{height:48px;border:1px solid #cdb993;border-radius:10px;background:#fff;font-weight:900}
+.legacy-editor-buttons .task-primary{border:0;background:var(--wine);color:#fff}
+.legacy-editor-buttons button:disabled{opacity:.55}
+.unscheduled-orders{margin-top:26px;padding-top:24px;border-top:2px solid #e6d7c1}
+.unscheduled-orders>header{display:flex;justify-content:space-between;align-items:end;gap:16px;margin-bottom:14px}
+.unscheduled-orders h2,.unscheduled-orders p{margin:0}
+.unscheduled-orders h2 b{color:#9c5e16}
+.unscheduled-orders header small{color:#9c5e16;font-weight:900;letter-spacing:.08em}
+.unscheduled-orders header p{max-width:360px;color:var(--muted);font-size:12px;text-align:right}
+@media(max-width:700px){.sales-date-filter{grid-template-columns:1fr 95px}.legacy-schedule-editor{grid-template-columns:1fr}.legacy-schedule-editor h3,.legacy-editor-buttons{grid-column:auto}.unscheduled-orders>header{display:grid}.unscheduled-orders header p{text-align:left}}
