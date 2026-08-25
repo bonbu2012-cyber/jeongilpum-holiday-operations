@@ -11,6 +11,14 @@ export type Product = {
   badge: string | null;
 };
 
+export type SeasonSchedule = {
+  id: string;
+  name: string;
+  holidayDate: string;
+  salesStartDate: string;
+  salesEndDate: string;
+};
+
 export type OrderStatus = "submitted" | "confirmed" | "in_progress" | "ready" | "fulfilled" | "cancelled";
 
 export type OrderItem = {
@@ -29,10 +37,17 @@ export type OrderRecord = {
   status: OrderStatus;
   fulfillmentType: "pickup" | "shipping";
   scheduleLabel: string;
+  fulfillmentId: string | null;
+  pickupAt: string | null;
+  shipDate: string | null;
   recipientName: string | null;
   recipientPhone: string | null;
+  postalCode: string | null;
   roadAddress: string | null;
+  roadAddrReference: string | null;
+  jibunAddr: string | null;
   detailAddress: string | null;
+  customerArrived: boolean;
   note: string;
   totalAmount: number;
   version: number;
@@ -48,8 +63,15 @@ export type OrderDraft = {
   buyerPhone: string;
   recipientName: string;
   recipientPhone: string;
-  roadAddress: string;
-  detailAddress: string;
+  postalCode: string;
+  roadAddr: string;
+  roadAddrReference: string;
+  jibunAddr: string;
+  detailAddr: string;
+  addressMode: "search" | "manual";
+  pickupDate: string;
+  pickupTime: string;
+  shipDate: string;
   note: string;
   scheduleLabel: string;
   idempotencyKey: string;

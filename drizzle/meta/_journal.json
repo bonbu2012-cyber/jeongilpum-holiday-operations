@@ -15,6 +15,13 @@
       "when": 1787475203792,
       "tag": "0001_confused_swarm",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1787634137004,
+      "tag": "0002_deep_giant_girl",
+      "breakpoints": true
     }
   ]
 }

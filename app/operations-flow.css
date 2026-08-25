@@ -1,0 +1,9 @@
+.ops-clear{margin:0;padding:18px 3px;color:var(--muted);font-size:12px}
+.sales-date-filter{display:grid;grid-template-columns:1fr 110px;gap:10px;margin-bottom:16px;align-items:end}
+.sales-date-filter label{display:grid;gap:6px;font-size:11px;font-weight:900}
+.sales-date-filter input{height:52px;border:1px solid #d9d1c4;border-radius:11px;padding:0 14px;background:#fff}
+.sales-date-filter>button{height:52px;border:0;border-radius:11px;background:var(--wine);color:#fff;font-weight:900}
+.sales-date-filter>button:disabled{background:#aaa}
+.actual-arrivals{margin:16px 0;display:grid;gap:10px}
+.actual-arrivals .arrival-alert{margin:0}
+@media(max-width:700px){.sales-date-filter{grid-template-columns:1fr 95px}}
