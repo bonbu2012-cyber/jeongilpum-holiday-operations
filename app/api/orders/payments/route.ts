@@ -92,6 +92,9 @@ export async function POST(request: Request) {
             user.userId,
             now,
           ),
+        runtimeEnv.DB
+          .prepare("UPDATE order_credit_terms SET status='settled',settled_at=? WHERE order_id=? AND status='open' AND ?>=?")
+          .bind(now, orderId, (paidResult?.paid ?? 0) + amount, order.total_amount),
       ]);
       return Response.json({ ok: true, paymentId }, { status: 201 });
     }

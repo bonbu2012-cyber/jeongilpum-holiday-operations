@@ -1,11 +1,11 @@
 import { env } from "cloudflare:workers";
 import { getChatGPTUser } from "../../../chatgpt-auth";
 
-type StatusPayload={orderId?:string;status?:"confirmed"|"in_progress"|"ready"|"fulfilled";expectedVersion?:number};
+type StatusPayload={orderId?:string;status?:"confirmed"|"in_progress"|"ready"|"fulfilled"|"cancelled";expectedVersion?:number};
 type Current={id:string;order_no:string;order_status:string;version:number};
 type Item={product_id:string;product_name_snapshot:string;quantity:number;code:string};
 const runtimeEnv=env as typeof env&{DB:D1Database;OPERATOR_USER_IDS?:string;OPERATOR_EMAILS?:string};
-const allowed:Record<string,string[]>={submitted:["confirmed"],confirmed:["in_progress"],in_progress:["ready"],ready:["fulfilled"]};
+const allowed:Record<string,string[]>={submitted:["confirmed","cancelled"],confirmed:["in_progress","cancelled"],in_progress:["ready","cancelled"],ready:["fulfilled","cancelled"]};
 function configured(value:string|undefined){return(value??"").split(",").map(item=>item.trim()).filter(Boolean)}
 function isOperator(user:{userId:string;email:string}){return configured(runtimeEnv.OPERATOR_USER_IDS).includes(user.userId)||configured(runtimeEnv.OPERATOR_EMAILS).map(value=>value.toLowerCase()).includes(user.email.toLowerCase())}
 function slug(code:string){return code.replace(/[^A-Z0-9]/gi,"").slice(0,3).toUpperCase()||"PKG"}
@@ -34,6 +34,10 @@ export async function PATCH(request:Request){
   if(x.status==="in_progress")statements.push(runtimeEnv.DB.prepare("UPDATE packages SET package_status='in_progress',updated_at=? WHERE order_id=? AND package_status='queued'").bind(now,x.orderId));
   if(x.status==="ready")statements.push(runtimeEnv.DB.prepare("UPDATE packages SET package_status='completed',updated_at=? WHERE order_id=? AND package_status='in_progress'").bind(now,x.orderId));
   if(x.status==="fulfilled")statements.push(runtimeEnv.DB.prepare("UPDATE packages SET package_status='handed_over',updated_at=? WHERE order_id=? AND package_status='completed'").bind(now,x.orderId));
+  if(x.status==="cancelled"){
+   statements.push(runtimeEnv.DB.prepare("UPDATE product_daily_reservations SET status='released',released_at=? WHERE order_id=? AND status='active'").bind(now,x.orderId));
+   statements.push(runtimeEnv.DB.prepare("UPDATE packages SET package_status='voided',updated_at=? WHERE order_id=? AND package_status!='handed_over'").bind(now,x.orderId));
+  }
   const result=await runtimeEnv.DB.batch(statements);
   if(!result[0].meta.changes)return Response.json({error:"상태가 이미 변경되었습니다. 최신 내용을 다시 확인해주세요."},{status:409});
   return Response.json({ok:true,status:x.status,version:current.version+1});

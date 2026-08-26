@@ -752,7 +752,16 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {}
+      "checkConstraints": {
+        "order_credit_terms_outstanding_positive": {
+          "name": "order_credit_terms_outstanding_positive",
+          "value": "\"order_credit_terms\".\"outstanding_amount\" > 0"
+        },
+        "order_credit_terms_status_valid": {
+          "name": "order_credit_terms_status_valid",
+          "value": "\"order_credit_terms\".\"status\" in ('open', 'settled')"
+        }
+      }
     },
     "order_events": {
       "name": "order_events",
@@ -1486,7 +1495,12 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {}
+      "checkConstraints": {
+        "payments_valid_entry": {
+          "name": "payments_valid_entry",
+          "value": "\n    (\"payments\".\"type\" = 'payment' and \"payments\".\"method\" is not null and \"payments\".\"method\" in ('card', 'cash', 'bank_transfer') and \"payments\".\"amount\" > 0)\n    or (\"payments\".\"type\" = 'refund' and \"payments\".\"amount\" > 0)\n    or (\"payments\".\"type\" = 'adjustment' and \"payments\".\"amount\" <> 0)\n  "
+        }
+      }
     },
     "product_daily_limits": {
       "name": "product_daily_limits",
@@ -1555,7 +1569,12 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {}
+      "checkConstraints": {
+        "product_daily_limits_positive": {
+          "name": "product_daily_limits_positive",
+          "value": "\"product_daily_limits\".\"daily_limit\" > 0"
+        }
+      }
     },
     "product_daily_reservations": {
       "name": "product_daily_reservations",
@@ -1693,7 +1712,16 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {}
+      "checkConstraints": {
+        "product_daily_reservations_quantity_positive": {
+          "name": "product_daily_reservations_quantity_positive",
+          "value": "\"product_daily_reservations\".\"quantity\" > 0"
+        },
+        "product_daily_reservations_status_valid": {
+          "name": "product_daily_reservations_status_valid",
+          "value": "\"product_daily_reservations\".\"status\" in ('active', 'released')"
+        }
+      }
     },
     "products": {
       "name": "products",

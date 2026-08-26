@@ -1,4 +1,5 @@
-import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { sql } from "drizzle-orm";
+import { check, index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const products = sqliteTable("products", {
   id: text("id").primaryKey(),
@@ -128,7 +129,9 @@ export const productDailyLimits = sqliteTable("product_daily_limits", {
   active: integer("active", { mode: "boolean" }).notNull().default(true),
   version: integer("version").notNull().default(1),
   updatedAt: text("updated_at").notNull(),
-});
+}, (table) => [
+  check("product_daily_limits_positive", sql`${table.dailyLimit} > 0`),
+]);
 
 export const productDailyReservations = sqliteTable("product_daily_reservations", {
   id: text("id").primaryKey(),
@@ -144,6 +147,8 @@ export const productDailyReservations = sqliteTable("product_daily_reservations"
   uniqueIndex("idx_daily_reservations_item").on(table.orderItemId),
   index("idx_daily_reservations_product_date").on(table.productId, table.reserveDate, table.status),
   index("idx_daily_reservations_order").on(table.orderId),
+  check("product_daily_reservations_quantity_positive", sql`${table.quantity} > 0`),
+  check("product_daily_reservations_status_valid", sql`${table.status} in ('active', 'released')`),
 ]);
 
 export const payments = sqliteTable("payments", {
@@ -161,6 +166,11 @@ export const payments = sqliteTable("payments", {
 }, (table) => [
   uniqueIndex("idx_payments_idempotency").on(table.idempotencyKey),
   index("idx_payments_order_paid_at").on(table.orderId, table.paidAt),
+  check("payments_valid_entry", sql`
+    (${table.type} = 'payment' and ${table.method} is not null and ${table.method} in ('card', 'cash', 'bank_transfer') and ${table.amount} > 0)
+    or (${table.type} = 'refund' and ${table.amount} > 0)
+    or (${table.type} = 'adjustment' and ${table.amount} <> 0)
+  `),
 ]);
 
 export const orderCreditTerms = sqliteTable("order_credit_terms", {
@@ -175,6 +185,8 @@ export const orderCreditTerms = sqliteTable("order_credit_terms", {
   settledAt: text("settled_at"),
 }, (table) => [
   index("idx_order_credit_terms_order_status").on(table.orderId, table.status),
+  check("order_credit_terms_outstanding_positive", sql`${table.outstandingAmount} > 0`),
+  check("order_credit_terms_status_valid", sql`${table.status} in ('open', 'settled')`),
 ]);
 
 export const packages = sqliteTable("packages", {

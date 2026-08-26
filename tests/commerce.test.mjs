@@ -1,24 +1,48 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
+import { Worker } from "node:worker_threads";
 
 const root = new URL("../", import.meta.url);
 const read = (path) => readFile(new URL(path, root), "utf8");
 
-async function migratedDatabase() {
-  const database = new DatabaseSync(":memory:");
+async function applyBreakpointMigration(database, path) {
+  const sql = await read(path);
+  for (const statement of sql.split("--> statement-breakpoint")) {
+    if (statement.trim()) database.exec(statement);
+  }
+}
+
+async function applyProviderSafeMigration(database, path) {
+  const sql = await read(path);
+  const statements = sql
+    .split(";")
+    .map((statement) => statement.replaceAll("--> statement-breakpoint", "").trim())
+    .filter(Boolean);
+  for (const statement of statements) database.exec(statement);
+  return statements;
+}
+
+async function baseDatabase(location = ":memory:") {
+  const database = new DatabaseSync(location);
+  database.exec("PRAGMA foreign_keys=ON");
   for (const migration of [
     "drizzle/0000_charming_bishop.sql",
     "drizzle/0001_confused_swarm.sql",
     "drizzle/0002_deep_giant_girl.sql",
-    "drizzle/0004_brown_omega_red.sql",
+    "drizzle/0003_cancel_production_smoke_orders.sql",
   ]) {
-    const sql = await read(migration);
-    for (const statement of sql.split("--> statement-breakpoint")) {
-      if (statement.trim()) database.exec(statement);
-    }
+    await applyBreakpointMigration(database, migration);
   }
+  return database;
+}
+
+async function migratedDatabase(location = ":memory:") {
+  const database = await baseDatabase(location);
+  await applyProviderSafeMigration(database, "drizzle/0004_brown_omega_red.sql");
   return database;
 }
 
@@ -33,16 +57,142 @@ function insertOrder(database, id, totalAmount = 220_000) {
   `).run(id, `TEST-${id}`, "season-2026-chuseok", totalAmount, `idem-${id}`, now, now, now);
 }
 
-function insertItem(database, orderId, itemId, quantity = 1) {
+function insertItem(database, orderId, itemId, quantity = 1, productId = "mi") {
   database.prepare(`
     INSERT INTO order_items(
       id,order_id,product_id,product_name_snapshot,list_price_snapshot,
       sale_unit_price,quantity,line_total,created_at
     ) VALUES(?,?,?,'미',220000,220000,?,?,?)
-  `).run(itemId, orderId, "mi", quantity, 220_000 * quantity, "2026-09-01T00:00:00.000Z");
+  `).run(itemId, orderId, productId, quantity, 220_000 * quantity, "2026-09-01T00:00:00.000Z");
 }
 
-test("custom order integrates into the main order draft and enforces 200,000 won", async () => {
+const reservationSql = `
+  INSERT INTO product_daily_reservations(
+    id,order_id,order_item_id,product_id,reserve_date,quantity,status,created_at
+  )
+  SELECT ?,?,?,?,?,CASE
+    WHEN (
+      COALESCE((
+        SELECT SUM(quantity)
+        FROM product_daily_reservations
+        WHERE product_id=? AND reserve_date=? AND status='active'
+      ),0) + ?
+    ) <= (
+      SELECT daily_limit
+      FROM product_daily_limits
+      WHERE product_id=? AND active=1
+    )
+    THEN ?
+    ELSE 0
+  END,'active',?
+`;
+
+function reserveLimited(database, id, orderId, itemId, quantity = 1) {
+  database.prepare(reservationSql).run(
+    id,
+    orderId,
+    itemId,
+    "mi",
+    "2026-09-10",
+    "mi",
+    "2026-09-10",
+    quantity,
+    "mi",
+    quantity,
+    "2026-09-01T00:00:00.000Z",
+  );
+}
+
+function recordPayment(database, {
+  id,
+  orderId,
+  method,
+  amount,
+  idempotencyKey,
+  paidAt,
+}) {
+  database.exec("BEGIN IMMEDIATE");
+  try {
+    const order = database.prepare("SELECT total_amount FROM orders WHERE id=?").get(orderId);
+    const previous = database.prepare("SELECT COALESCE(SUM(CASE WHEN type='payment' THEN amount WHEN type='refund' THEN -amount ELSE amount END),0) AS paid FROM payments WHERE order_id=?").get(orderId);
+    database.prepare("INSERT INTO payments(id,order_id,type,method,amount,paid_at,recorded_by,memo,idempotency_key,created_at) VALUES(?,?,'payment',?,?,?,?,?,?,?)")
+      .run(id, orderId, method, amount, paidAt, "operator", "", idempotencyKey, paidAt);
+    database.prepare("UPDATE order_credit_terms SET status='settled',settled_at=? WHERE order_id=? AND status='open' AND ?>=?")
+      .run(paidAt, orderId, previous.paid + amount, order.total_amount);
+    database.exec("COMMIT");
+  } catch (error) {
+    database.exec("ROLLBACK");
+    throw error;
+  }
+}
+
+test("the former trigger is reproducibly truncated by semicolon splitting", () => {
+  const database = new DatabaseSync(":memory:");
+  database.exec("CREATE TABLE product_daily_reservations(quantity INTEGER,status TEXT)");
+  const formerLines92To114 = `
+    CREATE TRIGGER trg_daily_reservations_validate_insert
+    BEFORE INSERT ON product_daily_reservations
+    WHEN NEW.status = 'active'
+    BEGIN
+      SELECT CASE
+        WHEN NEW.quantity <= 0 THEN RAISE(ABORT, 'reservation quantity must be positive')
+      END;
+    END;
+  `;
+  const providerFirstFragment = formerLines92To114.split(";")[0];
+  assert.throws(() => database.exec(providerFirstFragment), /incomplete input/);
+  database.close();
+});
+
+test("0004 is provider-safe when every semicolon-delimited unit is executed independently", async () => {
+  const database = await baseDatabase();
+  const statements = await applyProviderSafeMigration(database, "drizzle/0004_brown_omega_red.sql");
+  assert.equal(statements.length, 15);
+  const migration = await read("drizzle/0004_brown_omega_red.sql");
+  assert.doesNotMatch(migration, /CREATE TRIGGER|BEGIN\s+[\s\S]*END;/);
+  database.close();
+});
+
+test("corrected 0004 upgrades a production-like database without changing existing rows", async () => {
+  const database = await baseDatabase();
+  insertOrder(database, "legacy-row");
+  insertItem(database, "legacy-row", "legacy-item");
+  database.prepare("INSERT INTO fulfillments(id,order_id,fulfillment_type,pickup_at,status,customer_arrived,note,created_at,updated_at) VALUES('legacy-fulfillment','legacy-row','pickup','2026-09-10T10:00:00+09:00','scheduled',0,'','2026-09-01','2026-09-01')").run();
+  database.prepare("INSERT INTO fulfillment_items(id,fulfillment_id,order_item_id,quantity,created_at) VALUES('legacy-fi','legacy-fulfillment','legacy-item',1,'2026-09-01')").run();
+  database.prepare("INSERT INTO order_events(id,order_id,event_type,created_at) VALUES('legacy-event','legacy-row','order_submitted','2026-09-01')").run();
+  const before = Object.fromEntries(["orders", "order_items", "order_events", "fulfillments", "fulfillment_items", "products"].map((table) => [table, database.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get().count]));
+  await applyProviderSafeMigration(database, "drizzle/0004_brown_omega_red.sql");
+  const after = Object.fromEntries(Object.keys(before).map((table) => [table, database.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get().count]));
+  assert.deepEqual(after, { ...before, products: before.products + 1 });
+  assert.equal(database.prepare("SELECT COUNT(*) AS count FROM products WHERE id='custom-order' AND active=0").get().count, 1);
+  database.close();
+});
+
+test("schema contains every required table, index, and provider-safe constraint", async () => {
+  const database = await migratedDatabase();
+  for (const table of ["payments", "order_credit_terms", "product_daily_limits", "product_daily_reservations", "order_item_customizations"]) {
+    assert.equal(database.prepare("SELECT COUNT(*) AS count FROM sqlite_schema WHERE type='table' AND name=?").get(table).count, 1);
+  }
+  for (const index of [
+    "idx_payments_idempotency",
+    "idx_payments_order_paid_at",
+    "idx_order_credit_terms_order_status",
+    "idx_daily_reservations_item",
+    "idx_daily_reservations_product_date",
+    "idx_daily_reservations_order",
+    "idx_order_item_customizations_item",
+  ]) {
+    assert.equal(database.prepare("SELECT COUNT(*) AS count FROM sqlite_schema WHERE type='index' AND name=?").get(index).count, 1);
+  }
+  const reservationDefinition = database.prepare("SELECT sql FROM sqlite_schema WHERE type='table' AND name='product_daily_reservations'").get().sql;
+  assert.match(reservationDefinition, /product_daily_reservations_quantity_positive/);
+  assert.match(reservationDefinition, /product_daily_reservations_status_valid/);
+  const migrationTriggerCount = database.prepare("SELECT COUNT(*) AS count FROM sqlite_schema WHERE type='trigger' AND name LIKE 'trg_%'").get().count;
+  assert.equal(migrationTriggerCount, 0);
+  database.close();
+});
+
+test("custom order integrates into the main order draft and persists custom fields", async () => {
   const [custom, kiosk, api] = await Promise.all([
     read("app/components/CustomOrderApp.tsx"),
     read("app/components/KioskApp.tsx"),
@@ -51,16 +201,19 @@ test("custom order integrates into the main order draft and enforces 200,000 won
   for (const category of ["진공세트", "프리미엄", "O'meat", "LA갈비", "뼈세트"]) {
     assert.match(custom, new RegExp(category.replace("'", "\\'")));
   }
-  for (const budget of ["20만원대", "25만원대", "30만원대", "40만원대", "50만원 이상", "금액 직접 입력"]) {
-    assert.match(custom, new RegExp(budget));
-  }
   assert.match(custom, /맞춤주문은 20만원부터 가능합니다/);
-  assert.match(custom, /orderDraft\.customItem/);
-  assert.match(custom, /window\.location\.assign\("\/kiosk\?resume=cart"\)/);
-  assert.match(kiosk, /customItem:draft\.customItem/);
   assert.match(kiosk, /custom-review-item/);
-  assert.match(api, /order_item_customizations/);
   assert.match(api, /customAmount >= 200_000/);
+
+  const database = await migratedDatabase();
+  insertOrder(database, "custom-persist", 200_000);
+  insertItem(database, "custom-persist", "custom-item", 1, "custom-order");
+  database.prepare("INSERT INTO order_item_customizations(id,order_item_id,category,budget_option,desired_composition,preferred_cut,fat_preference,packaging_request,other_request,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)")
+    .run("customization", "custom-item", "프리미엄", "20만원대", "구성", "등심", "적게", "선물포장", "테스트", "2026-09-01");
+  const row = database.prepare("SELECT * FROM order_item_customizations WHERE order_item_id='custom-item'").get();
+  assert.equal(row.category, "프리미엄");
+  assert.equal(row.budget_option, "20만원대");
+  database.close();
 });
 
 test("pickup and shipping calendars expose today, selected, and closed labels together", async () => {
@@ -76,64 +229,137 @@ test("pickup and shipping calendars expose today, selected, and closed labels to
   assert.match(kiosk, /type="shipping"/);
 });
 
-test("database trigger prevents premium daily limit oversell at the 29 + 2 boundary", async () => {
-  const database = await migratedDatabase();
+test("conditional reservation plus CHECK allows only one concurrent order at 29 of 30", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "jeongilpum-limit-"));
+  const databasePath = join(directory, "commerce.sqlite");
+  const database = await migratedDatabase(databasePath);
+  database.exec("PRAGMA journal_mode=WAL");
   insertOrder(database, "limit-base", 6_380_000);
   insertItem(database, "limit-base", "item-base", 29);
   database.prepare("INSERT INTO product_daily_reservations(id,order_id,order_item_id,product_id,reserve_date,quantity,status,created_at) VALUES(?,?,?,?,?,29,'active',?)")
     .run("reservation-base", "limit-base", "item-base", "mi", "2026-09-10", "2026-09-01T00:00:00.000Z");
+  for (const suffix of ["a", "b"]) {
+    insertOrder(database, `limit-${suffix}`);
+    insertItem(database, `limit-${suffix}`, `item-${suffix}`);
+  }
+  database.close();
 
-  insertOrder(database, "limit-a");
-  insertItem(database, "limit-a", "item-a");
-  insertOrder(database, "limit-b");
-  insertItem(database, "limit-b", "item-b");
-  const reserve = database.prepare("INSERT INTO product_daily_reservations(id,order_id,order_item_id,product_id,reserve_date,quantity,status,created_at) VALUES(?,?,?,?,?,1,'active',?)");
-  reserve.run("reservation-a", "limit-a", "item-a", "mi", "2026-09-10", "2026-09-01T00:00:00.000Z");
-  assert.throws(
-    () => reserve.run("reservation-b", "limit-b", "item-b", "mi", "2026-09-10", "2026-09-01T00:00:00.000Z"),
-    /daily product limit exceeded/,
-  );
-  const row = database.prepare("SELECT SUM(quantity) AS reserved FROM product_daily_reservations WHERE product_id='mi' AND reserve_date='2026-09-10' AND status='active'").get();
-  assert.equal(row.reserved, 30);
+  const gate = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT * 2);
+  const workerSource = `
+    const { parentPort, workerData } = require("node:worker_threads");
+    const { DatabaseSync } = require("node:sqlite");
+    const gate = new Int32Array(workerData.gate);
+    const database = new DatabaseSync(workerData.databasePath);
+    database.exec("PRAGMA busy_timeout=5000");
+    Atomics.add(gate, 0, 1);
+    Atomics.notify(gate, 0);
+    Atomics.wait(gate, 1, 0);
+    try {
+      database.exec("BEGIN IMMEDIATE");
+      database.prepare(workerData.sql).run(...workerData.params);
+      database.exec("COMMIT");
+      database.close();
+      parentPort.postMessage({ ok: true });
+    } catch (error) {
+      try { database.exec("ROLLBACK"); } catch {}
+      database.close();
+      parentPort.postMessage({ ok: false, message: error.message });
+    }
+  `;
+  const runWorker = (suffix) => new Promise((resolve, reject) => {
+    const params = [
+      `reservation-${suffix}`,
+      `limit-${suffix}`,
+      `item-${suffix}`,
+      "mi",
+      "2026-09-10",
+      "mi",
+      "2026-09-10",
+      1,
+      "mi",
+      1,
+      "2026-09-01T00:00:00.000Z",
+    ];
+    const worker = new Worker(workerSource, {
+      eval: true,
+      workerData: { gate, databasePath, sql: reservationSql, params },
+    });
+    worker.once("message", resolve);
+    worker.once("error", reject);
+  });
+  const workers = [runWorker("a"), runWorker("b")];
+  const view = new Int32Array(gate);
+  while (Atomics.load(view, 0) < 2) {
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  Atomics.store(view, 1, 1);
+  Atomics.notify(view, 1, 2);
+  const results = await Promise.all(workers);
+  assert.equal(results.filter((result) => result.ok).length, 1);
+  assert.match(results.find((result) => !result.ok).message, /product_daily_reservations_quantity_positive|CHECK constraint failed/);
+
+  const verify = new DatabaseSync(databasePath);
+  assert.equal(verify.prepare("SELECT SUM(quantity) AS reserved FROM product_daily_reservations WHERE product_id='mi' AND reserve_date='2026-09-10' AND status='active'").get().reserved, 30);
+  verify.close();
+  await rm(directory, { recursive: true, force: true });
 });
 
-test("cancelling an order releases its limited-product reservation", async () => {
-  const database = await migratedDatabase();
+test("cancellation batch releases its limited-product reservation", async () => {
+  const [database, statusApi] = await Promise.all([
+    migratedDatabase(),
+    read("app/api/orders/status/route.ts"),
+  ]);
   insertOrder(database, "cancel-limit");
   insertItem(database, "cancel-limit", "cancel-item");
-  database.prepare("INSERT INTO product_daily_reservations(id,order_id,order_item_id,product_id,reserve_date,quantity,status,created_at) VALUES(?,?,?,?,?,1,'active',?)")
-    .run("cancel-reservation", "cancel-limit", "cancel-item", "mi", "2026-09-10", "2026-09-01T00:00:00.000Z");
+  reserveLimited(database, "cancel-reservation", "cancel-limit", "cancel-item");
+  database.exec("BEGIN IMMEDIATE");
   database.prepare("UPDATE orders SET order_status='cancelled' WHERE id='cancel-limit'").run();
+  database.prepare("UPDATE product_daily_reservations SET status='released',released_at=? WHERE order_id=? AND status='active'")
+    .run("2026-09-02T00:00:00.000Z", "cancel-limit");
+  database.exec("COMMIT");
   const row = database.prepare("SELECT status,released_at FROM product_daily_reservations WHERE id='cancel-reservation'").get();
   assert.equal(row.status, "released");
   assert.ok(row.released_at);
+  assert.match(statusApi, /x\.status==="cancelled"/);
+  assert.match(statusApi, /UPDATE product_daily_reservations SET status='released'/);
+  database.close();
 });
 
-test("partial payments remain append-only and calculate paid amount and balance", async () => {
-  const database = await migratedDatabase();
+test("partial payments are separate rows and calculate a 50,000 won balance", async () => {
+  const [database, paymentApi] = await Promise.all([
+    migratedDatabase(),
+    read("app/api/orders/payments/route.ts"),
+  ]);
   insertOrder(database, "payment-order", 300_000);
-  const insert = database.prepare("INSERT INTO payments(id,order_id,type,method,amount,paid_at,recorded_by,memo,idempotency_key,created_at) VALUES(?,?,'payment',?,?,?,?,?,?,?)");
-  insert.run("pay-1", "payment-order", "card", 100_000, "2026-09-01T10:00:00.000Z", "operator", "", "pay-idem-1", "2026-09-01T10:00:00.000Z");
-  insert.run("pay-2", "payment-order", "bank_transfer", 150_000, "2026-09-01T11:00:00.000Z", "operator", "", "pay-idem-2", "2026-09-01T11:00:00.000Z");
-  const row = database.prepare("SELECT SUM(CASE WHEN type='payment' THEN amount WHEN type='refund' THEN -amount ELSE amount END) AS paid FROM payments WHERE order_id='payment-order'").get();
+  recordPayment(database, { id: "pay-1", orderId: "payment-order", method: "card", amount: 100_000, idempotencyKey: "pay-idem-1", paidAt: "2026-09-01T10:00:00.000Z" });
+  recordPayment(database, { id: "pay-2", orderId: "payment-order", method: "bank_transfer", amount: 150_000, idempotencyKey: "pay-idem-2", paidAt: "2026-09-01T11:00:00.000Z" });
+  const row = database.prepare("SELECT COUNT(*) AS rows, SUM(amount) AS paid FROM payments WHERE order_id='payment-order'").get();
+  assert.equal(row.rows, 2);
   assert.equal(row.paid, 250_000);
   assert.equal(300_000 - row.paid, 50_000);
-  assert.throws(() => database.prepare("UPDATE payments SET amount=1 WHERE id='pay-1'").run(), /append-only/);
+  assert.doesNotMatch(paymentApi, /UPDATE payments|DELETE FROM payments/);
+  assert.throws(
+    () => database.prepare("INSERT INTO payments(id,order_id,type,method,amount,paid_at,recorded_by,memo,idempotency_key,created_at) VALUES('bad','payment-order','payment','credit',1,'2026','operator','','bad','2026')").run(),
+    /payments_valid_entry|CHECK constraint failed/,
+  );
+  database.close();
 });
 
-test("credit status settles automatically after the final bank transfer", async () => {
-  const database = await migratedDatabase();
+test("credit status settles in the same batch as the final bank transfer", async () => {
+  const [database, paymentApi] = await Promise.all([
+    migratedDatabase(),
+    read("app/api/orders/payments/route.ts"),
+  ]);
   insertOrder(database, "credit-order", 300_000);
-  const insert = database.prepare("INSERT INTO payments(id,order_id,type,method,amount,paid_at,recorded_by,memo,idempotency_key,created_at) VALUES(?,?,'payment',?,?,?,?,?,?,?)");
-  insert.run("credit-pay-1", "credit-order", "card", 100_000, "2026-09-01T10:00:00.000Z", "operator", "", "credit-idem-1", "2026-09-01T10:00:00.000Z");
-  insert.run("credit-pay-2", "credit-order", "bank_transfer", 150_000, "2026-09-01T11:00:00.000Z", "operator", "", "credit-idem-2", "2026-09-01T11:00:00.000Z");
+  recordPayment(database, { id: "credit-pay-1", orderId: "credit-order", method: "card", amount: 100_000, idempotencyKey: "credit-idem-1", paidAt: "2026-09-01T10:00:00.000Z" });
+  recordPayment(database, { id: "credit-pay-2", orderId: "credit-order", method: "bank_transfer", amount: 150_000, idempotencyKey: "credit-idem-2", paidAt: "2026-09-01T11:00:00.000Z" });
   database.prepare("INSERT INTO order_credit_terms(id,order_id,outstanding_amount,due_date,memo,status,recorded_by,created_at) VALUES(?,?,50000,'2026-09-20','잔금','open','operator',?)")
     .run("credit-term", "credit-order", "2026-09-01T11:30:00.000Z");
-  assert.equal(database.prepare("SELECT status FROM order_credit_terms WHERE id='credit-term'").get().status, "open");
-  insert.run("credit-pay-3", "credit-order", "bank_transfer", 50_000, "2026-09-02T10:00:00.000Z", "operator", "", "credit-idem-3", "2026-09-02T10:00:00.000Z");
+  recordPayment(database, { id: "credit-pay-3", orderId: "credit-order", method: "bank_transfer", amount: 50_000, idempotencyKey: "credit-idem-3", paidAt: "2026-09-02T10:00:00.000Z" });
   assert.equal(database.prepare("SELECT status FROM order_credit_terms WHERE id='credit-term'").get().status, "settled");
-  const paid = database.prepare("SELECT SUM(amount) AS paid FROM payments WHERE order_id='credit-order'").get().paid;
-  assert.equal(paid, 300_000);
+  assert.equal(database.prepare("SELECT SUM(amount) AS paid FROM payments WHERE order_id='credit-order'").get().paid, 300_000);
+  assert.match(paymentApi, /UPDATE order_credit_terms SET status='settled'/);
+  database.close();
 });
 
 test("sales shows payments while workshop remains payment-free", async () => {

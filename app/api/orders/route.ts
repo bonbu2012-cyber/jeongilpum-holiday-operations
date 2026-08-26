@@ -545,13 +545,34 @@ export async function POST(request: Request) {
         .filter((item) => limitedProductIds.has(item.product.id))
         .map((item) =>
           runtimeEnv.DB
-            .prepare("INSERT INTO product_daily_reservations(id,order_id,order_item_id,product_id,reserve_date,quantity,status,created_at) VALUES(?,?,?,?,?,?,'active',?)")
+            .prepare(`INSERT INTO product_daily_reservations(
+              id,order_id,order_item_id,product_id,reserve_date,quantity,status,created_at
+            )
+            SELECT ?,?,?,?,?,CASE
+              WHEN (
+                COALESCE((
+                  SELECT SUM(quantity)
+                  FROM product_daily_reservations
+                  WHERE product_id=? AND reserve_date=? AND status='active'
+                ),0) + ?
+              ) <= (
+                SELECT daily_limit
+                FROM product_daily_limits
+                WHERE product_id=? AND active=1
+              )
+              THEN ?
+              ELSE 0
+            END,'active',?`)
             .bind(
               crypto.randomUUID(),
               orderId,
               item.id,
               item.product.id,
               scheduleDate,
+              item.product.id,
+              scheduleDate,
+              item.quantity,
+              item.product.id,
               item.quantity,
               now,
             )),
@@ -611,7 +632,10 @@ export async function POST(request: Request) {
         return Response.json({ order, duplicate: true });
       }
     }
-    if (message.includes("daily product limit exceeded")) {
+    if (
+      message.includes("daily product limit exceeded")
+      || message.includes("product_daily_reservations_quantity_positive")
+    ) {
       return Response.json(
         { error: "선택한 날짜의 한정수량이 마감되었습니다. 수량 또는 날짜를 다시 확인해주세요." },
         { status: 409 },
