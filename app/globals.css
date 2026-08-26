@@ -12,3 +12,5 @@
 /* Custom-order review and validation */
 .custom-top>button{border:0;background:transparent;color:var(--wine);font-size:12px;font-weight:800;padding:0}.custom-fields [aria-invalid="true"]{border-color:#b9362e;background:#fff7f5}.custom-form .field-error{display:block;margin-top:8px}.custom-review .review-list{margin:0}.custom-review-note{grid-column:span 2}.custom-review-note p{display:block}.custom-review-actions{display:grid;grid-template-columns:120px 1fr;gap:10px}.custom-review-actions>button:first-child{border:1px solid #d4ccbf;border-radius:13px;background:#fff;color:#4d4942;font-weight:800}.custom-review-actions .custom-submit{width:100%}
 @media(max-width:700px){.custom-review .review-list{grid-template-columns:1fr}.custom-review-note{grid-column:auto}.custom-review-actions{grid-template-columns:1fr}.custom-review-actions>button:first-child{min-height:48px;order:2}}
+.choice-grid button{font-size:17px}
+.custom-form h2 small{color:var(--muted);font-size:11px;font-weight:700}

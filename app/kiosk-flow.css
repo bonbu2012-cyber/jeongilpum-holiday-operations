@@ -38,3 +38,16 @@
 .shipping-address-review span{font-size:11px;color:var(--muted);margin-top:5px}
 .shipping-address-review em{font-style:normal;color:#9b4f1f;background:#fff0df;border-radius:8px;padding:10px;margin-top:8px;font-size:11px;font-weight:900}
 @media(max-width:700px){.fulfillment-text-buttons{grid-template-columns:1fr}.fulfillment-text-buttons button{min-height:130px;padding:22px}.fulfillment-text-buttons b{font-size:30px}.calendar-days>span,.calendar-days>button{min-height:48px}.schedule-calendar{padding:11px}.calendar-weekdays,.calendar-days{gap:4px}.pickup-time-grid{max-height:420px}.shipping-address-review b{font-size:17px}}
+.calendar-days>button.today{border:2px solid #c63b34;color:#b12620;text-decoration:none}
+.calendar-days>button.today small{color:#b12620;font-weight:900}
+.calendar-days>button.today.selected{border-color:#ffb7ad;background:var(--wine);color:#fff;box-shadow:0 0 0 3px #c63b34}
+.calendar-days>button.today.selected small{color:#fff}
+.calendar-days>button.closed{color:#aaa}
+.availability{display:block;width:max-content;margin:8px 0;color:#9c453e;background:#fff0ed;border-radius:999px;padding:5px 9px;font-size:11px;font-weight:900;font-style:normal}
+.availability.closed{color:#777;background:#ece9e3}
+.quantity button:disabled{opacity:.32;cursor:not-allowed}
+.custom-cart-item{padding:20px!important;background:#fff9f3}
+.custom-cart-item>div{display:grid;gap:5px}
+.custom-cart-item small{color:var(--wine);font-weight:900}
+.custom-cart-item a{color:var(--wine);font-weight:900;text-decoration:none}
+.custom-review-item{margin-top:14px;padding-top:14px;border-top:1px solid #e4ddd3}

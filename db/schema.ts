@@ -106,6 +106,77 @@ export const fulfillmentItems = sqliteTable("fulfillment_items", {
   uniqueIndex("idx_fulfillment_items_pair").on(table.fulfillmentId, table.orderItemId),
 ]);
 
+export const orderItemCustomizations = sqliteTable("order_item_customizations", {
+  id: text("id").primaryKey(),
+  orderItemId: text("order_item_id").notNull().references(() => orderItems.id),
+  category: text("category").notNull(),
+  budgetOption: text("budget_option").notNull(),
+  desiredComposition: text("desired_composition").notNull().default(""),
+  preferredCut: text("preferred_cut").notNull().default(""),
+  fatPreference: text("fat_preference").notNull().default(""),
+  packagingRequest: text("packaging_request").notNull().default(""),
+  otherRequest: text("other_request").notNull().default(""),
+  createdAt: text("created_at").notNull(),
+}, (table) => [
+  uniqueIndex("idx_order_item_customizations_item").on(table.orderItemId),
+]);
+
+export const productDailyLimits = sqliteTable("product_daily_limits", {
+  productId: text("product_id").primaryKey().references(() => products.id),
+  dailyLimit: integer("daily_limit").notNull(),
+  scheduleBasis: text("schedule_basis").notNull().default("fulfillment_date"),
+  active: integer("active", { mode: "boolean" }).notNull().default(true),
+  version: integer("version").notNull().default(1),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const productDailyReservations = sqliteTable("product_daily_reservations", {
+  id: text("id").primaryKey(),
+  orderId: text("order_id").notNull().references(() => orders.id),
+  orderItemId: text("order_item_id").notNull().references(() => orderItems.id),
+  productId: text("product_id").notNull().references(() => products.id),
+  reserveDate: text("reserve_date").notNull(),
+  quantity: integer("quantity").notNull(),
+  status: text("status").notNull().default("active"),
+  createdAt: text("created_at").notNull(),
+  releasedAt: text("released_at"),
+}, (table) => [
+  uniqueIndex("idx_daily_reservations_item").on(table.orderItemId),
+  index("idx_daily_reservations_product_date").on(table.productId, table.reserveDate, table.status),
+  index("idx_daily_reservations_order").on(table.orderId),
+]);
+
+export const payments = sqliteTable("payments", {
+  id: text("id").primaryKey(),
+  orderId: text("order_id").notNull().references(() => orders.id),
+  type: text("type").notNull(),
+  method: text("method"),
+  amount: integer("amount").notNull(),
+  paidAt: text("paid_at").notNull(),
+  recordedBy: text("recorded_by").notNull(),
+  memo: text("memo").notNull().default(""),
+  relatedPaymentId: text("related_payment_id"),
+  idempotencyKey: text("idempotency_key").notNull(),
+  createdAt: text("created_at").notNull(),
+}, (table) => [
+  uniqueIndex("idx_payments_idempotency").on(table.idempotencyKey),
+  index("idx_payments_order_paid_at").on(table.orderId, table.paidAt),
+]);
+
+export const orderCreditTerms = sqliteTable("order_credit_terms", {
+  id: text("id").primaryKey(),
+  orderId: text("order_id").notNull().references(() => orders.id),
+  outstandingAmount: integer("outstanding_amount").notNull(),
+  dueDate: text("due_date"),
+  memo: text("memo").notNull().default(""),
+  status: text("status").notNull().default("open"),
+  recordedBy: text("recorded_by").notNull(),
+  createdAt: text("created_at").notNull(),
+  settledAt: text("settled_at"),
+}, (table) => [
+  index("idx_order_credit_terms_order_status").on(table.orderId, table.status),
+]);
+
 export const packages = sqliteTable("packages", {
   id: text("id").primaryKey(),
   orderId: text("order_id").notNull().references(() => orders.id),

@@ -46,7 +46,7 @@ test("shipping stores separated Kakao address fields and requires a shipping dat
 
 test("operator APIs enforce identity and role and create an atomic D1 fulfillment",async()=>{
  const [orders,status]=await Promise.all([read("app/api/orders/route.ts"),read("app/api/orders/status/route.ts")]);
- for(const source of [orders,status]){assert.match(source,/getChatGPTUser/);assert.match(source,/OPERATOR_USER_IDS/);assert.match(source,/status:403/)}
+ for(const source of [orders,status]){assert.match(source,/getChatGPTUser/);assert.match(source,/OPERATOR_USER_IDS/);assert.match(source,/status:\s*403/)}
  assert.match(orders,/idempotency_key/);
  assert.match(orders,/runtimeEnv\.DB\.batch/);
  assert.match(orders,/INSERT INTO fulfillments/);
@@ -132,18 +132,16 @@ test("sales and workshop refetch within three seconds and recover on focus and o
  assert.match(client,/date/);
 });
 
-test("P0 custom order validates, reviews, preserves, and then submits",async()=>{
- const [custom,customApi]=await Promise.all([read("app/components/CustomOrderApp.tsx"),read("app/api/custom-orders/route.ts")]);
- for(const step of ['"form"','"review"','"done"'])assert.match(custom,new RegExp(step));
- assert.match(custom,/onSubmit=\{review\}/);
- assert.match(custom,/setStep\("review"\)/);
- assert.match(custom,/맞춤주문 최종확인/);
- assert.match(custom,/draftStorageKey/);
+test("custom order validates, preserves, and joins the main kiosk order",async()=>{
+ const [custom,kiosk,ordersApi]=await Promise.all([read("app/components/CustomOrderApp.tsx"),read("app/components/KioskApp.tsx"),read("app/api/orders/route.ts")]);
+ assert.match(custom,/onSubmit=\{complete\}/);
+ assert.match(custom,/orderDraft\.customItem/);
+ assert.match(custom,/customStorageKey/);
  assert.match(custom,/sessionStorage\.setItem/);
- assert.match(custom,/fieldErrors\.customerPhone/);
+ assert.match(custom,/맞춤주문은 20만원부터 가능합니다/);
  assert.match(custom,/type="submit"/);
- assert.match(custom,/replace\(\/\\D\/g/);
- assert.match(customApi,/replace\(\/\\D\/g/);
+ assert.match(kiosk,/custom-review-item/);
+ assert.match(ordersApi,/order_item_customizations/);
 });
 
 test("P0 sales auth accepts configured user IDs or operator emails and disables response caches",async()=>{

@@ -25,3 +25,20 @@
 .unscheduled-orders header small{color:#9c5e16;font-weight:900;letter-spacing:.08em}
 .unscheduled-orders header p{max-width:360px;color:var(--muted);font-size:12px;text-align:right}
 @media(max-width:700px){.sales-date-filter{grid-template-columns:1fr 95px}.legacy-schedule-editor{grid-template-columns:1fr}.legacy-schedule-editor h3,.legacy-editor-buttons{grid-column:auto}.unscheduled-orders>header{display:grid}.unscheduled-orders header p{text-align:left}}
+.payment-panel{margin:0 22px 18px;border:1px solid #ddd4c8;border-radius:13px;background:#faf8f4;padding:16px}
+.payment-panel>header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.payment-panel h3,.payment-panel h4{margin:0}
+.payment-state{font-style:normal;border-radius:999px;padding:5px 9px;font-size:11px;font-weight:900;background:#eee9e1;color:#666}
+.payment-state.partial{background:#fff0d5;color:#8b5b09}.payment-state.paid{background:#e5f4e8;color:#28753c}.payment-state.credit{background:#fce4e0;color:#96372e}
+.payment-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.payment-summary p{display:grid;gap:4px;margin:0;background:#fff;padding:10px;border-radius:8px}
+.payment-summary span{color:#777;font-size:10px}.payment-summary b{font-size:14px}
+.payment-actions{display:flex;gap:8px;margin-top:12px}.payment-actions button{flex:1;height:42px;border:1px solid var(--wine);border-radius:9px;background:#fff;color:var(--wine);font-weight:900}
+.credit-note{font-size:11px;color:#96372e;background:#fff2ef;border-radius:8px;padding:9px}
+.payment-history{list-style:none;padding:0;margin:12px 0 0;display:grid;gap:5px}.payment-history li{display:flex;justify-content:space-between;font-size:11px}
+.payment-editor{display:grid;gap:10px;margin-top:14px;border-top:1px solid #ddd4c8;padding-top:14px}
+.payment-editor label{display:grid;gap:5px;font-size:11px;font-weight:800}.payment-editor input{height:42px;border:1px solid #d4ccbf;border-radius:8px;padding:0 10px}
+.payment-methods{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.payment-methods button{height:42px;border:1px solid #d4ccbf;border-radius:8px;background:#fff;font-weight:800}.payment-methods button.selected{border:2px solid var(--wine);color:var(--wine);background:#fff5f2}
+.payment-editor>div:last-child{display:flex;gap:8px}.payment-editor>div:last-child button{flex:1;height:42px;border:1px solid #d4ccbf;border-radius:8px;background:#fff;font-weight:800}.payment-editor>div:last-child .task-primary{background:var(--wine);color:#fff}
+.payment-error{color:#a22f28;font-size:11px;font-weight:800;margin:0}
+@media(max-width:700px){.payment-summary{grid-template-columns:1fr}.payment-panel{margin:0 13px 14px}}

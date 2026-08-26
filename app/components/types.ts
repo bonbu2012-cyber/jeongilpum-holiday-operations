@@ -1,3 +1,14 @@
+export type CustomOrderDraftItem = {
+  category: "진공세트" | "프리미엄" | "O'meat" | "LA갈비" | "뼈세트";
+  budgetOption: string;
+  budgetAmount: number;
+  desiredComposition: string;
+  preferredCut: string;
+  fatPreference: string;
+  packagingRequest: string;
+  otherRequest: string;
+};
+
 export type Product = {
   id: string;
   category: string;
@@ -9,6 +20,10 @@ export type Product = {
   customerDisplayWeight: string | null;
   imageUrl: string | null;
   badge: string | null;
+  dailyLimit: number | null;
+  reservedQuantity: number;
+  remainingQuantity: number | null;
+  availabilityDate: string;
 };
 
 export type SeasonSchedule = {
@@ -20,6 +35,8 @@ export type SeasonSchedule = {
 };
 
 export type OrderStatus = "submitted" | "confirmed" | "in_progress" | "ready" | "fulfilled" | "cancelled";
+export type PaymentStatus = "unpaid" | "partial" | "paid" | "credit";
+export type PaymentMethod = "card" | "cash" | "bank_transfer";
 
 export type OrderItem = {
   id: string;
@@ -27,6 +44,17 @@ export type OrderItem = {
   name: string;
   quantity: number;
   unitPrice: number;
+  customization?: CustomOrderDraftItem | null;
+};
+
+export type PaymentRecord = {
+  id: string;
+  type: "payment" | "refund" | "adjustment";
+  method: PaymentMethod | null;
+  amount: number;
+  paidAt: string;
+  recordedBy: string;
+  memo: string;
 };
 
 export type OrderRecord = {
@@ -50,14 +78,21 @@ export type OrderRecord = {
   customerArrived: boolean;
   note: string;
   totalAmount: number;
+  paidAmount: number;
+  balance: number;
+  paymentStatus: PaymentStatus;
+  creditDueDate: string | null;
+  creditMemo: string | null;
   version: number;
   submittedAt: string;
   items: OrderItem[];
+  payments: PaymentRecord[];
   packageCodes: string[];
 };
 
 export type OrderDraft = {
   cart: Record<string, number>;
+  customItem: CustomOrderDraftItem | null;
   fulfillmentType: "pickup" | "shipping" | null;
   buyerName: string;
   buyerPhone: string;
