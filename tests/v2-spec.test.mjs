@@ -141,7 +141,16 @@ test("custom order validates, preserves, and joins the main kiosk order",async()
  assert.match(custom,/맞춤주문은 20만원부터 가능합니다/);
  assert.match(custom,/type="submit"/);
  assert.match(kiosk,/custom-review-item/);
+ assert.match(custom,/\/kiosk\?resume=cart/);
+ assert.match(kiosk,/draftHydrated&&step!=="done"/);
  assert.match(ordersApi,/order_item_customizations/);
+});
+
+test("sales date views exclude cancelled orders while search keeps history",async()=>{
+ const [admin,ordersApi]=await Promise.all([read("app/components/AdminApp.tsx"),read("app/api/orders/route.ts")]);
+ assert.match(admin,/order\.status !== "cancelled"/);
+ assert.match(ordersApi,/o\.order_status!='cancelled'/);
+ assert.match(ordersApi,/else if \(q\)[\s\S]*SELECT \* FROM orders WHERE order_no LIKE/);
 });
 
 test("P0 sales auth accepts configured user IDs or operator emails and disables response caches",async()=>{

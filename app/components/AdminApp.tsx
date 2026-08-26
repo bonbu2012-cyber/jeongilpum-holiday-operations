@@ -147,15 +147,17 @@ export default function AdminApp() {
       orders.filter((order) => {
         if (view === "pickup")
           return (
-            !order.fulfillmentId ||
-            (order.fulfillmentType === "pickup" &&
-              order.status !== "fulfilled")
+            order.status !== "cancelled" &&
+            (!order.fulfillmentId ||
+              (order.fulfillmentType === "pickup" &&
+                order.status !== "fulfilled"))
           );
         if (view === "shipping")
           return (
-            !order.fulfillmentId ||
-            (order.fulfillmentType === "shipping" &&
-              order.status !== "fulfilled")
+            order.status !== "cancelled" &&
+            (!order.fulfillmentId ||
+              (order.fulfillmentType === "shipping" &&
+                order.status !== "fulfilled"))
           );
         return true;
       }),
@@ -166,7 +168,7 @@ export default function AdminApp() {
     [orders],
   );
   const unscheduledOrders = useMemo(
-    () => orders.filter((order) => !order.fulfillmentId),
+    () => orders.filter((order) => !order.fulfillmentId && order.status !== "cancelled"),
     [orders],
   );
   const missingAddress = useMemo(
@@ -174,6 +176,7 @@ export default function AdminApp() {
       orders.filter(
         (order) =>
           order.fulfillmentId &&
+          order.status !== "cancelled" &&
           order.fulfillmentType === "shipping" &&
           (!order.roadAddress || !order.postalCode),
       ),
