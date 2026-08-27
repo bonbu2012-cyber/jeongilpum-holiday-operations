@@ -97,7 +97,7 @@ test("category rail uses Korean-first hierarchy",async()=>{
 
 test("custom order and settings workflows stay durable",async()=>{
  const [kiosk,nav,custom,customApi,settings,settingsApi,d1]=await Promise.all([read("app/components/KioskApp.tsx"),read("app/components/AppNav.tsx"),read("app/components/CustomOrderApp.tsx"),read("app/api/custom-orders/route.ts"),read("app/components/SettingsApp.tsx"),read("app/api/settings/route.ts"),read("drizzle/0001_confused_swarm.sql")]);
- for(const route of ["/admin","/workshop","/settings"])assert.match(nav,new RegExp(route.replaceAll("/","\\/")));
+ for(const route of ["/sales","/workshop","/settings"])assert.match(nav,new RegExp(route.replaceAll("/","\\/")));
  assert.match(kiosk,/\/kiosk\/custom/);
  assert.match(kiosk,/category-name omeat/);
  assert.match(custom,/idempotencyKey/);
@@ -110,18 +110,18 @@ test("custom order and settings workflows stay durable",async()=>{
 
 test("all operating surfaces share navigation and sales has an alias route",async()=>{
  const [nav,kiosk,admin,workshop,settings,css,sales]=await Promise.all([read("app/components/AppNav.tsx"),read("app/components/KioskApp.tsx"),read("app/components/AdminApp.tsx"),read("app/components/WorkshopApp.tsx"),read("app/components/SettingsApp.tsx"),read("app/globals.css"),read("app/sales/page.tsx")]);
- for(const href of ["/kiosk","/admin","/workshop","/settings"])assert.match(nav,new RegExp('href: "'+href.replaceAll("/","\\/")+'"'));
+ for(const href of ["/kiosk","/sales","/workshop","/settings"])assert.match(nav,new RegExp('href: "'+href.replaceAll("/","\\/")+'"'));
  assert.match(nav,/aria-current/);
  assert.match(kiosk,/AppNav current="kiosk"/);
  assert.match(admin,/AppNav current="admin"/);
  assert.match(workshop,/AppNav current="workshop"/);
  assert.match(settings,/AppNav current="settings"/);
- assert.match(sales,/AdminApp/);
+ assert.match(sales,/SalesApp/);
  assert.match(css,/\.category-rail\{[^}]*position:sticky;top:92px;height:calc\(100vh - 92px\)/);
 });
 
 test("sales and workshop refetch within three seconds and recover on focus and online",async()=>{
- const [admin,workshop,client]=await Promise.all([read("app/components/AdminApp.tsx"),read("app/components/WorkshopApp.tsx"),read("app/lib/orders-client.ts")]);
+ const [admin,workshop,client]=await Promise.all([read("app/components/SalesApp.tsx"),read("app/components/WorkshopApp.tsx"),read("app/lib/orders-client.ts")]);
  for(const source of [admin,workshop]){
   assert.match(source,/setInterval\([\s\S]{0,100}2500\)/);
   assert.match(source,/addEventListener\("focus"/);
@@ -147,10 +147,10 @@ test("custom order validates, preserves, and joins the main kiosk order",async()
 });
 
 test("sales date views exclude cancelled orders while search keeps history",async()=>{
- const [admin,ordersApi]=await Promise.all([read("app/components/AdminApp.tsx"),read("app/api/orders/route.ts")]);
+ const [admin,ordersApi]=await Promise.all([read("app/components/SalesApp.tsx"),read("app/api/orders/route.ts")]);
  assert.match(admin,/order\.status !== "cancelled"/);
  assert.match(ordersApi,/o\.order_status!='cancelled'/);
- assert.match(ordersApi,/else if \(q\)[\s\S]*SELECT \* FROM orders WHERE order_no LIKE/);
+ assert.match(ordersApi,/else if \(q\)[\s\S]*SELECT DISTINCT o\.\*/);
 });
 
 test("P0 sales auth accepts configured user IDs or operator emails and disables response caches",async()=>{

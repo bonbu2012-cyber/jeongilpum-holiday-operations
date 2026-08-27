@@ -57,6 +57,13 @@ export type PaymentRecord = {
   memo: string;
 };
 
+export type OrderEventRecord = {
+  id: string;
+  type: string;
+  reason: string | null;
+  createdAt: string;
+};
+
 export type OrderRecord = {
   id: string;
   orderNo: string;
@@ -88,6 +95,10 @@ export type OrderRecord = {
   items: OrderItem[];
   payments: PaymentRecord[];
   packageCodes: string[];
+  packageTotal: number;
+  packageCompleted: number;
+  hasUnacknowledgedChange: boolean;
+  events: OrderEventRecord[];
 };
 
 export type OrderDraft = {

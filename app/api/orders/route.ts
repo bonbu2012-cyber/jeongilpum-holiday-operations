@@ -26,7 +26,18 @@ type ItemRow = {
   quantity: number;
   sale_unit_price: number;
 };
-type PackageRow = { order_id: string; package_code: string };
+type PackageRow = {
+  order_id: string;
+  package_code: string;
+  package_status: string;
+};
+type EventRow = {
+  id: string;
+  order_id: string;
+  event_type: string;
+  reason: string | null;
+  created_at: string;
+};
 type ProductRow = { id: string; name: string; price: number; active: number };
 type SeasonRow = { id: string; sales_start_date: string; sales_end_date: string; active: number };
 type FulfillmentRow = {
@@ -109,6 +120,7 @@ const runtimeEnv = env as typeof env & {
 };
 const isoDatePattern = /^\d{4}-\d{2}-\d{2}$/;
 const customCategories = new Set(["진공세트", "프리미엄", "O'meat", "LA갈비", "뼈세트"]);
+const orderChangeEventTypes = new Set(["order_changed", "order_updated", "items_changed", "fulfillment_changed", "schedule_changed"]);
 
 function configured(value: string | undefined) {
   return (value ?? "").split(",").map((item) => item.trim()).filter(Boolean);
@@ -172,14 +184,14 @@ async function serializeOrders(rows: OrderRow[]) {
   if (!rows.length) return [];
   const ids = rows.map((row) => row.id);
   const placeholders = ids.map(() => "?").join(",");
-  const [itemResult, packageResult, fulfillmentResult, customizationResult, paymentResult, creditResult] =
+  const [itemResult, packageResult, fulfillmentResult, customizationResult, paymentResult, creditResult, eventResult] =
     await Promise.all([
       runtimeEnv.DB
         .prepare(`SELECT id,order_id,product_id,product_name_snapshot,quantity,sale_unit_price FROM order_items WHERE order_id IN (${placeholders})`)
         .bind(...ids)
         .all<ItemRow>(),
       runtimeEnv.DB
-        .prepare(`SELECT order_id,package_code FROM packages WHERE order_id IN (${placeholders}) AND package_status!='voided'`)
+        .prepare(`SELECT order_id,package_code,package_status FROM packages WHERE order_id IN (${placeholders}) AND package_status!='voided'`)
         .bind(...ids)
         .all<PackageRow>(),
       runtimeEnv.DB
@@ -198,6 +210,10 @@ async function serializeOrders(rows: OrderRow[]) {
         .prepare(`SELECT order_id,outstanding_amount,due_date,memo,status FROM order_credit_terms WHERE order_id IN (${placeholders}) ORDER BY created_at DESC`)
         .bind(...ids)
         .all<CreditRow>(),
+      runtimeEnv.DB
+        .prepare(`SELECT id,order_id,event_type,reason,created_at FROM order_events WHERE order_id IN (${placeholders}) ORDER BY created_at DESC,id DESC`)
+        .bind(...ids)
+        .all<EventRow>(),
     ]);
 
   return rows.map((row) => {
@@ -210,6 +226,14 @@ async function serializeOrders(rows: OrderRow[]) {
     const balance = Math.max(0, row.total_amount - paidAmount);
     const credit = creditResult.results.find(
       (item) => item.order_id === row.id && item.status === "open",
+    );
+    const packages = packageResult.results.filter((item) => item.order_id === row.id);
+    const events = eventResult.results.filter((event) => event.order_id === row.id);
+    const acknowledgedAt = events.find((event) => event.event_type === "change_acknowledged")?.created_at ?? "";
+    const hasUnacknowledgedChange = events.some(
+      (event) =>
+        orderChangeEventTypes.has(event.event_type)
+        && (!acknowledgedAt || event.created_at > acknowledgedAt),
     );
     const paymentStatus = balance === 0
       ? "paid"
@@ -282,9 +306,17 @@ async function serializeOrders(rows: OrderRow[]) {
         recordedBy: payment.recorded_by,
         memo: payment.memo,
       })),
-      packageCodes: packageResult.results
-        .filter((item) => item.order_id === row.id)
-        .map((item) => item.package_code),
+      packageCodes: packages.map((item) => item.package_code),
+      packageTotal: packages.length,
+      packageCompleted: packages.filter((item) =>
+        item.package_status === "completed" || item.package_status === "handed_over").length,
+      hasUnacknowledgedChange,
+      events: events.map((event) => ({
+        id: event.id,
+        type: event.event_type,
+        reason: event.reason,
+        createdAt: event.created_at,
+      })),
     };
   });
 }
@@ -304,22 +336,22 @@ export async function GET(request: Request) {
     let result: D1Result<OrderRow>;
     if (q && date) {
       result = await runtimeEnv.DB
-        .prepare(`SELECT o.* FROM orders o LEFT JOIN fulfillments f ON f.order_id=o.id WHERE o.order_status!='cancelled' AND ((((f.fulfillment_type='pickup' AND substr(f.pickup_at,1,10)=?) OR (f.fulfillment_type='shipping' AND f.ship_date=?)) OR f.id IS NULL) AND (o.order_no LIKE ? OR o.buyer_name_snapshot LIKE ? OR o.buyer_phone_snapshot LIKE ? OR f.recipient_name LIKE ?)) ORDER BY o.created_at DESC LIMIT 100`)
-        .bind(date, date, like, like, like, like)
+        .prepare(`SELECT DISTINCT o.* FROM orders o LEFT JOIN fulfillments f ON f.order_id=o.id WHERE o.order_status!='cancelled' AND ((((f.fulfillment_type='pickup' AND substr(f.pickup_at,1,10)=?) OR (f.fulfillment_type='shipping' AND f.ship_date=?)) OR f.id IS NULL) AND (o.order_no LIKE ? OR o.buyer_name_snapshot LIKE ? OR o.buyer_phone_snapshot LIKE ? OR COALESCE(f.recipient_name,o.recipient_name) LIKE ? OR COALESCE(f.recipient_phone,o.recipient_phone) LIKE ?)) ORDER BY o.created_at DESC LIMIT 500`)
+        .bind(date, date, like, like, like, like, like)
         .all<OrderRow>();
     } else if (date) {
       result = await runtimeEnv.DB
-        .prepare(`SELECT o.* FROM orders o LEFT JOIN fulfillments f ON f.order_id=o.id WHERE o.order_status!='cancelled' AND ((f.fulfillment_type='pickup' AND substr(f.pickup_at,1,10)=?) OR (f.fulfillment_type='shipping' AND f.ship_date=?) OR f.id IS NULL) ORDER BY o.created_at DESC LIMIT 100`)
+        .prepare(`SELECT o.* FROM orders o LEFT JOIN fulfillments f ON f.order_id=o.id WHERE o.order_status!='cancelled' AND ((f.fulfillment_type='pickup' AND substr(f.pickup_at,1,10)=?) OR (f.fulfillment_type='shipping' AND f.ship_date=?) OR f.id IS NULL) ORDER BY o.created_at DESC LIMIT 500`)
         .bind(date, date)
         .all<OrderRow>();
     } else if (q) {
       result = await runtimeEnv.DB
-        .prepare("SELECT * FROM orders WHERE order_no LIKE ? OR buyer_name_snapshot LIKE ? OR buyer_phone_snapshot LIKE ? OR recipient_name LIKE ? ORDER BY created_at DESC LIMIT 100")
-        .bind(like, like, like, like)
+        .prepare("SELECT DISTINCT o.* FROM orders o LEFT JOIN fulfillments f ON f.order_id=o.id WHERE o.order_no LIKE ? OR o.buyer_name_snapshot LIKE ? OR o.buyer_phone_snapshot LIKE ? OR COALESCE(f.recipient_name,o.recipient_name) LIKE ? OR COALESCE(f.recipient_phone,o.recipient_phone) LIKE ? ORDER BY o.created_at DESC LIMIT 500")
+        .bind(like, like, like, like, like)
         .all<OrderRow>();
     } else {
       result = await runtimeEnv.DB
-        .prepare("SELECT * FROM orders ORDER BY created_at DESC LIMIT 100")
+        .prepare("SELECT * FROM orders ORDER BY created_at DESC LIMIT 500")
         .all<OrderRow>();
     }
     return Response.json(

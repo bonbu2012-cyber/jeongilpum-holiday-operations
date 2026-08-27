@@ -364,7 +364,7 @@ test("credit status settles in the same batch as the final bank transfer", async
 
 test("sales shows payments while workshop remains payment-free", async () => {
   const [admin, workshop, paymentApi, availabilityApi] = await Promise.all([
-    read("app/components/AdminApp.tsx"),
+    read("app/components/SalesOrderDetail.tsx"),
     read("app/components/WorkshopApp.tsx"),
     read("app/api/orders/payments/route.ts"),
     read("app/api/availability/route.ts"),
