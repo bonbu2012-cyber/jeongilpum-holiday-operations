@@ -1,5 +1,10 @@
 import { env } from "cloudflare:workers";
 import { getChatGPTUser } from "../../chatgpt-auth";
+import {
+  SALES_DATE_ORDERS_SQL,
+  SALES_DATE_SEARCH_ORDERS_SQL,
+  SALES_SEARCH_ORDERS_SQL,
+} from "../../lib/sales-order-query";
 
 type OrderRow = {
   id: string;
@@ -336,17 +341,17 @@ export async function GET(request: Request) {
     let result: D1Result<OrderRow>;
     if (q && date) {
       result = await runtimeEnv.DB
-        .prepare(`SELECT DISTINCT o.* FROM orders o LEFT JOIN fulfillments f ON f.order_id=o.id WHERE o.order_status!='cancelled' AND ((((f.fulfillment_type='pickup' AND substr(f.pickup_at,1,10)=?) OR (f.fulfillment_type='shipping' AND f.ship_date=?)) OR f.id IS NULL) AND (o.order_no LIKE ? OR o.buyer_name_snapshot LIKE ? OR o.buyer_phone_snapshot LIKE ? OR COALESCE(f.recipient_name,o.recipient_name) LIKE ? OR COALESCE(f.recipient_phone,o.recipient_phone) LIKE ?)) ORDER BY o.created_at DESC LIMIT 500`)
+        .prepare(SALES_DATE_SEARCH_ORDERS_SQL)
         .bind(date, date, like, like, like, like, like)
         .all<OrderRow>();
     } else if (date) {
       result = await runtimeEnv.DB
-        .prepare(`SELECT o.* FROM orders o LEFT JOIN fulfillments f ON f.order_id=o.id WHERE o.order_status!='cancelled' AND ((f.fulfillment_type='pickup' AND substr(f.pickup_at,1,10)=?) OR (f.fulfillment_type='shipping' AND f.ship_date=?) OR f.id IS NULL) ORDER BY o.created_at DESC LIMIT 500`)
+        .prepare(SALES_DATE_ORDERS_SQL)
         .bind(date, date)
         .all<OrderRow>();
     } else if (q) {
       result = await runtimeEnv.DB
-        .prepare("SELECT DISTINCT o.* FROM orders o LEFT JOIN fulfillments f ON f.order_id=o.id WHERE o.order_no LIKE ? OR o.buyer_name_snapshot LIKE ? OR o.buyer_phone_snapshot LIKE ? OR COALESCE(f.recipient_name,o.recipient_name) LIKE ? OR COALESCE(f.recipient_phone,o.recipient_phone) LIKE ? ORDER BY o.created_at DESC LIMIT 500")
+        .prepare(SALES_SEARCH_ORDERS_SQL)
         .bind(like, like, like, like, like)
         .all<OrderRow>();
     } else {

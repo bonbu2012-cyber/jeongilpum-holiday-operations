@@ -5,17 +5,18 @@ import { readFile } from "node:fs/promises";
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
 test("legacy orders remain searchable and appear as unscheduled in date views", async () => {
-  const [ordersApi, admin] = await Promise.all([
+  const [ordersApi, orderQueries, admin] = await Promise.all([
     read("app/api/orders/route.ts"),
+    read("app/lib/sales-order-query.ts"),
     read("app/components/AdminApp.tsx"),
   ]);
 
-  assert.match(ordersApi, /LEFT JOIN fulfillments f/);
-  assert.match(ordersApi, /f\.id IS NULL/);
+  assert.match(orderQueries, /LEFT JOIN fulfillments f/);
+  assert.match(orderQueries, /f\.id IS NULL/);
   assert.match(ordersApi, /일정 미지정 · 기존 주문/);
-  assert.match(ordersApi, /buyer_name_snapshot LIKE/);
-  assert.match(ordersApi, /buyer_phone_snapshot LIKE/);
-  assert.match(ordersApi, /order_no LIKE/);
+  assert.match(orderQueries, /buyer_name_snapshot LIKE/);
+  assert.match(orderQueries, /buyer_phone_snapshot LIKE/);
+  assert.match(orderQueries, /order_no LIKE/);
   assert.match(admin, /일정 미지정 주문/);
   assert.match(admin, /기존 주문 원본은 변경하지 않으며/);
 });

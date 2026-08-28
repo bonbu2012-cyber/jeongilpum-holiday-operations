@@ -10,6 +10,10 @@ import {
   summarizeOperationalOrders,
   workStatusLabel,
 } from "../app/lib/sales-operations.ts";
+import {
+  SALES_DATE_ORDERS_SQL,
+  SALES_SEARCH_ORDERS_SQL,
+} from "../app/lib/sales-order-query.ts";
 
 const root = new URL("../", import.meta.url);
 const read = (path) => readFile(new URL(path, root), "utf8");
@@ -97,7 +101,7 @@ test("more than 100 orders keep stable priority sorting and filtering", () => {
     buyerName: "고객 " + index,
     pickupAt: "2026-09-24T" + String(8 + Math.floor(index / 10)).padStart(2, "0") + ":" + String((index % 2) * 30).padStart(2, "0") + ":00+09:00",
     customerArrived: index === 119,
-    status: index < 10 ? "fulfilled" : index % 3 === 0 ? "ready" : "confirmed",
+    status: index === 118 ? "submitted" : index < 10 ? "fulfilled" : index % 3 === 0 ? "ready" : "confirmed",
   }));
   const visible = filterOperationalOrders(fixture, "all", null);
   const sorted = sortOperationalOrders(visible, new Date("2026-09-23T00:00:00.000Z"));
@@ -107,6 +111,29 @@ test("more than 100 orders keep stable priority sorting and filtering", () => {
   const summary = summarizeOperationalOrders(visible);
   assert.equal(summary.total, 120);
   assert.equal(summary.fulfilled, 10);
+  assert.equal(visible.some((item) => item.id === "fixture-118" && item.status === "submitted"), true);
+});
+
+test("sales date SQL selects pickup and shipping schedules, excludes cancelled, and keeps history searchable", () => {
+  const database = new DatabaseSync(":memory:");
+  database.exec("CREATE TABLE orders(id TEXT PRIMARY KEY,order_no TEXT,buyer_name_snapshot TEXT,buyer_phone_snapshot TEXT,order_status TEXT,recipient_name TEXT,recipient_phone TEXT,created_at TEXT)");
+  database.exec("CREATE TABLE fulfillments(id TEXT PRIMARY KEY,order_id TEXT,fulfillment_type TEXT,pickup_at TEXT,ship_date TEXT,recipient_name TEXT,recipient_phone TEXT)");
+  const add = (id, status, type, pickupAt, shipDate) => {
+    database.prepare("INSERT INTO orders VALUES(?,?,?,?,?,?,?,?)").run(id, "JI-" + id, "고객 " + id, "01000000000", status, null, null, "2026-08-28T03:00:00.000Z");
+    database.prepare("INSERT INTO fulfillments VALUES(?,?,?,?,?,?,?)").run("f-" + id, id, type, pickupAt, shipDate, null, null);
+  };
+  add("today-pickup", "submitted", "pickup", "2026-08-28T11:00:00+09:00", null);
+  add("future-pickup", "submitted", "pickup", "2026-08-31T11:00:00+09:00", null);
+  add("shipping", "submitted", "shipping", null, "2026-08-30");
+  add("cancelled", "cancelled", "pickup", "2026-08-28T12:00:00+09:00", null);
+
+  const idsForDate = (date) => database.prepare(SALES_DATE_ORDERS_SQL).all(date, date).map((row) => row.id);
+  assert.deepEqual(idsForDate("2026-08-28"), ["today-pickup"]);
+  assert.deepEqual(idsForDate("2026-08-31"), ["future-pickup"]);
+  assert.deepEqual(idsForDate("2026-08-30"), ["shipping"]);
+  const cancelledSearch = database.prepare(SALES_SEARCH_ORDERS_SQL).all("%cancelled%", "%cancelled%", "%cancelled%", "%cancelled%", "%cancelled%");
+  assert.deepEqual(cancelledSearch.map((row) => row.id), ["cancelled"]);
+  database.close();
 });
 
 test("customer arrival SQL is idempotent and leaves one audit event", () => {
@@ -129,16 +156,17 @@ test("customer arrival SQL is idempotent and leaves one audit event", () => {
 });
 
 test("sales API keeps cancelled history searchable and exposes work progress, payments, and events", async () => {
-  const [api, arrival, sales, detail, availability] = await Promise.all([
+  const [api, queries, arrival, sales, detail, availability] = await Promise.all([
     read("app/api/orders/route.ts"),
+    read("app/lib/sales-order-query.ts"),
     read("app/api/orders/arrival/route.ts"),
     read("app/components/SalesApp.tsx"),
     read("app/components/SalesOrderDetail.tsx"),
     read("app/api/availability/route.ts"),
   ]);
-  assert.match(api, /o\.order_status!='cancelled'/);
-  assert.match(api, /else if \(q\)[\s\S]*SELECT DISTINCT o\.\*/);
-  assert.match(api, /LIMIT 500/);
+  assert.match(queries, /o\.order_status!='cancelled'/);
+  assert.match(api, /else if \(q\)[\s\S]*SALES_SEARCH_ORDERS_SQL/);
+  assert.match(queries, /LIMIT 500/);
   assert.match(api, /packageCompleted/);
   assert.match(api, /hasUnacknowledgedChange/);
   assert.match(api, /events: events\.map/);
@@ -147,6 +175,7 @@ test("sales API keeps cancelled history searchable and exposes work progress, pa
   assert.match(sales, /setInterval\([\s\S]{0,100}2500\)/);
   assert.match(sales, /addEventListener\("focus"/);
   assert.match(sales, /addEventListener\("online"/);
+  assert.match(sales, /useCallback\([\s\S]*\}, \[selectedDate\]\)/);
   for (const label of ["시간", "고객", "상품", "수량", "수령", "작업상태", "고객상태", "변경"]) assert.match(sales, new RegExp(label));
   for (const label of ["총 주문금액", "결제누계", "잔액", "결제내역"]) assert.match(detail, new RegExp(label));
   assert.match(availability, /remainingQuantity/);

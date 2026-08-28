@@ -149,10 +149,10 @@ test("custom order validates, preserves, and joins the main kiosk order",async()
 });
 
 test("sales date views exclude cancelled orders while search keeps history",async()=>{
- const [admin,ordersApi]=await Promise.all([read("app/components/SalesApp.tsx"),read("app/api/orders/route.ts")]);
+ const [admin,ordersApi,queries]=await Promise.all([read("app/components/SalesApp.tsx"),read("app/api/orders/route.ts"),read("app/lib/sales-order-query.ts")]);
  assert.match(admin,/order\.status !== "cancelled"/);
- assert.match(ordersApi,/o\.order_status!='cancelled'/);
- assert.match(ordersApi,/else if \(q\)[\s\S]*SELECT DISTINCT o\.\*/);
+ assert.match(queries,/o\.order_status!='cancelled'/);
+ assert.match(ordersApi,/else if \(q\)[\s\S]*SALES_SEARCH_ORDERS_SQL/);
 });
 
 test("P0 sales auth accepts configured user IDs or operator emails and disables response caches",async()=>{
@@ -165,7 +165,8 @@ test("P0 sales auth accepts configured user IDs or operator emails and disables 
  }
  assert.match(client,/cache:"no-store"/);
  assert.match(orders,/no-store, no-cache, must-revalidate/);
- assert.match(orders,/f\.fulfillment_type='pickup'/);
- assert.match(orders,/f\.ship_date=\?/);
- assert.match(orders,/ORDER BY o\.created_at DESC/);
+ const queries=await read("app/lib/sales-order-query.ts");
+ assert.match(queries,/f\.fulfillment_type='pickup'/);
+ assert.match(queries,/f\.ship_date=\?/);
+ assert.match(queries,/ORDER BY o\.created_at DESC/);
 });

@@ -70,11 +70,15 @@ export default function SalesApp() {
         fetch("/api/availability?date=" + encodeURIComponent(selectedDate), { cache: "no-store" }),
       ]);
       const data = await response.json() as AvailabilityResponse;
-      if (!response.ok) throw new Error(data.error || "한정상품 현황을 불러오지 못했습니다.");
       setOrders(nextOrders);
-      setAvailability(data.products ?? []);
       setSelectedOrder((current) => current ? nextOrders.find((order) => order.id === current.id) ?? current : null);
-      setError("");
+      if (response.ok) {
+        setAvailability(data.products ?? []);
+        setError("");
+      } else {
+        setAvailability([]);
+        setNotice(data.error || "한정상품 현황을 불러오지 못했습니다.");
+      }
       setLastSync(new Intl.DateTimeFormat("ko-KR", {
         timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit", second: "2-digit",
       }).format(new Date()));
@@ -187,6 +191,8 @@ export default function SalesApp() {
         <label><span>달력</span><input type="date" value={selectedDate} onChange={(event) => setSelectedDate(event.target.value)} /></label>
       </section>
 
+      {error && <div className="access-error sales-load-error" role="alert"><b>판매장 주문을 불러오지 못했습니다</b><span>{error}</span><a href="/signin-with-chatgpt?return_to=/sales">운영자 로그인</a></div>}
+
       <section className="sales-summary" aria-label="선택 날짜 운영 요약">
         <div className="sales-summary-total"><small>{selectedDate === todayInSeoul() ? "오늘 주문" : "선택일 주문"}</small><b>{summary.total}</b></div>
         <dl>
@@ -223,7 +229,7 @@ export default function SalesApp() {
         <header><div><small>LIMITED PRODUCTS</small><h2>한정상품 현황</h2></div><span>{selectedDate}</span></header>
         {availability.length ? <table><thead><tr><th>상품</th><th>하루한도</th><th>예약수량</th><th>남은수량</th></tr></thead><tbody>{availability.map((item) => <tr key={item.productId}><td>{item.productName}</td><td>{item.dailyLimit}</td><td>{item.reservedQuantity}</td><td><b>{item.remainingQuantity}</b></td></tr>)}</tbody></table> : <p>설정된 한정상품이 없습니다.</p>}
       </section>
-      {error && <div className="access-error"><b>판매장 화면에 연결할 수 없습니다</b><span>{error}</span><a href="/signin-with-chatgpt?return_to=/sales">운영자 로그인</a></div>}
+
     </main>
 
     {selectedOrder && <SalesOrderDetail order={selectedOrder} onClose={() => setSelectedOrder(null)} onArrival={markArrival} onStatus={updateStatus} onSaved={() => void refreshAll()} assignSchedule={assignSchedule} />}
