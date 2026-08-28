@@ -1,8 +1,8 @@
-import type { WorkshopOrder } from "./workshop-types";
+import type { WorkshopItem, WorkshopOrder } from "./workshop-types";
 
 export const WORKSHOP_DATE_ORDERS_SQL = "SELECT o.id,o.order_no,o.buyer_name_snapshot,o.order_status,o.customer_note,o.version,o.submitted_at,f.id AS fulfillment_id,f.fulfillment_type,f.pickup_at,f.ship_date,f.customer_arrived,f.note AS fulfillment_note FROM orders o JOIN fulfillments f ON f.order_id=o.id WHERE o.order_status IN ('submitted','confirmed','in_progress','ready') AND ((f.fulfillment_type='pickup' AND substr(f.pickup_at,1,10)=?) OR (f.fulfillment_type='shipping' AND f.ship_date=?)) ORDER BY o.created_at ASC LIMIT 500";
 
-export type WorkshopTab = "orders" | "products" | "completed";
+export type WorkshopTab = "timeline" | "products" | "completed";
 export type WorkshopAction = "accept" | "start" | "complete";
 
 export function workshopScheduleDate(order: WorkshopOrder) {
@@ -10,7 +10,7 @@ export function workshopScheduleDate(order: WorkshopOrder) {
 }
 
 export function workshopScheduleTime(order: WorkshopOrder) {
-  return order.fulfillmentType === "pickup" ? order.pickupAt?.slice(11, 16) ?? "미지정" : "발송";
+  return order.fulfillmentType === "pickup" ? order.pickupAt?.slice(11, 16) ?? "미지정" : "택배";
 }
 
 export function isWorkshopDueSoon(order: WorkshopOrder, now: Date) {
@@ -19,30 +19,50 @@ export function isWorkshopDueSoon(order: WorkshopOrder, now: Date) {
   return difference >= 0 && difference <= 30 * 60 * 1000;
 }
 
+export function dueSoonLabel(order: WorkshopOrder, now: Date) {
+  if (!isWorkshopDueSoon(order, now) || !order.pickupAt) return null;
+  const minutes = Math.ceil((new Date(order.pickupAt).getTime() - now.getTime()) / 60000);
+  return `임박 ${minutes}분`;
+}
+
 export function workshopPriorityRank(order: WorkshopOrder, now: Date) {
   if (order.customerArrived && order.status !== "ready") return 0;
   if (isWorkshopDueSoon(order, now)) return 1;
   if (order.hasUnacknowledgedChange && order.status !== "ready") return 2;
-  if (order.status === "in_progress" || (order.status === "confirmed" && order.workAcceptedAt)) return 3;
-  if (order.status === "submitted" || order.status === "confirmed") return 4;
-  if (order.status === "ready") return 5;
-  return 6;
+  if (order.status === "in_progress") return 3;
+  if (order.status === "confirmed" && order.workAcceptedAt) return 4;
+  if (order.status === "submitted" || order.status === "confirmed") return 5;
+  if (order.status === "ready") return 6;
+  return 7;
 }
 
 export function sortWorkshopOrders(orders: WorkshopOrder[], now = new Date()) {
   return [...orders].sort((left, right) => {
     const rank = workshopPriorityRank(left, now) - workshopPriorityRank(right, now);
     if (rank) return rank;
-    const schedule = (left.pickupAt ?? left.shipDate ?? "9999").localeCompare(right.pickupAt ?? right.shipDate ?? "9999");
-    if (schedule) return schedule;
-    return left.submittedAt.localeCompare(right.submittedAt);
+    return timelineSortKey(left).localeCompare(timelineSortKey(right)) || left.submittedAt.localeCompare(right.submittedAt);
   });
+}
+
+export function timelineSortKey(order: WorkshopOrder) {
+  if (order.fulfillmentType === "pickup") return `0-${order.pickupAt ?? "9999"}`;
+  return `1-${order.shipDate ?? "9999"}-${order.submittedAt}`;
+}
+
+export function sortTimelineOrders(orders: WorkshopOrder[]) {
+  return [...orders].sort((left, right) => timelineSortKey(left).localeCompare(timelineSortKey(right)) || left.submittedAt.localeCompare(right.submittedAt));
+}
+
+export function filterWorkshopOrdersByProduct(orders: WorkshopOrder[], productId: string | null) {
+  if (!productId) return orders;
+  return orders.filter((order) => order.items.some((item) => item.productId === productId));
 }
 
 export function summarizeWorkshopOrders(orders: WorkshopOrder[]) {
   return {
     total: orders.length,
-    waiting: orders.filter((order) => order.status === "submitted" || order.status === "confirmed").length,
+    waiting: orders.filter((order) => order.status === "submitted" || (order.status === "confirmed" && !order.workAcceptedAt)).length,
+    accepted: orders.filter((order) => order.status === "confirmed" && Boolean(order.workAcceptedAt)).length,
     inProgress: orders.filter((order) => order.status === "in_progress").length,
     completed: orders.filter((order) => order.status === "ready").length,
     arrived: orders.filter((order) => order.customerArrived && order.status !== "ready").length,
@@ -50,24 +70,41 @@ export function summarizeWorkshopOrders(orders: WorkshopOrder[]) {
   };
 }
 
+export function completedQuantityForItem(order: Pick<WorkshopOrder, "status">, item: WorkshopItem) {
+  if (item.packageTotal > 0) return Math.min(item.quantity, item.packageCompleted);
+  return order.status === "ready" ? item.quantity : 0;
+}
+
 export function aggregateWorkshopProducts(orders: WorkshopOrder[]) {
-  const products = new Map<string, { productId: string; name: string; total: number; completed: number; remaining: number }>();
+  const products = new Map<string, { productId: string; name: string; total: number; completed: number; remaining: number; nextDueAt: string | null }>();
   for (const order of orders) {
     for (const item of order.items) {
-      const current = products.get(item.productId) ?? { productId: item.productId, name: item.name, total: 0, completed: 0, remaining: 0 };
+      const current = products.get(item.productId) ?? { productId: item.productId, name: item.name, total: 0, completed: 0, remaining: 0, nextDueAt: null };
+      const completed = completedQuantityForItem(order, item);
       current.total += item.quantity;
-      current.completed += Math.min(item.quantity, item.packageCompleted);
+      current.completed += completed;
       current.remaining = Math.max(0, current.total - current.completed);
+      if (completed < item.quantity) {
+        const dueAt = order.fulfillmentType === "pickup" ? order.pickupAt : order.shipDate;
+        if (dueAt && (!current.nextDueAt || dueAt < current.nextDueAt)) current.nextDueAt = dueAt;
+      }
       products.set(item.productId, current);
     }
   }
-  return [...products.values()].sort((left, right) => right.remaining - left.remaining || left.name.localeCompare(right.name));
+  return [...products.values()].sort((left, right) => {
+    if (left.nextDueAt && right.nextDueAt) {
+      const due = left.nextDueAt.localeCompare(right.nextDueAt);
+      if (due) return due;
+    } else if (left.nextDueAt) return -1;
+    else if (right.nextDueAt) return 1;
+    return right.remaining - left.remaining || left.name.localeCompare(right.name);
+  });
 }
 
 export function workshopStatusLabel(order: WorkshopOrder) {
   if (order.status === "ready") return "준비완료";
   if (order.status === "in_progress") return "작업중";
-  if (order.status === "confirmed" && order.workAcceptedAt) return "작업수락";
+  if (order.status === "confirmed" && order.workAcceptedAt) return "수락완료";
   if (order.status === "confirmed") return "작업대기";
   return "판매장 확인 대기";
 }

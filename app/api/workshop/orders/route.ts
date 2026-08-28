@@ -1,9 +1,11 @@
 import { env } from "cloudflare:workers";
 import { getChatGPTUser } from "../../../chatgpt-auth";
+import type { OrderStatus } from "../../../components/types";
 import { WORKSHOP_DATE_ORDERS_SQL } from "../../../lib/workshop-operations";
 
-type OrderRow = { id: string; order_no: string; buyer_name_snapshot: string; order_status: string; customer_note: string; version: number; submitted_at: string; fulfillment_id: string; fulfillment_type: "pickup" | "shipping"; pickup_at: string | null; ship_date: string | null; customer_arrived: number; fulfillment_note: string };
+type OrderRow = { id: string; order_no: string; buyer_name_snapshot: string; order_status: OrderStatus; customer_note: string; version: number; submitted_at: string; fulfillment_id: string; fulfillment_type: "pickup" | "shipping"; pickup_at: string | null; ship_date: string | null; customer_arrived: number; fulfillment_note: string };
 type ItemRow = { id: string; order_id: string; product_id: string; product_name_snapshot: string; quantity: number };
+type FulfillmentItemRow = { fulfillment_id: string; order_item_id: string; quantity: number };
 type PackageRow = { id: string; order_id: string; product_id: string; package_status: string };
 type EventRow = { id: string; order_id: string; event_type: string; reason: string | null; actor_id: string | null; created_at: string };
 
@@ -36,8 +38,9 @@ export async function GET(request: Request) {
     if (!result.results.length) return Response.json({ orders: [] }, { headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } });
     const ids = result.results.map((order) => order.id);
     const placeholders = ids.map(() => "?").join(",");
-    const [items, packages, events] = await Promise.all([
+    const [items, fulfillmentItems, packages, events] = await Promise.all([
       runtimeEnv.DB.prepare(`SELECT id,order_id,product_id,product_name_snapshot,quantity FROM order_items WHERE order_id IN (${placeholders})`).bind(...ids).all<ItemRow>(),
+      runtimeEnv.DB.prepare("SELECT fulfillment_id,order_item_id,quantity FROM fulfillment_items WHERE fulfillment_id IN (" + placeholders + ")").bind(...result.results.map((order) => order.fulfillment_id)).all<FulfillmentItemRow>(),
       runtimeEnv.DB.prepare(`SELECT id,order_id,product_id,package_status FROM packages WHERE order_id IN (${placeholders}) AND package_status!='voided'`).bind(...ids).all<PackageRow>(),
       runtimeEnv.DB.prepare(`SELECT id,order_id,event_type,reason,actor_id,created_at FROM order_events WHERE order_id IN (${placeholders}) ORDER BY created_at DESC,id DESC`).bind(...ids).all<EventRow>(),
     ]);
@@ -45,10 +48,13 @@ export async function GET(request: Request) {
       const orderPackages = packages.results.filter((item) => item.order_id === order.id);
       const orderEvents = events.results.filter((event) => event.order_id === order.id && visibleEvents.has(event.event_type));
       const acknowledgedAt = orderEvents.find((event) => event.event_type === "change_acknowledged")?.created_at ?? "";
-      const hasUnacknowledgedChange = orderEvents.some((event) => changeEvents.has(event.event_type) && (!acknowledgedAt || event.created_at > acknowledgedAt));
-      const workAcceptedAt = orderEvents.find((event) => event.event_type === "WORK_ACCEPTED")?.created_at ?? null;
-      const workStartedAt = orderEvents.find((event) => event.event_type === "WORK_STARTED")?.created_at ?? null;
-      const workCompletedAt = orderEvents.find((event) => event.event_type === "WORK_COMPLETED")?.created_at ?? null;
+      const unacknowledgedChanges = orderEvents.filter((event) => changeEvents.has(event.event_type) && (!acknowledgedAt || event.created_at > acknowledgedAt));
+      const hasUnacknowledgedChange = unacknowledgedChanges.length > 0;
+      const acceptedEvent = orderEvents.find((event) => event.event_type === "WORK_ACCEPTED");
+      const startedEvent = orderEvents.find((event) => event.event_type === "WORK_STARTED");
+      const completedEvent = orderEvents.find((event) => event.event_type === "WORK_COMPLETED");
+      const latestChangeAt = unacknowledgedChanges[0]?.created_at ?? null;
+      const changeSeverity = !latestChangeAt ? null : startedEvent && latestChangeAt > startedEvent.created_at ? "after_start" : "before_start";
       return {
         id: order.id,
         orderNo: order.order_no,
@@ -65,14 +71,17 @@ export async function GET(request: Request) {
         note: order.fulfillment_note || order.customer_note,
         items: items.results.filter((item) => item.order_id === order.id).map((item) => {
           const itemPackages = orderPackages.filter((value) => value.product_id === item.product_id);
-          return { id: item.id, productId: item.product_id, name: item.product_name_snapshot, quantity: item.quantity, packageTotal: itemPackages.length, packageCompleted: itemPackages.filter((value) => value.package_status === "completed" || value.package_status === "handed_over").length };
+          const fulfillmentItem = fulfillmentItems.results.find((value) => value.fulfillment_id === order.fulfillment_id && value.order_item_id === item.id);
+          return { id: item.id, productId: item.product_id, name: item.product_name_snapshot, quantity: fulfillmentItem?.quantity ?? item.quantity, packageTotal: itemPackages.length, packageCompleted: itemPackages.filter((value) => value.package_status === "completed" || value.package_status === "handed_over").length };
         }),
         packageTotal: orderPackages.length,
         packageCompleted: orderPackages.filter((item) => item.package_status === "completed" || item.package_status === "handed_over").length,
         hasUnacknowledgedChange,
-        workAcceptedAt,
-        workStartedAt,
-        workCompletedAt,
+        changeSeverity,
+        workAcceptedAt: acceptedEvent?.created_at ?? null,
+        workAcceptedBy: acceptedEvent?.actor_id ?? null,
+        workStartedAt: startedEvent?.created_at ?? null,
+        workCompletedAt: completedEvent?.created_at ?? null,
         events: orderEvents.map((event) => ({ id: event.id, type: event.event_type, reason: event.reason, actorId: event.actor_id, createdAt: event.created_at })),
       };
     });

@@ -35,7 +35,9 @@ export type WorkshopOrder = {
   packageTotal: number;
   packageCompleted: number;
   hasUnacknowledgedChange: boolean;
+  changeSeverity: "before_start" | "after_start" | null;
   workAcceptedAt: string | null;
+  workAcceptedBy: string | null;
   workStartedAt: string | null;
   workCompletedAt: string | null;
   events: WorkshopEvent[];
