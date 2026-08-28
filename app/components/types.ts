@@ -98,6 +98,9 @@ export type OrderRecord = {
   packageTotal: number;
   packageCompleted: number;
   hasUnacknowledgedChange: boolean;
+  workAcceptedAt?: string | null;
+  workStartedAt?: string | null;
+  workCompletedAt?: string | null;
   events: OrderEventRecord[];
 };
 

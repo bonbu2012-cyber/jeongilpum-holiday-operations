@@ -240,6 +240,10 @@ async function serializeOrders(rows: OrderRow[]) {
         orderChangeEventTypes.has(event.event_type)
         && (!acknowledgedAt || event.created_at > acknowledgedAt),
     );
+    const workAcceptedAt = events.find((event) => event.event_type === "WORK_ACCEPTED")?.created_at ?? null;
+    const workStartedAt = events.find((event) => event.event_type === "WORK_STARTED")?.created_at ?? null;
+    const workCompletedAt = events.find((event) => event.event_type === "WORK_COMPLETED")?.created_at ?? null;
+
     const paymentStatus = balance === 0
       ? "paid"
       : credit
@@ -316,6 +320,9 @@ async function serializeOrders(rows: OrderRow[]) {
       packageCompleted: packages.filter((item) =>
         item.package_status === "completed" || item.package_status === "handed_over").length,
       hasUnacknowledgedChange,
+      workAcceptedAt,
+      workStartedAt,
+      workCompletedAt,
       events: events.map((event) => ({
         id: event.id,
         type: event.event_type,

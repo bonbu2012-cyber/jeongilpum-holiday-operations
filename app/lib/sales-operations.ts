@@ -12,6 +12,7 @@ export function workStatusLabel(order: OrderRecord) {
   if (order.status === "fulfilled") return order.fulfillmentType === "shipping" ? "출고완료" : "전달완료";
   if (order.status === "ready") return "준비완료";
   if (order.status === "in_progress") return "작업중";
+  if (order.status === "confirmed" && order.workAcceptedAt) return "작업수락";
   return "작업대기";
 }
 

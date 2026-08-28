@@ -9,7 +9,7 @@
         "dev": "vinext dev",
         "build": "vinext build",
         "start": "vinext start",
-        "test": "node --test tests/v2-spec.test.mjs tests/legacy-fulfillment.test.mjs tests/commerce.test.mjs tests/sales-operations.test.mjs",
+        "test": "node --test tests/v2-spec.test.mjs tests/legacy-fulfillment.test.mjs tests/commerce.test.mjs tests/sales-operations.test.mjs tests/workshop-operations.test.mjs",
         "lint": "eslint . --ignore-pattern dist --ignore-pattern .next --ignore-pattern .wrangler",
         "db:generate": "drizzle-kit generate",
         "typecheck": "tsc --noEmit"
