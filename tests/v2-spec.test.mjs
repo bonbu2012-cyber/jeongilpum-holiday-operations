@@ -109,7 +109,7 @@ test("custom order and settings workflows stay durable",async()=>{
 });
 
 test("all operating surfaces share navigation and sales has an alias route",async()=>{
- const [nav,kiosk,admin,workshop,settings,css,sales]=await Promise.all([read("app/components/AppNav.tsx"),read("app/components/KioskApp.tsx"),read("app/components/AdminApp.tsx"),read("app/components/WorkshopApp.tsx"),read("app/components/SettingsApp.tsx"),read("app/globals.css"),read("app/sales/page.tsx")]);
+ const [nav,kiosk,admin,workshop,settings,css,sales,salesCss]=await Promise.all([read("app/components/AppNav.tsx"),read("app/components/KioskApp.tsx"),read("app/components/AdminApp.tsx"),read("app/components/WorkshopApp.tsx"),read("app/components/SettingsApp.tsx"),read("app/globals.css"),read("app/sales/page.tsx"),read("app/sales-flow.css")]);
  for(const href of ["/kiosk","/sales","/workshop","/settings"])assert.match(nav,new RegExp('href: "'+href.replaceAll("/","\\/")+'"'));
  assert.match(nav,/aria-current/);
  assert.match(kiosk,/AppNav current="kiosk"/);
@@ -118,6 +118,8 @@ test("all operating surfaces share navigation and sales has an alias route",asyn
  assert.match(settings,/AppNav current="settings"/);
  assert.match(sales,/SalesApp/);
  assert.match(css,/\.category-rail\{[^}]*position:sticky;top:92px;height:calc\(100vh - 92px\)/);
+ assert.doesNotMatch(salesCss,/\.sales-header \.app-nav\{display:none\}/);
+ assert.match(salesCss,/@media\(max-width:900px\)[\s\S]*\.sales-header \.app-nav\{[^}]*display:flex/);
 });
 
 test("sales and workshop refetch within three seconds and recover on focus and online",async()=>{
