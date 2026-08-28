@@ -5,10 +5,14 @@ import test from "node:test";
 import {
   WORKSHOP_DATE_ORDERS_SQL,
   aggregateWorkshopProducts,
+  arrivalOffsetMinutes,
+  arrivalTimingLabel,
   canApplyWorkshopAction,
   completedQuantityForItem,
   filterWorkshopOrdersByProduct,
+  findSubstituteCandidates,
   isWorkshopDueSoon,
+  pickupUrgency,
   sortTimelineOrders,
   sortWorkshopOrders,
   summarizeWorkshopOrders,
@@ -34,8 +38,11 @@ function order(overrides = {}) {
     shipDate: null,
     scheduleLabel: "2026-09-24 11:00 방문",
     customerArrived: false,
+    actualArrivedAt: null,
+    arrivalOffsetMinutes: null,
     note: "",
-    items: [{ id: "item-1", productId: "mi", name: "미", quantity: 2, packageTotal: 2, packageCompleted: 0 }],
+    hasSpecialRequest: false,
+    items: [{ id: "item-1", productId: "mi", name: "미", quantity: 2, packageTotal: 2, packageCompleted: 0, hasCustomization: false }],
     packageTotal: 2,
     packageCompleted: 0,
     hasUnacknowledgedChange: false,
@@ -44,6 +51,7 @@ function order(overrides = {}) {
     workAcceptedBy: null,
     workStartedAt: null,
     workCompletedAt: null,
+    substituteCandidates: [],
     events: [],
     ...overrides,
   };
@@ -219,4 +227,101 @@ test("digital whiteboard UI ties checkmarks to ready, separates completed, and o
   assert.match(actions, /package_status='completed'/);
   assert.match(salesApi, /workAcceptedAt/);
   assert.match(salesOps, /작업수락/);
+});
+test("next due advances after completion and clears when every matching item is complete", () => {
+  const nine = order({ id: "nine", status: "ready", pickupAt: "2026-09-24T09:00:00+09:00", items: [{ id: "n", productId: "phoenix", name: "봉황", quantity: 2, packageTotal: 2, packageCompleted: 2, hasCustomization: false }] });
+  const ten = order({ id: "ten", status: "in_progress", pickupAt: "2026-09-24T10:00:00+09:00", items: [{ id: "t", productId: "phoenix", name: "봉황", quantity: 1, packageTotal: 1, packageCompleted: 0, hasCustomization: false }] });
+  const eleven = order({ id: "eleven", pickupAt: "2026-09-24T11:30:00+09:00", items: [{ id: "e", productId: "phoenix", name: "봉황", quantity: 3, packageTotal: 3, packageCompleted: 0, hasCustomization: false }] });
+  const before = aggregateWorkshopProducts([nine, ten, eleven])[0];
+  assert.equal(before.nextDueAt, "2026-09-24T10:00:00+09:00");
+  assert.deepEqual([before.total, before.completed, before.remaining], [6, 2, 4]);
+  const completedTen = { ...ten, status: "ready", items: [{ ...ten.items[0], packageCompleted: 1 }] };
+  const after = aggregateWorkshopProducts([nine, completedTen, eleven])[0];
+  assert.equal(after.nextDueAt, "2026-09-24T11:30:00+09:00");
+  assert.deepEqual([after.total, after.completed, after.remaining], [6, 3, 3]);
+  const finished = aggregateWorkshopProducts([nine, completedTen, { ...eleven, status: "ready", items: [{ ...eleven.items[0], packageCompleted: 3 }] }])[0];
+  assert.equal(finished.nextDueAt, null);
+  assert.deepEqual([finished.total, finished.completed, finished.remaining], [6, 6, 0]);
+});
+
+test("pickup urgency covers 60, 30, 15 minutes and overdue while excluding ready", () => {
+  const now = new Date("2026-09-24T01:00:00.000Z");
+  assert.equal(pickupUrgency(order({ pickupAt: "2026-09-24T10:50:00+09:00" }), now)?.level, "hour");
+  assert.equal(pickupUrgency(order({ pickupAt: "2026-09-24T10:25:00+09:00" }), now)?.level, "due");
+  assert.equal(pickupUrgency(order({ pickupAt: "2026-09-24T10:10:00+09:00" }), now)?.level, "urgent");
+  assert.match(pickupUrgency(order({ pickupAt: "2026-09-24T09:55:00+09:00" }), now)?.label ?? "", /지연/);
+  assert.equal(pickupUrgency(order({ status: "ready", pickupAt: "2026-09-24T10:05:00+09:00" }), now), null);
+});
+
+test("actual CUSTOMER_ARRIVED time calculates 45 minute early arrival and ready arrival stays out of urgency", () => {
+  assert.equal(arrivalOffsetMinutes("2026-09-24T11:00:00+09:00", "2026-09-24T10:15:00+09:00"), 45);
+  assert.equal(arrivalTimingLabel(45), "고객 조기도착 · 45분 빠름");
+  const readyArrival = order({ status: "ready", customerArrived: true, actualArrivedAt: "2026-09-24T10:15:00+09:00" });
+  assert.equal(pickupUrgency(readyArrival, new Date("2026-09-24T01:20:00Z")), null);
+  assert.equal(workshopPriorityRank(readyArrival, new Date("2026-09-24T01:20:00Z")), 7);
+});
+
+test("early unfinished order finds only same-date later compatible completed package", () => {
+  const target = order({ id: "target", orderNo: "TARGET", customerArrived: true, actualArrivedAt: "2026-09-24T10:15:00+09:00", pickupAt: "2026-09-24T11:00:00+09:00" });
+  const source = order({ id: "source", orderNo: "SOURCE", status: "ready", pickupAt: "2026-09-24T12:30:00+09:00" });
+  const nextDay = order({ id: "next-day", orderNo: "NEXT", status: "ready", pickupAt: "2026-09-25T12:30:00+09:00" });
+  const packages = [
+    { id: "target-pending", packageCode: "MI-TARGET", orderId: "target", productId: "mi", packageStatus: "in_progress" },
+    { id: "same", packageCode: "MI-001", orderId: "source", productId: "mi", packageStatus: "completed" },
+    { id: "other", packageCode: "ETC-001", orderId: "source", productId: "other", packageStatus: "completed" },
+    { id: "tomorrow", packageCode: "MI-002", orderId: "next-day", productId: "mi", packageStatus: "completed" },
+  ];
+  const candidates = findSubstituteCandidates([target, source, nextDay], packages);
+  assert.deepEqual(candidates.get("target")?.map((item) => item.packageId), ["same"]);
+  assert.equal(findSubstituteCandidates([target, { ...source, items: [{ ...source.items[0], hasCustomization: true }] }], packages).has("target"), false);
+  assert.equal(findSubstituteCandidates([{ ...target, hasSpecialRequest: true }, source], packages).has("target"), false);
+  assert.equal(findSubstituteCandidates([target, source], packages, new Set(["same"])).has("target"), false);
+});
+
+test("one-for-one package reassignment preserves total and records non-PII audit data", () => {
+  const database = new DatabaseSync(":memory:");
+  database.exec("CREATE TABLE orders(id TEXT PRIMARY KEY,order_status TEXT,version INTEGER); CREATE TABLE order_items(order_id TEXT,product_id TEXT,quantity INTEGER); CREATE TABLE packages(id TEXT PRIMARY KEY,order_id TEXT,product_id TEXT,package_status TEXT); CREATE TABLE order_events(id TEXT PRIMARY KEY,order_id TEXT,event_type TEXT,after_data TEXT,reason TEXT,actor_id TEXT,created_at TEXT)");
+  database.prepare("INSERT INTO orders VALUES('early','in_progress',1),('later','ready',1)").run();
+  database.prepare("INSERT INTO order_items VALUES('early','mi',1),('later','mi',1)").run();
+  database.prepare("INSERT INTO packages VALUES('early-p','early','mi','in_progress'),('MI-001','later','mi','completed')").run();
+  const totalBefore = database.prepare("SELECT SUM(quantity) total FROM order_items").get().total;
+  database.exec("BEGIN");
+  database.prepare("UPDATE packages SET order_id='early' WHERE id='MI-001' AND order_id='later' AND package_status='completed'").run();
+  database.prepare("UPDATE packages SET order_id='later' WHERE id='early-p' AND order_id='early' AND package_status='in_progress'").run();
+  database.prepare("UPDATE orders SET order_status='ready',version=version+1 WHERE id='early'").run();
+  database.prepare("UPDATE orders SET order_status='in_progress',version=version+1 WHERE id='later'").run();
+  database.prepare("INSERT INTO order_events VALUES('event','early','PACKAGE_REASSIGNED','{\"packageId\":\"MI-001\",\"replacementPackageId\":\"early-p\",\"fromOrderId\":\"later\",\"toOrderId\":\"early\",\"workerId\":\"worker\",\"performedAt\":\"2026-09-24T01:15:00Z\",\"labelActionRequired\":\"VOID_AND_REPRINT\"}','EARLY_CUSTOMER_ARRIVAL','worker','2026-09-24T01:15:00Z')").run();
+  database.exec("COMMIT");
+  assert.equal(database.prepare("SELECT SUM(quantity) total FROM order_items").get().total, totalBefore);
+  assert.equal(database.prepare("SELECT COUNT(*) count FROM packages WHERE order_id='early'").get().count, 1);
+  assert.equal(database.prepare("SELECT COUNT(*) count FROM packages WHERE order_id='later'").get().count, 1);
+  assert.equal(database.prepare("SELECT order_status FROM orders WHERE id='early'").get().order_status, "ready");
+  assert.equal(database.prepare("SELECT order_status FROM orders WHERE id='later'").get().order_status, "in_progress");
+  const event = database.prepare("SELECT * FROM order_events").get();
+  assert.equal(event.event_type, "PACKAGE_REASSIGNED");
+  assert.equal(event.reason, "EARLY_CUSTOMER_ARRIVAL");
+  assert.match(event.after_data, /VOID_AND_REPRINT/);
+  assert.doesNotMatch(event.after_data, /buyerName|phone|address/);
+  database.close();
+});
+
+test("integrated APIs expose arrival, reassignment, audit, and label hooks without migration", async () => {
+  const [ordersApi, reassignApi, workshop, salesDetail] = await Promise.all([
+    read("app/api/workshop/orders/route.ts"),
+    read("app/api/workshop/packages/reassign/route.ts"),
+    read("app/components/WorkshopApp.tsx"),
+    read("app/components/SalesOrderDetail.tsx"),
+  ]);
+  assert.match(ordersApi, /actualArrivedAt/);
+  assert.match(ordersApi, /fulfillment_items/);
+  assert.match(ordersApi, /findSubstituteCandidates/);
+  assert.match(reassignApi, /PACKAGE_REASSIGNED/);
+  assert.match(reassignApi, /EARLY_CUSTOMER_ARRIVAL/);
+  assert.match(reassignApi, /order_item_customizations/);
+  assert.match(reassignApi, /labelActionRequired/);
+  assert.match(reassignApi, /workerId/);
+  assert.match(reassignApi, /performedAt/);
+  assert.match(workshop, /대체 완성품 적용/);
+  assert.match(salesDetail, /실제도착시간/);
+  assert.match(salesDetail, /바로 전달 가능/);
 });

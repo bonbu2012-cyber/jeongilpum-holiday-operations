@@ -1,9 +1,21 @@
-import type { WorkshopItem, WorkshopOrder } from "./workshop-types";
+import type { OrderStatus } from "../components/types";
+import type { SubstituteCandidate, WorkshopItem, WorkshopOrder } from "./workshop-types";
 
 export const WORKSHOP_DATE_ORDERS_SQL = "SELECT o.id,o.order_no,o.buyer_name_snapshot,o.order_status,o.customer_note,o.version,o.submitted_at,f.id AS fulfillment_id,f.fulfillment_type,f.pickup_at,f.ship_date,f.customer_arrived,f.note AS fulfillment_note FROM orders o JOIN fulfillments f ON f.order_id=o.id WHERE o.order_status IN ('submitted','confirmed','in_progress','ready') AND ((f.fulfillment_type='pickup' AND substr(f.pickup_at,1,10)=?) OR (f.fulfillment_type='shipping' AND f.ship_date=?)) ORDER BY o.created_at ASC LIMIT 500";
 
 export type WorkshopTab = "timeline" | "products" | "completed";
 export type WorkshopAction = "accept" | "start" | "complete";
+export type SubstituteOrderInput = {
+  id: string;
+  orderNo: string;
+  status: OrderStatus;
+  fulfillmentType: "pickup" | "shipping";
+  pickupAt: string | null;
+  actualArrivedAt: string | null;
+  hasSpecialRequest: boolean;
+  items: { productId: string; name: string; hasCustomization: boolean }[];
+};
+export type SubstitutePackageInput = { id: string; packageCode: string; orderId: string; productId: string; packageStatus: string };
 
 export function workshopScheduleDate(order: WorkshopOrder) {
   return order.fulfillmentType === "pickup" ? order.pickupAt?.slice(0, 10) ?? "" : order.shipDate ?? "";
@@ -13,27 +25,36 @@ export function workshopScheduleTime(order: WorkshopOrder) {
   return order.fulfillmentType === "pickup" ? order.pickupAt?.slice(11, 16) ?? "미지정" : "택배";
 }
 
+export function pickupUrgency(order: Pick<WorkshopOrder, "fulfillmentType" | "pickupAt" | "status">, now: Date) {
+  if (order.status === "ready" || order.fulfillmentType !== "pickup" || !order.pickupAt) return null;
+  const minutes = Math.ceil((new Date(order.pickupAt).getTime() - now.getTime()) / 60000);
+  if (minutes < 0) return { level: "urgent" as const, minutes, label: `긴급 · ${Math.abs(minutes)}분 지연` };
+  if (minutes <= 15) return { level: "urgent" as const, minutes, label: `긴급 · ${minutes}분` };
+  if (minutes <= 30) return { level: "due" as const, minutes, label: `임박 · ${minutes}분` };
+  if (minutes <= 60) return { level: "hour" as const, minutes, label: `1시간 이내 · ${minutes}분` };
+  return null;
+}
+
 export function isWorkshopDueSoon(order: WorkshopOrder, now: Date) {
-  if (order.fulfillmentType !== "pickup" || !order.pickupAt || order.status === "ready") return false;
-  const difference = new Date(order.pickupAt).getTime() - now.getTime();
-  return difference >= 0 && difference <= 30 * 60 * 1000;
+  const urgency = pickupUrgency(order, now);
+  return urgency?.level === "urgent" || urgency?.level === "due";
 }
 
 export function dueSoonLabel(order: WorkshopOrder, now: Date) {
-  if (!isWorkshopDueSoon(order, now) || !order.pickupAt) return null;
-  const minutes = Math.ceil((new Date(order.pickupAt).getTime() - now.getTime()) / 60000);
-  return `임박 ${minutes}분`;
+  return pickupUrgency(order, now)?.label ?? null;
 }
 
 export function workshopPriorityRank(order: WorkshopOrder, now: Date) {
   if (order.customerArrived && order.status !== "ready") return 0;
-  if (isWorkshopDueSoon(order, now)) return 1;
-  if (order.hasUnacknowledgedChange && order.status !== "ready") return 2;
-  if (order.status === "in_progress") return 3;
-  if (order.status === "confirmed" && order.workAcceptedAt) return 4;
-  if (order.status === "submitted" || order.status === "confirmed") return 5;
-  if (order.status === "ready") return 6;
-  return 7;
+  const urgency = pickupUrgency(order, now);
+  if (urgency?.level === "urgent") return 1;
+  if (urgency?.level === "due") return 2;
+  if (order.hasUnacknowledgedChange && order.status !== "ready") return 3;
+  if (order.status === "in_progress") return 4;
+  if (order.status === "confirmed" && order.workAcceptedAt) return 5;
+  if (order.status === "submitted" || order.status === "confirmed") return 6;
+  if (order.status === "ready") return 7;
+  return 8;
 }
 
 export function sortWorkshopOrders(orders: WorkshopOrder[], now = new Date()) {
@@ -99,6 +120,41 @@ export function aggregateWorkshopProducts(orders: WorkshopOrder[]) {
     else if (right.nextDueAt) return 1;
     return right.remaining - left.remaining || left.name.localeCompare(right.name);
   });
+}
+
+export function arrivalOffsetMinutes(pickupAt: string | null, actualArrivedAt: string | null) {
+  if (!pickupAt || !actualArrivedAt) return null;
+  return Math.round((new Date(pickupAt).getTime() - new Date(actualArrivedAt).getTime()) / 60000);
+}
+
+export function arrivalTimingLabel(minutes: number | null) {
+  if (minutes === null) return "고객도착";
+  if (minutes > 0) return `고객 조기도착 · ${minutes}분 빠름`;
+  if (minutes < 0) return `고객 도착 · ${Math.abs(minutes)}분 늦음`;
+  return "고객 도착 · 예약시간";
+}
+
+export function findSubstituteCandidates(orders: SubstituteOrderInput[], packages: SubstitutePackageInput[], reassignedPackageIds = new Set<string>()) {
+  const byOrder = new Map<string, SubstituteCandidate[]>();
+  for (const target of orders) {
+    const earlyMinutes = arrivalOffsetMinutes(target.pickupAt, target.actualArrivedAt);
+    if (target.fulfillmentType !== "pickup" || target.status === "ready" || !target.pickupAt || !earlyMinutes || earlyMinutes <= 0 || target.hasSpecialRequest) continue;
+    const targetProducts = new Map(target.items.filter((item) => !item.hasCustomization).map((item) => [item.productId, item.name]));
+    if (!targetProducts.size) continue;
+    const candidates: SubstituteCandidate[] = [];
+    for (const value of packages) {
+      if (value.packageStatus !== "completed" || value.orderId === target.id || reassignedPackageIds.has(value.id) || !targetProducts.has(value.productId)) continue;
+      const pendingReplacement = packages.some((item) => item.orderId === target.id && item.productId === value.productId && ["queued", "in_progress"].includes(item.packageStatus) && !reassignedPackageIds.has(item.id));
+      if (!pendingReplacement) continue;
+      const source = orders.find((order) => order.id === value.orderId);
+      if (!source || source.fulfillmentType !== "pickup" || !source.pickupAt || source.pickupAt.slice(0, 10) !== target.pickupAt.slice(0, 10) || source.pickupAt <= target.pickupAt || source.hasSpecialRequest || ["fulfilled", "cancelled"].includes(source.status)) continue;
+      const sourceItem = source.items.find((item) => item.productId === value.productId);
+      if (!sourceItem || sourceItem.hasCustomization) continue;
+      candidates.push({ packageId: value.id, packageCode: value.packageCode, productId: value.productId, productName: targetProducts.get(value.productId) ?? sourceItem.name, sourceOrderId: source.id, sourceOrderNo: source.orderNo, sourcePickupAt: source.pickupAt });
+    }
+    if (candidates.length) byOrder.set(target.id, candidates.sort((left, right) => left.sourcePickupAt.localeCompare(right.sourcePickupAt)));
+  }
+  return byOrder;
 }
 
 export function workshopStatusLabel(order: WorkshopOrder) {

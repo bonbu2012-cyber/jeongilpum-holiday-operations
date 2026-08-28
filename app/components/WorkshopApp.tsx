@@ -2,19 +2,22 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import AppNav from "./AppNav";
-import { fetchWorkshopOrders, runWorkshopAction } from "../lib/workshop-client";
+import { fetchWorkshopOrders, reassignCompletedPackage, runWorkshopAction } from "../lib/workshop-client";
 import {
   aggregateWorkshopProducts,
+  arrivalTimingLabel,
   dueSoonLabel,
   filterWorkshopOrdersByProduct,
   isWorkshopDueSoon,
+  pickupUrgency,
   sortTimelineOrders,
+  sortWorkshopOrders,
   summarizeWorkshopOrders,
   workshopStatusLabel,
   type WorkshopAction,
   type WorkshopTab,
 } from "../lib/workshop-operations";
-import type { WorkshopOrder } from "../lib/workshop-types";
+import type { SubstituteCandidate, WorkshopOrder } from "../lib/workshop-types";
 import "../workshop-flow.css";
 
 const todayInSeoul = () => {
@@ -48,6 +51,7 @@ const eventLabel: Record<string, string> = {
   schedule_changed: "일정 변경",
   change_acknowledged: "변경 확인",
   fulfillment_assigned: "수령 일정 지정",
+  PACKAGE_REASSIGNED: "대체 완성품 재배정",
 };
 
 export default function WorkshopApp() {
@@ -62,6 +66,7 @@ export default function WorkshopApp() {
   const [notice, setNotice] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [busyOrderId, setBusyOrderId] = useState("");
+  const [busyPackageId, setBusyPackageId] = useState("");
   const [lastSync, setLastSync] = useState("");
   const requestSequence = useRef(0);
 
@@ -110,12 +115,26 @@ export default function WorkshopApp() {
     }
   };
 
+  const performReassignment = async (order: WorkshopOrder, candidate: SubstituteCandidate) => {
+    setBusyPackageId(candidate.packageId);
+    try {
+      const result = await reassignCompletedPackage(order, candidate);
+      setNotice(result.alreadyApplied ? "이미 적용된 재배정입니다. 최신 상태를 불러왔습니다." : "대체 완성품을 적용했습니다. 두 주문의 생산 현황을 다시 계산했습니다.");
+      await load();
+    } catch (caught) {
+      setNotice(caught instanceof Error ? caught.message : "대체 완성품을 적용하지 못했습니다.");
+      await load(true);
+    } finally {
+      setBusyPackageId("");
+    }
+  };
+
   const now = new Date();
   const summary = summarizeWorkshopOrders(orders);
   const products = aggregateWorkshopProducts(orders);
   const filteredOrders = filterWorkshopOrdersByProduct(orders, productFilterId);
   const incomplete = filteredOrders.filter((order) => order.status !== "ready");
-  const urgent = sortTimelineOrders(incomplete.filter((order) => order.customerArrived || isWorkshopDueSoon(order, now)));
+  const urgent = sortWorkshopOrders(incomplete.filter((order) => order.customerArrived || isWorkshopDueSoon(order, now)), now);
   const timelineSource = showAllTimeline ? filteredOrders : incomplete;
   const timeline = sortTimelineOrders(timelineSource.filter((order) => !urgent.some((urgentOrder) => urgentOrder.id === order.id)));
   const completed = sortTimelineOrders(filteredOrders.filter((order) => order.status === "ready"));
@@ -177,7 +196,7 @@ export default function WorkshopApp() {
       {tab === "completed" && <section className="whiteboard-section"><header><div><small>READY</small><h2>준비완료 주문</h2></div></header><TimelineRows orders={completed} onSelect={setSelectedOrder} onAction={perform} busyOrderId={busyOrderId} now={now} empty="선택 날짜의 준비완료 주문이 없습니다." /></section>}
     </main>
 
-    {selectedOrder && <WorkshopDetail order={selectedOrder} onClose={() => setSelectedOrder(null)} onAction={perform} busy={busyOrderId === selectedOrder.id} />}
+    {selectedOrder && <WorkshopDetail order={selectedOrder} onClose={() => setSelectedOrder(null)} onAction={perform} onReassign={performReassignment} busy={busyOrderId === selectedOrder.id} busyPackageId={busyPackageId} />}
     {notice && <div className="ops-toast" role="status">{notice}<button onClick={() => setNotice("")} aria-label="알림 닫기">×</button></div>}
   </div>;
 }
@@ -199,22 +218,24 @@ function TimelineRow({ order, onSelect, onAction, busy, now }: { order: Workshop
   const action = order.status === "confirmed" ? order.workAcceptedAt ? "start" : "accept" : order.status === "in_progress" ? "complete" : null;
   const actionText = action === "accept" ? "작업 수락" : action === "start" ? "작업 시작" : "상품 준비완료";
   const due = dueSoonLabel(order, now);
+  const urgency = pickupUrgency(order, now);
   return <article className={`timeline-row ${order.status === "ready" ? "ready" : ""} ${order.customerArrived && order.status !== "ready" ? "arrived" : ""}`}>
     <div className="completion-mark" aria-label={order.status === "ready" ? "준비완료" : "미완료"}>{order.status === "ready" ? "✓" : "☐"}</div>
     <div className="timeline-time">{order.fulfillmentType === "pickup" ? <><b>{order.pickupAt?.slice(11, 16) ?? "--:--"}</b><small>방문</small></> : <><b>[택배]</b><small>{order.shipDate} 발송</small></>}</div>
     <div className="timeline-customer"><button onClick={() => onSelect(order)}>{order.buyerName}</button><small>{order.orderNo}</small></div>
     <div className="timeline-products">{order.items.map((item) => <span key={item.id}>{item.name} <b>×{item.quantity}</b></span>)}{order.packageTotal > 0 && <small>{order.packageCompleted} / {order.packageTotal} package 완료</small>}</div>
-    <div className="timeline-flags">{order.customerArrived && order.status !== "ready" && <b>고객도착</b>}{due && !order.customerArrived && <b>{due}</b>}{order.hasUnacknowledgedChange && <b className={order.changeSeverity === "after_start" ? "strong-change" : ""}>{order.changeSeverity === "after_start" ? "작업 후 변경 확인 필요" : "변경"}</b>}</div>
+    <div className="timeline-flags">{order.customerArrived && order.status !== "ready" && <b className="arrival-badge">{arrivalTimingLabel(order.arrivalOffsetMinutes)}</b>}{due && <b className={`urgency-${urgency?.level}`}>{due}</b>}{order.substituteCandidates.length > 0 && <b className="substitute-badge">대체 완성품 {order.substituteCandidates.length}</b>}{order.hasUnacknowledgedChange && <b className={order.changeSeverity === "after_start" ? "strong-change" : ""}>{order.changeSeverity === "after_start" ? "작업 후 변경 확인 필요" : "변경"}</b>}</div>
     <div className="timeline-status"><strong>{order.status === "ready" ? "✓ 준비완료" : workshopStatusLabel(order)}</strong>{order.workAcceptedAt && order.status === "confirmed" && <small>{shortDateTime(order.workAcceptedAt)} 수락</small>}</div>
     <div className="timeline-action">{action ? <button disabled={busy} onClick={() => void onAction(order, action)}>{busy ? "처리 중…" : actionText}</button> : <button className="detail-only" onClick={() => onSelect(order)}>상세보기</button>}</div>
   </article>;
 }
 
-function WorkshopDetail({ order, onClose, onAction, busy }: { order: WorkshopOrder; onClose: () => void; onAction: (order: WorkshopOrder, action: WorkshopAction) => Promise<void>; busy: boolean }) {
+function WorkshopDetail({ order, onClose, onAction, onReassign, busy, busyPackageId }: { order: WorkshopOrder; onClose: () => void; onAction: (order: WorkshopOrder, action: WorkshopAction) => Promise<void>; onReassign: (order: WorkshopOrder, candidate: SubstituteCandidate) => Promise<void>; busy: boolean; busyPackageId: string }) {
   const action = order.status === "confirmed" ? order.workAcceptedAt ? "start" : "accept" : order.status === "in_progress" ? "complete" : null;
   return <div className="workshop-drawer-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><aside className="workshop-drawer" role="dialog" aria-modal="true" aria-label={`${order.orderNo} 작업 상세`}><header><div><small>{order.orderNo}</small><h2>{order.status === "ready" ? "✓ " : "☐ "}{order.buyerName}</h2></div><button onClick={onClose} aria-label="작업 상세 닫기">×</button></header>
-    <section className="workshop-detail-grid"><p><span>수령방법</span><b>{order.fulfillmentType === "pickup" ? "방문수령" : "택배발송"}</b></p><p><span>작업 기준일정</span><b>{order.scheduleLabel}</b></p><p><span>작업상태</span><b>{workshopStatusLabel(order)}</b></p><p><span>고객상태</span><b>{order.customerArrived ? "도착" : "도착 전"}</b></p>{order.workAcceptedAt && <p><span>작업 수락</span><b>{shortDateTime(order.workAcceptedAt)}</b><small>담당 {order.workAcceptedBy ?? "운영자"}</small></p>}{order.workStartedAt && <p><span>작업 시작</span><b>{shortDateTime(order.workStartedAt)}</b></p>}</section>
+    <section className="workshop-detail-grid"><p><span>수령방법</span><b>{order.fulfillmentType === "pickup" ? "방문수령" : "택배발송"}</b></p><p><span>작업 기준일정</span><b>{order.scheduleLabel}</b></p><p><span>작업상태</span><b>{workshopStatusLabel(order)}</b></p><p><span>고객상태</span><b>{order.customerArrived ? arrivalTimingLabel(order.arrivalOffsetMinutes) : "도착 전"}</b>{order.actualArrivedAt && <small>실제 {shortDateTime(order.actualArrivedAt)}</small>}</p>{order.workAcceptedAt && <p><span>작업 수락</span><b>{shortDateTime(order.workAcceptedAt)}</b><small>담당 {order.workAcceptedBy ?? "운영자"}</small></p>}{order.workStartedAt && <p><span>작업 시작</span><b>{shortDateTime(order.workStartedAt)}</b></p>}</section>
     <section className="workshop-detail-items"><h3>작업 상품</h3>{order.items.map((item) => <div key={item.id}><b>{item.name}</b><span>× {item.quantity}</span>{item.packageTotal > 0 ? <small>{item.packageCompleted} / {item.packageTotal} 완료</small> : <small>{order.status === "ready" ? "주문 전체 준비완료" : "부분완료 근거 없음"}</small>}</div>)}</section>
+    {order.substituteCandidates.length > 0 && <section className="workshop-substitutes"><h3>대체 가능한 완성품</h3><p>조기도착 고객에게 같은 날 더 늦은 주문의 동일 완성품을 1:1 맞교환합니다.</p>{order.substituteCandidates.map((candidate) => <div key={candidate.packageId}><span><b>{candidate.productName} · {candidate.packageCode}</b><small>{candidate.sourceOrderNo} · {candidate.sourcePickupAt.slice(11, 16)} 예약분</small></span><button disabled={Boolean(busyPackageId)} onClick={() => void onReassign(order, candidate)}>{busyPackageId === candidate.packageId ? "재배정 중…" : "대체 완성품 적용"}</button></div>)}</section>}
     {order.note && <section className="workshop-detail-note"><h3>작업 요청사항</h3><p>{order.note}</p></section>}
     <section className="workshop-detail-history"><h3>작업·변경 이력</h3>{order.events.length ? <ol>{order.events.map((event) => <li key={event.id}><b>{eventLabel[event.type] ?? event.type}</b><time>{new Date(event.createdAt).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })}</time>{event.reason && <small>{event.reason}</small>}</li>)}</ol> : <p>표시할 작업 이력이 없습니다.</p>}</section>
     {action && <button className={`workshop-action ${action}`} disabled={busy} onClick={() => void onAction(order, action)}>{busy ? "처리 중…" : action === "accept" ? "작업 수락" : action === "start" ? "작업 시작" : "상품 준비완료"}</button>}

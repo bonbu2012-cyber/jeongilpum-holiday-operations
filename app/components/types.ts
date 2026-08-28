@@ -83,6 +83,9 @@ export type OrderRecord = {
   jibunAddr: string | null;
   detailAddress: string | null;
   customerArrived: boolean;
+  actualArrivedAt: string | null;
+  arrivalOffsetMinutes: number | null;
+  substituteCandidateCount: number;
   note: string;
   totalAmount: number;
   paidAmount: number;

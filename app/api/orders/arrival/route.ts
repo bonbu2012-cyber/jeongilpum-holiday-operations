@@ -45,7 +45,7 @@ export async function PATCH(request: Request) {
     const results = await runtimeEnv.DB.batch([
       runtimeEnv.DB.prepare(
         "INSERT INTO order_events(id,order_id,event_type,after_data,actor_id,created_at) SELECT ?,?,'CUSTOMER_ARRIVED',?,?,? WHERE EXISTS(SELECT 1 FROM fulfillments WHERE order_id=? AND fulfillment_type='pickup' AND customer_arrived=0) AND NOT EXISTS(SELECT 1 FROM order_events WHERE order_id=? AND event_type='CUSTOMER_ARRIVED')",
-      ).bind(crypto.randomUUID(), payload.orderId, JSON.stringify({ customerArrived: true }), user.userId, now, payload.orderId, payload.orderId),
+      ).bind(crypto.randomUUID(), payload.orderId, JSON.stringify({ customerArrived: true, actualArrivedAt: now }), user.userId, now, payload.orderId, payload.orderId),
       runtimeEnv.DB.prepare(
         "UPDATE fulfillments SET customer_arrived=1,updated_at=? WHERE order_id=? AND fulfillment_type='pickup' AND customer_arrived=0",
       ).bind(now, payload.orderId),

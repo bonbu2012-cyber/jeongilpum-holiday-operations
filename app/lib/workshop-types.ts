@@ -7,6 +7,17 @@ export type WorkshopItem = {
   quantity: number;
   packageTotal: number;
   packageCompleted: number;
+  hasCustomization: boolean;
+};
+
+export type SubstituteCandidate = {
+  packageId: string;
+  packageCode: string;
+  productId: string;
+  productName: string;
+  sourceOrderId: string;
+  sourceOrderNo: string;
+  sourcePickupAt: string;
 };
 
 export type WorkshopEvent = {
@@ -30,7 +41,10 @@ export type WorkshopOrder = {
   shipDate: string | null;
   scheduleLabel: string;
   customerArrived: boolean;
+  actualArrivedAt: string | null;
+  arrivalOffsetMinutes: number | null;
   note: string;
+  hasSpecialRequest: boolean;
   items: WorkshopItem[];
   packageTotal: number;
   packageCompleted: number;
@@ -40,5 +54,6 @@ export type WorkshopOrder = {
   workAcceptedBy: string | null;
   workStartedAt: string | null;
   workCompletedAt: string | null;
+  substituteCandidates: SubstituteCandidate[];
   events: WorkshopEvent[];
 };

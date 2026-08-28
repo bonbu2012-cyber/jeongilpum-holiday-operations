@@ -42,3 +42,11 @@
 .payment-editor>div:last-child{display:flex;gap:8px}.payment-editor>div:last-child button{flex:1;height:42px;border:1px solid #d4ccbf;border-radius:8px;background:#fff;font-weight:800}.payment-editor>div:last-child .task-primary{background:var(--wine);color:#fff}
 .payment-error{color:#a22f28;font-size:11px;font-weight:800;margin:0}
 @media(max-width:700px){.payment-summary{grid-template-columns:1fr}.payment-panel{margin:0 13px 14px}}
+
+
+.detail-arrival{margin-top:14px;padding:14px;border:1px solid #e5b7bc;border-radius:12px;background:#fff7f7}
+.detail-arrival h3{margin:0 0 10px}
+.detail-arrival>div{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.detail-arrival p{display:grid;gap:3px;margin:0;padding:9px;background:#fff;border-radius:8px}
+.detail-arrival span{color:#726164;font-size:.78rem}
+.detail-arrival strong{display:block;margin-top:10px;color:#116149}

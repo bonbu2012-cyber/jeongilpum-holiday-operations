@@ -5,6 +5,7 @@ import {
   SALES_DATE_SEARCH_ORDERS_SQL,
   SALES_SEARCH_ORDERS_SQL,
 } from "../../lib/sales-order-query";
+import { arrivalOffsetMinutes, findSubstituteCandidates } from "../../lib/workshop-operations";
 
 type OrderRow = {
   id: string;
@@ -32,7 +33,9 @@ type ItemRow = {
   sale_unit_price: number;
 };
 type PackageRow = {
+  id: string;
   order_id: string;
+  product_id: string;
   package_code: string;
   package_status: string;
 };
@@ -41,6 +44,7 @@ type EventRow = {
   order_id: string;
   event_type: string;
   reason: string | null;
+  after_data: string | null;
   created_at: string;
 };
 type ProductRow = { id: string; name: string; price: number; active: number };
@@ -196,7 +200,7 @@ async function serializeOrders(rows: OrderRow[]) {
         .bind(...ids)
         .all<ItemRow>(),
       runtimeEnv.DB
-        .prepare(`SELECT order_id,package_code,package_status FROM packages WHERE order_id IN (${placeholders}) AND package_status!='voided'`)
+        .prepare(`SELECT id,order_id,product_id,package_code,package_status FROM packages WHERE order_id IN (${placeholders}) AND package_status!='voided'`)
         .bind(...ids)
         .all<PackageRow>(),
       runtimeEnv.DB
@@ -216,10 +220,46 @@ async function serializeOrders(rows: OrderRow[]) {
         .bind(...ids)
         .all<CreditRow>(),
       runtimeEnv.DB
-        .prepare(`SELECT id,order_id,event_type,reason,created_at FROM order_events WHERE order_id IN (${placeholders}) ORDER BY created_at DESC,id DESC`)
+        .prepare(`SELECT id,order_id,event_type,reason,after_data,created_at FROM order_events WHERE order_id IN (${placeholders}) ORDER BY created_at DESC,id DESC`)
         .bind(...ids)
         .all<EventRow>(),
     ]);
+
+  const reassignedPackageIds = new Set(eventResult.results.flatMap((event) => {
+    if (event.event_type !== "PACKAGE_REASSIGNED" || !event.after_data) return [];
+    try {
+      const data = JSON.parse(event.after_data) as { packageId?: string; replacementPackageId?: string };
+      return [data.packageId, data.replacementPackageId].filter((value): value is string => Boolean(value));
+    } catch {
+      return [];
+    }
+  }));
+  const candidateInputs = rows.map((row) => {
+    const fulfillment = fulfillmentResult.results.find((item) => item.order_id === row.id);
+    const events = eventResult.results.filter((event) => event.order_id === row.id);
+    const actualArrivedAt = events.find((event) => event.event_type === "CUSTOMER_ARRIVED")?.created_at ?? null;
+    return {
+      id: row.id,
+      orderNo: row.order_no,
+      status: row.order_status as "submitted" | "confirmed" | "in_progress" | "ready" | "fulfilled" | "cancelled",
+      fulfillmentType: fulfillment?.fulfillment_type ?? (row.fulfillment_type as "pickup" | "shipping"),
+      pickupAt: fulfillment?.pickup_at ?? null,
+      actualArrivedAt,
+      hasSpecialRequest: Boolean(row.customer_note.trim() || fulfillment?.note.trim()),
+      items: itemResult.results.filter((item) => item.order_id === row.id).map((item) => ({
+        productId: item.product_id,
+        name: item.product_name_snapshot,
+        hasCustomization: customizationResult.results.some((customization) => customization.order_item_id === item.id),
+      })),
+    };
+  });
+  const substituteCandidates = findSubstituteCandidates(candidateInputs, packageResult.results.map((item) => ({
+    id: item.id,
+    packageCode: item.package_code,
+    orderId: item.order_id,
+    productId: item.product_id,
+    packageStatus: item.package_status,
+  })), reassignedPackageIds);
 
   return rows.map((row) => {
     const fulfillment = fulfillmentResult.results.find((item) => item.order_id === row.id);
@@ -243,6 +283,7 @@ async function serializeOrders(rows: OrderRow[]) {
     const workAcceptedAt = events.find((event) => event.event_type === "WORK_ACCEPTED")?.created_at ?? null;
     const workStartedAt = events.find((event) => event.event_type === "WORK_STARTED")?.created_at ?? null;
     const workCompletedAt = events.find((event) => event.event_type === "WORK_COMPLETED")?.created_at ?? null;
+    const actualArrivedAt = events.find((event) => event.event_type === "CUSTOMER_ARRIVED")?.created_at ?? null;
 
     const paymentStatus = balance === 0
       ? "paid"
@@ -271,6 +312,9 @@ async function serializeOrders(rows: OrderRow[]) {
       jibunAddr: fulfillment?.jibun_addr ?? null,
       detailAddress: fulfillment?.detail_addr ?? row.detail_address,
       customerArrived: Boolean(fulfillment?.customer_arrived),
+      actualArrivedAt,
+      arrivalOffsetMinutes: arrivalOffsetMinutes(fulfillment?.pickup_at ?? null, actualArrivedAt),
+      substituteCandidateCount: substituteCandidates.get(row.id)?.length ?? 0,
       note: fulfillment?.note ?? row.customer_note,
       totalAmount: row.total_amount,
       paidAmount,

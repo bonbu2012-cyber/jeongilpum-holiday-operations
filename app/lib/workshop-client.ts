@@ -1,5 +1,5 @@
 import type { WorkshopAction } from "./workshop-operations";
-import type { WorkshopOrder } from "./workshop-types";
+import type { SubstituteCandidate, WorkshopOrder } from "./workshop-types";
 
 export async function fetchWorkshopOrders(date: string) {
   const response = await fetch(`/api/workshop/orders?date=${encodeURIComponent(date)}`, { cache: "no-store" });
@@ -16,5 +16,16 @@ export async function runWorkshopAction(order: WorkshopOrder, action: WorkshopAc
   });
   const data = await response.json() as { error?: string; alreadyApplied?: boolean };
   if (!response.ok) throw new Error(data.error || "작업 상태를 변경하지 못했습니다.");
+  return data;
+}
+
+export async function reassignCompletedPackage(order: WorkshopOrder, candidate: SubstituteCandidate) {
+  const response = await fetch("/api/workshop/packages/reassign", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ targetOrderId: order.id, packageId: candidate.packageId, reason: "EARLY_CUSTOMER_ARRIVAL" }),
+  });
+  const data = await response.json() as { error?: string; alreadyApplied?: boolean };
+  if (!response.ok) throw new Error(data.error || "대체 완성품을 적용하지 못했습니다.");
   return data;
 }
