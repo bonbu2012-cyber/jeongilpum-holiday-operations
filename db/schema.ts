@@ -192,6 +192,8 @@ export const orderCreditTerms = sqliteTable("order_credit_terms", {
 export const packages = sqliteTable("packages", {
   id: text("id").primaryKey(),
   orderId: text("order_id").notNull().references(() => orders.id),
+  orderItemId: text("order_item_id").references(() => orderItems.id),
+  packageSequence: integer("package_sequence"),
   packageCode: text("package_code").notNull().unique(),
   productId: text("product_id").notNull().references(() => products.id),
   productNameSnapshot: text("product_name_snapshot").notNull(),
@@ -200,9 +202,100 @@ export const packages = sqliteTable("packages", {
   updatedAt: text("updated_at").notNull(),
 }, (table) => [
   index("idx_packages_order").on(table.orderId),
+  uniqueIndex("idx_packages_item_sequence").on(table.orderItemId, table.packageSequence),
   index("idx_packages_status").on(table.packageStatus),
 ]);
 
+export const productComponents = sqliteTable("product_components", {
+  id: text("id").primaryKey(),
+  productId: text("product_id").notNull().references(() => products.id),
+  componentCode: text("component_code").notNull(),
+  componentName: text("component_name").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+  traceabilityRequired: integer("traceability_required", { mode: "boolean" }).notNull().default(true),
+  weightRequired: integer("weight_required", { mode: "boolean" }).notNull().default(true),
+  originRequired: integer("origin_required", { mode: "boolean" }).notNull().default(false),
+  slaughterhouseRequired: integer("slaughterhouse_required", { mode: "boolean" }).notNull().default(false),
+  active: integer("active", { mode: "boolean" }).notNull().default(true),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, (table) => [
+  uniqueIndex("idx_product_components_code").on(table.productId, table.componentCode),
+  index("idx_product_components_product_order").on(table.productId, table.active, table.sortOrder),
+]);
+
+export const traceabilityRecords = sqliteTable("traceability_records", {
+  traceabilityNo: text("traceability_no").primaryKey(),
+  lastRawScan: text("last_raw_scan").notNull(),
+  origin: text("origin").notNull().default(""),
+  slaughterhouse: text("slaughterhouse").notNull().default(""),
+  cattleType: text("cattle_type").notNull().default(""),
+  grade: text("grade").notNull().default(""),
+  source: text("source").notNull().default("manual"),
+  verifiedAt: text("verified_at"),
+  lastUsedBy: text("last_used_by").notNull(),
+  lastUsedAt: text("last_used_at").notNull(),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, (table) => [
+  index("idx_traceability_recent_worker").on(table.lastUsedBy, table.lastUsedAt),
+]);
+
+export const packageComponents = sqliteTable("package_components", {
+  id: text("id").primaryKey(),
+  packageId: text("package_id").notNull().references(() => packages.id),
+  productComponentId: text("product_component_id").references(() => productComponents.id),
+  componentNameSnapshot: text("component_name_snapshot").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+  traceabilityRequired: integer("traceability_required", { mode: "boolean" }).notNull().default(true),
+  weightRequired: integer("weight_required", { mode: "boolean" }).notNull().default(true),
+  originRequired: integer("origin_required", { mode: "boolean" }).notNull().default(false),
+  slaughterhouseRequired: integer("slaughterhouse_required", { mode: "boolean" }).notNull().default(false),
+  traceabilityNo: text("traceability_no").references(() => traceabilityRecords.traceabilityNo),
+  weightG: integer("weight_g"),
+  origin: text("origin").notNull().default(""),
+  slaughterhouse: text("slaughterhouse").notNull().default(""),
+  enteredBy: text("entered_by"),
+  enteredAt: text("entered_at"),
+  updatedAt: text("updated_at").notNull(),
+}, (table) => [
+  uniqueIndex("idx_package_components_template").on(table.packageId, table.productComponentId),
+  index("idx_package_components_package_order").on(table.packageId, table.sortOrder),
+  check("package_components_weight_positive", sql`${table.weightG} is null or ${table.weightG} > 0`),
+]);
+
+export const packageLabels = sqliteTable("package_labels", {
+  id: text("id").primaryKey(),
+  packageId: text("package_id").notNull().references(() => packages.id),
+  version: integer("version").notNull(),
+  status: text("status").notNull().default("draft"),
+  payloadJson: text("payload_json").notNull(),
+  qrValue: text("qr_value").notNull(),
+  createdBy: text("created_by").notNull(),
+  createdAt: text("created_at").notNull(),
+  printedBy: text("printed_by"),
+  printedAt: text("printed_at"),
+  voidedBy: text("voided_by"),
+  voidedAt: text("voided_at"),
+  voidReason: text("void_reason"),
+}, (table) => [
+  uniqueIndex("idx_package_labels_version").on(table.packageId, table.version),
+  index("idx_package_labels_status").on(table.packageId, table.status),
+  check("package_labels_status_valid", sql`${table.status} in ('draft', 'printed', 'void')`),
+]);
+
+export const packageAssignmentHistory = sqliteTable("package_assignment_history", {
+  id: text("id").primaryKey(),
+  packageId: text("package_id").notNull().references(() => packages.id),
+  fromOrderId: text("from_order_id").references(() => orders.id),
+  toOrderId: text("to_order_id").notNull().references(() => orders.id),
+  reason: text("reason").notNull(),
+  changedBy: text("changed_by").notNull(),
+  changedAt: text("changed_at").notNull(),
+}, (table) => [
+  index("idx_package_assignment_history_package").on(table.packageId, table.changedAt),
+  index("idx_package_assignment_history_order").on(table.toOrderId, table.changedAt),
+]);
 export const customOrderRequests = sqliteTable("custom_order_requests", {
   id: text("id").primaryKey(),
   requestNo: text("request_no").notNull().unique(),

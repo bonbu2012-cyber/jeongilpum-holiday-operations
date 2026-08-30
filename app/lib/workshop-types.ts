@@ -28,6 +28,14 @@ export type WorkshopEvent = {
   createdAt: string;
 };
 
+export type WorkshopPackageSummary = {
+  id: string;
+  packageCode: string;
+  productId: string;
+  productName: string;
+  packageStatus: string;
+};
+
 export type WorkshopOrder = {
   id: string;
   orderNo: string;
@@ -46,6 +54,7 @@ export type WorkshopOrder = {
   note: string;
   hasSpecialRequest: boolean;
   items: WorkshopItem[];
+  packages: WorkshopPackageSummary[];
   packageTotal: number;
   packageCompleted: number;
   hasUnacknowledgedChange: boolean;
