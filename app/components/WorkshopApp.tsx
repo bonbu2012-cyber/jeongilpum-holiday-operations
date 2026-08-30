@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -147,7 +148,7 @@ export default function WorkshopApp() {
 
   return <div className="workshop-app">
     <header className="workshop-header">
-      <a href="/workshop" className="workshop-brand"><b>正</b><span>정일품 작업장<small>DIGITAL WORK WHITEBOARD</small></span></a>
+      <a href="/workshop" className="workshop-brand"><img className="operations-brand-logo" src="/jeongilpum-logo.png" alt="정일품 정육식당 로고"/><span>정일품 작업장<small>DIGITAL WORK WHITEBOARD</small></span></a>
       <AppNav current="workshop" />
       <button className="workshop-sync" onClick={() => void load()} disabled={refreshing}>{refreshing ? "동기화 중…" : "지금 새로고침"}</button>
     </header>

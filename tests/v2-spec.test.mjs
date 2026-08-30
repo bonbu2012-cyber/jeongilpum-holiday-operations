@@ -172,11 +172,13 @@ test("P0 sales auth accepts configured user IDs or operator emails and disables 
 });
 
 test("kiosk brand logo and editable headline use durable audited settings",async()=>{
- const [kiosk,settings,settingsApi,productsApi,css,logo,appSettings]=await Promise.all([
-  read("app/components/KioskApp.tsx"),read("app/components/SettingsApp.tsx"),read("app/api/settings/route.ts"),read("app/api/products/route.ts"),read("app/globals.css"),readFile(new URL("public/jeongilpum-logo.png",root)),import("../app/lib/app-settings.ts")
+ const [kiosk,sales,workshop,settings,settingsApi,productsApi,css,logo,appSettings]=await Promise.all([
+  read("app/components/KioskApp.tsx"),read("app/components/SalesApp.tsx"),read("app/components/WorkshopApp.tsx"),read("app/components/SettingsApp.tsx"),read("app/api/settings/route.ts"),read("app/api/products/route.ts"),read("app/globals.css"),readFile(new URL("public/jeongilpum-logo.png",root)),import("../app/lib/app-settings.ts")
  ]);
  assert.match(kiosk,/정일품 정육식당/);
  assert.match(kiosk,/src="\/jeongilpum-logo\.png"/);
+ assert.match(sales,/className="operations-brand-logo" src="\/jeongilpum-logo\.png"/);
+ assert.match(workshop,/className="operations-brand-logo" src="\/jeongilpum-logo\.png"/);
  assert.match(kiosk,/\{headline\}/);
  assert.match(settings,/KIOSK MESSAGE/);
  assert.match(settings,/type:"app_setting"/);
