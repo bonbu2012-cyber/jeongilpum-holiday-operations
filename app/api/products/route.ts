@@ -1,11 +1,13 @@
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { getDb } from "../../../db";
 import {
+  configurationEvents,
   productDailyLimits,
   productDailyReservations,
   products,
   salesSeasons,
 } from "../../../db/schema";
+import { DEFAULT_KIOSK_HEADLINE, parseStoredSetting } from "../../lib/app-settings";
 
 function todayInSeoul() {
   return new Intl.DateTimeFormat("en-CA", {
@@ -23,7 +25,7 @@ export async function GET(request: Request) {
       ? (url.searchParams.get("date") as string)
       : todayInSeoul();
     const db = getDb();
-    const [productRows, seasonRows] = await Promise.all([
+    const [productRows, seasonRows, headlineRows] = await Promise.all([
       db
         .select({
           product: products,
@@ -55,6 +57,17 @@ export async function GET(request: Request) {
         .where(eq(salesSeasons.active, true))
         .orderBy(desc(salesSeasons.salesStartDate))
         .limit(1),
+      db
+        .select({ afterData: configurationEvents.afterData })
+        .from(configurationEvents)
+        .where(
+          and(
+            eq(configurationEvents.entityType, "app_setting"),
+            eq(configurationEvents.entityId, "kiosk_headline"),
+          ),
+        )
+        .orderBy(desc(configurationEvents.createdAt), desc(configurationEvents.id))
+        .limit(1),
     ]);
 
     const season = seasonRows[0];
@@ -76,7 +89,7 @@ export async function GET(request: Request) {
     }));
 
     return Response.json(
-      { products: productResponse, activeSeason },
+      { products: productResponse, activeSeason, appSettings: { kioskHeadline: parseStoredSetting(headlineRows[0]?.afterData, DEFAULT_KIOSK_HEADLINE) } },
       { headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } },
     );
   } catch (error) {

@@ -1,5 +1,6 @@
 import { env } from "cloudflare:workers";
 import { getChatGPTUser } from "../../chatgpt-auth";
+import { DEFAULT_KIOSK_HEADLINE, parseStoredSetting } from "../../lib/app-settings";
 
 type ProductRow = {
   id:string; category:string; code:string; name:string; subtitle:string; description:string;
@@ -10,6 +11,7 @@ type SeasonRow = {
   id:string; name:string; holiday_date:string; sales_start_date:string; sales_end_date:string;
   active:number; version:number; updated_at:string|null;
 };
+type AppSettingRow = { id:string; after_data:string|null; created_at:string };
 type ProductPayload = {
   type:"product"; id:string; expectedVersion:number; category:string; name:string; subtitle:string;
   description:string; price:number; customerDisplayWeight?:string; imageUrl?:string; badge?:string;
@@ -19,7 +21,8 @@ type SeasonPayload = {
   type:"season"; id:string; expectedVersion:number; name:string; holidayDate:string;
   salesStartDate:string; salesEndDate:string; active:boolean;
 };
-type Payload = ProductPayload | SeasonPayload;
+type AppSettingPayload = { type:"app_setting"; key:"kiosk_headline"; value:string; expectedVersion:string };
+type Payload = ProductPayload | SeasonPayload | AppSettingPayload;
 
 const runtimeEnv=env as typeof env&{DB:D1Database;OPERATOR_USER_IDS?:string;OPERATOR_EMAILS?:string};
 function configured(value:string|undefined){return(value??"").split(",").map(item=>item.trim()).filter(Boolean)}
@@ -38,11 +41,12 @@ export async function GET(){
   const auth=await authorize();
   if("error" in auth)return auth.error;
   try{
-    const[products,seasons]=await Promise.all([
+    const[products,seasons,headline]=await Promise.all([
       runtimeEnv.DB.prepare("SELECT id,category,code,name,subtitle,description,price,customer_display_weight,image_url,badge,display_order,active,version,updated_at FROM products ORDER BY display_order,id").all<ProductRow>(),
       runtimeEnv.DB.prepare("SELECT id,name,holiday_date,sales_start_date,sales_end_date,active,version,updated_at FROM sales_seasons ORDER BY sales_start_date DESC").all<SeasonRow>(),
+      runtimeEnv.DB.prepare("SELECT id,after_data,created_at FROM configuration_events WHERE entity_type='app_setting' AND entity_id='kiosk_headline' ORDER BY created_at DESC,id DESC LIMIT 1").first<AppSettingRow>(),
     ]);
-    return Response.json({products:products.results.map(product),seasons:seasons.results.map(season)},{headers:{"Cache-Control":"no-store"}});
+    return Response.json({products:products.results.map(product),seasons:seasons.results.map(season),appSettings:{kioskHeadline:{value:parseStoredSetting(headline?.after_data,DEFAULT_KIOSK_HEADLINE),version:headline?.id??"",updatedAt:headline?.created_at??null}}},{headers:{"Cache-Control":"no-store"}});
   }catch(error){return Response.json({error:error instanceof Error?error.message:"설정을 불러오지 못했습니다."},{status:500})}
 }
 
@@ -52,6 +56,17 @@ export async function PATCH(request:Request){
   try{
     const payload=await request.json() as Payload;
     const now=new Date().toISOString();
+    if(payload.type==="app_setting"){
+      const value=payload.value?.trim();
+      if(payload.key!=="kiosk_headline"||!value)return Response.json({error:"키오스크 상단 문구를 입력해주세요."},{status:400});
+      const current=await runtimeEnv.DB.prepare("SELECT id,after_data,created_at FROM configuration_events WHERE entity_type='app_setting' AND entity_id='kiosk_headline' ORDER BY created_at DESC,id DESC LIMIT 1").first<AppSettingRow>();
+      const currentVersion=current?.id??"";
+      if(currentVersion!==payload.expectedVersion)return Response.json({error:"다른 화면에서 먼저 수정했습니다. 새로고침 후 다시 시도해주세요."},{status:409});
+      const id=crypto.randomUUID(),before={value:parseStoredSetting(current?.after_data,DEFAULT_KIOSK_HEADLINE)},after={value};
+      const result=await runtimeEnv.DB.prepare("INSERT INTO configuration_events(id,entity_type,entity_id,before_data,after_data,actor_id,created_at) SELECT ?,'app_setting','kiosk_headline',?,?,?,? WHERE COALESCE((SELECT id FROM configuration_events WHERE entity_type='app_setting' AND entity_id='kiosk_headline' ORDER BY created_at DESC,id DESC LIMIT 1),'')=?").bind(id,JSON.stringify(before),JSON.stringify(after),auth.user.userId,now,payload.expectedVersion).run();
+      if(!result.meta.changes)return Response.json({error:"다른 화면에서 먼저 수정했습니다. 새로고침 후 다시 시도해주세요."},{status:409});
+      return Response.json({ok:true,version:id,updatedAt:now,value});
+    }
     if(payload.type==="product"){
       const current=await runtimeEnv.DB.prepare("SELECT id,category,code,name,subtitle,description,price,customer_display_weight,image_url,badge,display_order,active,version,updated_at FROM products WHERE id=?").bind(payload.id).first<ProductRow>();
       if(!current)return Response.json({error:"상품을 찾을 수 없습니다."},{status:404});

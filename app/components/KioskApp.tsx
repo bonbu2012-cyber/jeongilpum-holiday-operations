@@ -2,6 +2,7 @@
 "use client";
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
+import { DEFAULT_KIOSK_HEADLINE } from "../lib/app-settings";
 import type { OrderDraft, OrderRecord, Product, SeasonSchedule } from "./types";
 import AppNav from "./AppNav";
 import "../kiosk-flow.css";
@@ -38,9 +39,9 @@ function Field({label,value,onChange,placeholder,type="text",wide=false,error,re
 }
 
 export default function KioskApp(){
- const[products,setProducts]=useState<Product[]>([]),[season,setSeason]=useState<SeasonSchedule|null>(null),[loading,setLoading]=useState(true),[loadError,setLoadError]=useState("");
+ const[products,setProducts]=useState<Product[]>([]),[season,setSeason]=useState<SeasonSchedule|null>(null),[headline,setHeadline]=useState(DEFAULT_KIOSK_HEADLINE),[loading,setLoading]=useState(true),[loadError,setLoadError]=useState("");
  const[draft,setDraft]=useState<OrderDraft>(emptyDraft),[draftHydrated,setDraftHydrated]=useState(false),[step,setStep]=useState<Step>("products"),[direction,setDirection]=useState(1),[category,setCategory]=useState(categories[0]),[detail,setDetail]=useState<Product|null>(null),[detailQty,setDetailQty]=useState(1),[submitting,setSubmitting]=useState(false),[submitError,setSubmitError]=useState(""),[completed,setCompleted]=useState<OrderRecord|null>(null);
- useEffect(()=>{const frame=requestAnimationFrame(()=>{const saved=sessionStorage.getItem("jeongilpum-kiosk-draft");if(saved)try{const restored=normalizeDraft(JSON.parse(saved) as Partial<OrderDraft>);setDraft(restored);if(new URLSearchParams(location.search).get("resume")==="cart"&&(Object.values(restored.cart).some(Boolean)||restored.customItem))setStep("cart")}catch{sessionStorage.removeItem("jeongilpum-kiosk-draft")};setDraftHydrated(true);fetch("/api/products",{cache:"no-store"}).then(response=>response.json() as Promise<{products?:Product[];activeSeason?:SeasonSchedule|null;error?:string}>).then(data=>{if(!data.products)throw new Error(data.error);setProducts(data.products);setSeason(data.activeSeason??null)}).catch(()=>setLoadError("상품과 예약 일정을 불러오지 못했습니다. 연결을 확인하고 다시 시도해주세요.")).finally(()=>setLoading(false))});return()=>cancelAnimationFrame(frame)},[]);
+ useEffect(()=>{const frame=requestAnimationFrame(()=>{const saved=sessionStorage.getItem("jeongilpum-kiosk-draft");if(saved)try{const restored=normalizeDraft(JSON.parse(saved) as Partial<OrderDraft>);setDraft(restored);if(new URLSearchParams(location.search).get("resume")==="cart"&&(Object.values(restored.cart).some(Boolean)||restored.customItem))setStep("cart")}catch{sessionStorage.removeItem("jeongilpum-kiosk-draft")};setDraftHydrated(true);fetch("/api/products",{cache:"no-store"}).then(response=>response.json() as Promise<{products?:Product[];activeSeason?:SeasonSchedule|null;appSettings?:{kioskHeadline?:string};error?:string}>).then(data=>{if(!data.products)throw new Error(data.error);setProducts(data.products);setSeason(data.activeSeason??null);setHeadline(data.appSettings?.kioskHeadline?.trim()||DEFAULT_KIOSK_HEADLINE)}).catch(()=>setLoadError("상품과 예약 일정을 불러오지 못했습니다. 연결을 확인하고 다시 시도해주세요.")).finally(()=>setLoading(false))});return()=>cancelAnimationFrame(frame)},[]);
  useEffect(()=>{if(draftHydrated&&step!=="done")sessionStorage.setItem("jeongilpum-kiosk-draft",JSON.stringify(draft))},[draft,draftHydrated,step]);
  const selected=useMemo(()=>products.filter(product=>draft.cart[product.id]>0),[products,draft.cart]);
  const totalQty=selected.reduce((sum,product)=>sum+draft.cart[product.id],0)+(draft.customItem?1:0),total=selected.reduce((sum,product)=>sum+product.price*draft.cart[product.id],0)+(draft.customItem?.budgetAmount??0);
@@ -52,7 +53,7 @@ export default function KioskApp(){
  const reset=()=>{setDraft(emptyDraft());setCompleted(null);go("products",-1)};
  const filtered=products.filter(product=>product.category===category);
  return <div className="kiosk-app">
-  <header className="kiosk-header"><a className="kiosk-brand" href="/kiosk"><span>正</span><div><b>정일품</b><small>명절 선물세트</small></div></a><div className="kiosk-title"><b>좋은 선물을 골라주세요</b><span>2026 추석 예약</span></div><AppNav current="kiosk"/><button className="cart-indicator" onClick={()=>totalQty&&go("cart")} aria-label={"장바구니 "+totalQty+"개"}>장바구니 <b>{totalQty}</b></button></header>
+  <header className="kiosk-header"><a className="kiosk-brand" href="/kiosk"><img className="kiosk-brand-logo" src="/jeongilpum-logo.png" alt="정일품 정육식당 로고"/><div><b>정일품 정육식당</b><small>명절 선물세트</small></div></a><div className="kiosk-title"><b>{headline}</b><span>2026 추석 예약</span></div><AppNav current="kiosk"/><button className="cart-indicator" onClick={()=>totalQty&&go("cart")} aria-label={"장바구니 "+totalQty+"개"}>장바구니 <b>{totalQty}</b></button></header>
   <AnimatePresence mode="wait" custom={direction}>
    {step==="products"?<motion.div key="products" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} transition={transition} className="product-step">
     <aside className="category-rail">{categories.map(item=><button key={item} className={(category===item?"active ":"")+(item==="뼈세트"?"single":"with-assist")} onClick={()=>setCategory(item)}><strong className={item==="O'meat"?"category-name omeat":"category-name"}>{item==="O'meat"?"O'":item}</strong>{item==="진공세트"?<small className="category-assist">VACUUM</small>:item==="프리미엄"?<small className="category-assist">PREMIUM</small>:item==="LA갈비"?<small className="category-assist">LA</small>:item==="O'meat"?<small className="category-assist omeat">meat</small>:null}</button>)}<a className="custom-order-link" href="/kiosk/custom"><strong>맞춤주문</strong><small>CUSTOM ORDER</small></a></aside>

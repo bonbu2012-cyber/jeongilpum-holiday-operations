@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import { useEffect, useState } from "react";
@@ -8,6 +9,7 @@ type EditableProduct = {
   price:number; customerDisplayWeight:string|null; imageUrl:string|null; badge:string|null;
   displayOrder:number; active:boolean; version:number; updatedAt:string|null;
 };
+type EditableAppSetting = { value:string; version:string; updatedAt:string|null };
 type EditableSeason = {
   id:string; name:string; holidayDate:string; salesStartDate:string; salesEndDate:string;
   active:boolean; version:number; updatedAt:string|null;
@@ -16,6 +18,7 @@ type EditableSeason = {
 export default function SettingsApp(){
   const[products,setProducts]=useState<EditableProduct[]>([]);
   const[seasons,setSeasons]=useState<EditableSeason[]>([]);
+  const[headline,setHeadline]=useState<EditableAppSetting>({value:"좋은 선물을 골라주세요",version:"",updatedAt:null});
   const[loading,setLoading]=useState(true);
   const[error,setError]=useState("");
   const[notice,setNotice]=useState("");
@@ -24,10 +27,11 @@ export default function SettingsApp(){
   const load=async()=>{
     try{
       const response=await fetch("/api/settings",{cache:"no-store"});
-      const data=await response.json() as {products?:EditableProduct[];seasons?:EditableSeason[];error?:string};
+      const data=await response.json() as {products?:EditableProduct[];seasons?:EditableSeason[];appSettings?:{kioskHeadline?:EditableAppSetting};error?:string};
       if(!response.ok)throw new Error(data.error);
       setProducts(data.products??[]);
       setSeasons(data.seasons??[]);
+      if(data.appSettings?.kioskHeadline)setHeadline(data.appSettings.kioskHeadline);
       setError("");
     }catch(caught){setError(caught instanceof Error?caught.message:"설정을 불러오지 못했습니다.")}
     finally{setLoading(false)}
@@ -41,6 +45,17 @@ export default function SettingsApp(){
     setSeasons(current=>current.map(item=>item.id===id?{...item,[key]:value}:item));
   };
 
+  const saveHeadline=async()=>{
+    setSaving("kiosk_headline");setNotice("");
+    try{
+      const response=await fetch("/api/settings",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({type:"app_setting",key:"kiosk_headline",value:headline.value,expectedVersion:headline.version})});
+      const data=await response.json() as {version?:string;updatedAt?:string;value?:string;error?:string};
+      if(!response.ok)throw new Error(data.error);
+      setHeadline(current=>({...current,value:data.value??current.value,version:data.version??current.version,updatedAt:data.updatedAt??current.updatedAt}));
+      setNotice("키오스크 상단 문구를 저장했습니다.");
+    }catch(caught){setNotice(caught instanceof Error?caught.message:"상단 문구를 저장하지 못했습니다.")}
+    finally{setSaving("")}
+  };
   const saveProduct=async(item:EditableProduct)=>{
     setSaving(item.id);setNotice("");
     try{
@@ -66,11 +81,18 @@ export default function SettingsApp(){
   };
 
   return <main className="settings-app">
-    <header className="settings-header"><a href="/kiosk"><b>正</b><span>정일품 설정<small>운영자 전용</small></span></a><AppNav current="settings"/></header>
+    <header className="settings-header"><a href="/kiosk"><img className="settings-brand-logo" src="/jeongilpum-logo.png" alt="정일품 정육식당 로고"/><span>정일품 정육식당 설정<small>운영자 전용</small></span></a><AppNav current="settings"/></header>
     <section className="settings-intro"><small>APP SETTINGS</small><h1>앱에서 바로 수정하세요</h1><p>저장한 상품 정보와 판매 일정은 키오스크에 즉시 반영됩니다.</p></section>
     {loading&&<div className="settings-loading">설정을 불러오고 있습니다…</div>}
     {error&&<div className="access-error"><b>설정 화면에 연결할 수 없습니다</b><span>{error}</span><a href="/signin-with-chatgpt?return_to=/settings">운영자 로그인</a></div>}
     {!loading&&!error&&<>
+      <section className="settings-section">
+        <div className="settings-title"><div><small>KIOSK MESSAGE</small><h2>메인 상단 문구</h2></div><p>저장하면 고객 키오스크를 다시 열거나 새로고침할 때 반영됩니다.</p></div>
+        <article className="app-setting-editor">
+          <label><span>상단 안내 문구</span><input value={headline.value} onChange={event=>setHeadline(current=>({...current,value:event.target.value}))} placeholder="좋은 선물을 골라주세요"/></label>
+          <button onClick={saveHeadline} disabled={saving==="kiosk_headline"||!headline.value.trim()}>{saving==="kiosk_headline"?"저장 중…":"상단 문구 저장"}</button>
+        </article>
+      </section>
       <section className="settings-section">
         <div className="settings-title"><div><small>SEASON</small><h2>판매 일정</h2></div><p>현재 운영 중인 명절 예약 기간입니다.</p></div>
         {seasons.map(item=><article className="season-editor" key={item.id}>

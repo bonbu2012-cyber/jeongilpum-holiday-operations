@@ -170,3 +170,23 @@ test("P0 sales auth accepts configured user IDs or operator emails and disables 
  assert.match(queries,/f\.ship_date=\?/);
  assert.match(queries,/ORDER BY o\.created_at DESC/);
 });
+
+test("kiosk brand logo and editable headline use durable audited settings",async()=>{
+ const [kiosk,settings,settingsApi,productsApi,css,logo,appSettings]=await Promise.all([
+  read("app/components/KioskApp.tsx"),read("app/components/SettingsApp.tsx"),read("app/api/settings/route.ts"),read("app/api/products/route.ts"),read("app/globals.css"),readFile(new URL("public/jeongilpum-logo.png",root)),import("../app/lib/app-settings.ts")
+ ]);
+ assert.match(kiosk,/정일품 정육식당/);
+ assert.match(kiosk,/src="\/jeongilpum-logo\.png"/);
+ assert.match(kiosk,/\{headline\}/);
+ assert.match(settings,/KIOSK MESSAGE/);
+ assert.match(settings,/type:"app_setting"/);
+ assert.match(settingsApi,/entity_type='app_setting'/);
+ assert.match(settingsApi,/INSERT INTO configuration_events[\s\S]*SELECT/);
+ assert.match(settingsApi,/COALESCE\(\(SELECT id/);
+ assert.doesNotMatch(settingsApi,/CREATE TABLE|ALTER TABLE/);
+ assert.match(productsApi,/appSettings:[\s\S]*kioskHeadline/);
+ assert.match(css,/\.kiosk-brand-logo/);
+ assert.deepEqual([...logo.subarray(0,8)],[137,80,78,71,13,10,26,10]);
+ assert.equal(appSettings.parseStoredSetting('{"value":" 새 문구 "}',appSettings.DEFAULT_KIOSK_HEADLINE),"새 문구");
+ assert.equal(appSettings.parseStoredSetting('broken',appSettings.DEFAULT_KIOSK_HEADLINE),"좋은 선물을 골라주세요");
+});

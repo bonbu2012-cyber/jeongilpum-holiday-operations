@@ -14,3 +14,6 @@
 @media(max-width:700px){.custom-review .review-list{grid-template-columns:1fr}.custom-review-note{grid-column:auto}.custom-review-actions{grid-template-columns:1fr}.custom-review-actions>button:first-child{min-height:48px;order:2}}
 .choice-grid button{font-size:17px}
 .custom-form h2 small{color:var(--muted);font-size:11px;font-weight:700}
+
+.kiosk-brand-logo{width:56px;height:56px;object-fit:contain;flex:none}.kiosk-brand b{white-space:nowrap}.settings-brand-logo{width:46px;height:46px;object-fit:contain;flex:none}.app-setting-editor{background:#fff;border:1px solid #ded6ca;border-radius:15px;padding:18px;display:grid;grid-template-columns:1fr auto;gap:12px;align-items:end}.app-setting-editor label{display:grid;gap:7px;font-size:10px;font-weight:800}.app-setting-editor input{width:100%;height:48px;border:1px solid #d9d1c5;border-radius:8px;background:#fff;padding:0 13px;font-size:16px}.app-setting-editor button{height:48px;border:0;border-radius:9px;background:var(--wine);color:#fff;font-weight:900;padding:0 20px}.app-setting-editor button:disabled{background:#aaa}
+@media(max-width:700px){.kiosk-brand-logo{width:46px;height:46px}.kiosk-brand b{font-size:17px}.settings-brand-logo{width:42px;height:42px}.app-setting-editor{grid-template-columns:1fr}.app-setting-editor button{width:100%}}
