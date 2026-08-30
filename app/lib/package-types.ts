@@ -1,26 +1,20 @@
-export type PackageComponentRecord = {
+export type PackageSkinPackRecord = {
   id: string;
+  skinPackCode: string;
   componentName: string;
-  sortOrder: number;
-  traceabilityRequired: boolean;
-  weightRequired: boolean;
-  originRequired: boolean;
-  slaughterhouseRequired: boolean;
-  traceabilityNo: string | null;
-  weightG: number | null;
-  origin: string;
-  slaughterhouse: string;
-  cattleType: string;
-  grade: string;
-};
-
-export type RecentTraceability = {
+  componentCode: string;
+  quantitySlot: number;
+  weightG: number;
   traceabilityNo: string;
   origin: string;
   slaughterhouse: string;
   cattleType: string;
   grade: string;
-  lastUsedAt: string;
+  manufacturedAt: string;
+  storageMethod: string;
+  expiryText: string;
+  packagingMaterial: string;
+  foodType: string;
 };
 
 export type PackageLabelRecord = {
@@ -39,11 +33,8 @@ export type PackageAssignmentRecord = {
   changedAt: string;
 };
 
-export type PackageAuditEvent = {
-  id: string;
-  type: string;
-  createdAt: string;
-};
+export type PackageAuditEvent = { id: string; type: string; createdAt: string };
+
 export type WorkshopPackageDetail = {
   packageId: string;
   orderId: string;
@@ -54,8 +45,7 @@ export type WorkshopPackageDetail = {
   fulfillmentType: "pickup" | "shipping";
   schedule: string;
   qrValue: string;
-  components: PackageComponentRecord[];
-  recentTraceability: RecentTraceability[];
+  skinPacks: PackageSkinPackRecord[];
   labels: PackageLabelRecord[];
   assignmentHistory: PackageAssignmentRecord[];
   auditEvents: PackageAuditEvent[];

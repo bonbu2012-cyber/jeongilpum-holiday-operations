@@ -1,0 +1,111 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { ProductionBatch, ProductionOverview, RecentProductionTrace } from "../lib/production-types";
+import AppNav from "./AppNav";
+import "../workshop-flow.css";
+
+const todayInSeoul = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+type TraceForm = { rawScan: string; origin: string; slaughterhouse: string; cattleType: string; grade: string; productionTarget: string; storageMethod: string; expiryText: string; packagingMaterial: string; foodType: string };
+const emptyTrace = (): TraceForm => ({ rawScan: "", origin: "", slaughterhouse: "", cattleType: "", grade: "", productionTarget: "", storageMethod: "", expiryText: "", packagingMaterial: "", foodType: "" });
+
+export default function ProductionApp() {
+  const [date, setDate] = useState(todayInSeoul);
+  const [overview, setOverview] = useState<ProductionOverview>({ requirements: [], missingProducts: [], batches: [], recentTraceability: [] });
+  const [selectedCode, setSelectedCode] = useState("");
+  const [form, setForm] = useState<TraceForm>(emptyTrace);
+  const [batchForms, setBatchForms] = useState<Record<string, TraceForm>>({});
+  const [weights, setWeights] = useState<Record<string, string>>({});
+  const [targets, setTargets] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState("");
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const weightRefs = useRef<Record<string, HTMLInputElement | null>>({});
+
+  const load = useCallback(async () => {
+    const response = await fetch(`/api/workshop/production?date=${encodeURIComponent(date)}`, { cache: "no-store" });
+    const data = await response.json() as ProductionOverview & { error?: string };
+    if (!response.ok) throw new Error(data.error || "생산 현황을 불러오지 못했습니다.");
+    setOverview(data);
+    setTargets(Object.fromEntries(data.batches.map((batch) => [batch.id, String(batch.productionTarget)])));
+    setSelectedCode((current) => data.requirements.some((item) => item.componentCode === current) ? current : data.requirements[0]?.componentCode ?? "");
+    setError("");
+  }, [date]);
+
+  useEffect(() => { const frame = requestAnimationFrame(() => void load().catch((caught) => setError(caught instanceof Error ? caught.message : "생산 현황을 불러오지 못했습니다."))); return () => cancelAnimationFrame(frame); }, [load]);
+
+  async function post(body: object, key: string, success: string) {
+    setBusy(key); setError(""); setNotice("");
+    try {
+      const response = await fetch("/api/workshop/production", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const data = await response.json() as { error?: string; skinPackCode?: string; batchId?: string; alreadyApplied?: boolean };
+      if (!response.ok) throw new Error(data.error || "생산 작업을 저장하지 못했습니다.");
+      setNotice(data.skinPackCode ? `${data.skinPackCode} 생성 완료` : success);
+      await load();
+      return data;
+    } catch (caught) { setError(caught instanceof Error ? caught.message : "생산 작업을 저장하지 못했습니다."); throw caught; }
+    finally { setBusy(""); }
+  }
+
+  function applyRecent(trace: RecentProductionTrace, target: "new" | string) {
+    const values = { rawScan: trace.traceabilityNo, origin: trace.origin, slaughterhouse: trace.slaughterhouse, cattleType: trace.cattleType, grade: trace.grade };
+    if (target === "new") setForm((current) => ({ ...current, ...values }));
+    else setBatchForms((current) => ({ ...current, [target]: { ...(current[target] ?? emptyTrace()), ...values } }));
+  }
+
+  async function createBatch(source: "manual" | "hid" | "recent" = "manual") {
+    const requirement = overview.requirements.find((item) => item.componentCode === selectedCode);
+    if (!requirement) { setError("생산할 부위를 선택해주세요."); return; }
+    try {
+      await post({ action: "create_batch", date, componentCode: requirement.componentCode, cutName: requirement.componentName, productionTarget: Number(form.productionTarget), rawScan: form.rawScan, origin: form.origin, slaughterhouse: form.slaughterhouse, cattleType: form.cattleType, grade: form.grade, storageMethod: form.storageMethod, expiryText: form.expiryText, packagingMaterial: form.packagingMaterial, foodType: form.foodType, source }, "create", "생산 batch를 시작했습니다.");
+      setForm(emptyTrace());
+    } catch { /* 오류 영역에서 안내 */ }
+  }
+
+  async function createSkinPack(batch: ProductionBatch) {
+    const weightG = Number(weights[batch.id]);
+    try {
+      await post({ action: "create_skin_pack", batchId: batch.id, weightG, idempotencyKey: crypto.randomUUID() }, `pack:${batch.id}`, "스킨팩을 생성했습니다.");
+      setWeights((current) => ({ ...current, [batch.id]: "" }));
+      requestAnimationFrame(() => weightRefs.current[batch.id]?.focus());
+    } catch { requestAnimationFrame(() => weightRefs.current[batch.id]?.focus()); }
+  }
+
+  async function adjustTarget(batch: ProductionBatch) {
+    try { await post({ action: "adjust_target", batchId: batch.id, productionTarget: Number(targets[batch.id]) }, `target:${batch.id}`, "생산목표를 조정했습니다."); } catch { /* 오류 영역 */ }
+  }
+
+  async function changeTrace(batch: ProductionBatch, source: "manual" | "hid" | "recent" = "manual") {
+    const next = batchForms[batch.id] ?? emptyTrace();
+    try {
+      await post({ action: "change_traceability", batchId: batch.id, productionTarget: Number(next.productionTarget), rawScan: next.rawScan, origin: next.origin, slaughterhouse: next.slaughterhouse, cattleType: next.cattleType, grade: next.grade, storageMethod: next.storageMethod, expiryText: next.expiryText, packagingMaterial: next.packagingMaterial, foodType: next.foodType, source }, `trace:${batch.id}`, "새 이력번호 구간을 시작했습니다.");
+      setBatchForms((current) => ({ ...current, [batch.id]: emptyTrace() }));
+    } catch { /* 오류 영역 */ }
+  }
+
+  return <div className="workshop-app production-app">
+    <header className="workshop-header">
+      <a href="/workshop" className="workshop-brand"><b>正</b><span>정일품 생산장<small>BATCH &amp; SKIN PACK</small></span></a>
+      <AppNav current="workshop" />
+      <a className="workshop-sync production-link" href="/workshop">화이트보드</a>
+    </header>
+    <main className="workshop-main production-main">
+      <section className="workshop-date-toolbar production-date"><div><small>ORDER-DRIVEN PRODUCTION</small><h1>날짜별 부위 생산</h1><span>방문수령일·택배 발송일 주문 → BOM → 가용재고 → 추가 생산량</span></div><label><span>생산 기준일</span><input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label></section>
+      {error && <div className="package-message error" role="alert">{error}</div>}{notice && <div className="package-message" role="status">{notice}</div>}
+      {overview.missingProducts.length > 0 && <section className="production-warning"><b>BOM 미등록 상품</b><p>아래 상품은 임의 계산하지 않습니다. product_components 등록 후 생산량에 포함됩니다.</p><ul>{overview.missingProducts.map((item) => <li key={item.productId}>{item.productName} × {item.quantity}</li>)}</ul></section>}
+      <section className="production-board requirement-board"><header><div><small>CUT REQUIREMENTS</small><h2>부위별 필요 생산량</h2></div><p>필요수량 − 가용 스킨팩 = 추가 생산량</p></header><div className="production-table-wrap"><table><thead><tr><th>부위</th><th>연결 상품</th><th>필요</th><th>가용</th><th>추가 생산</th></tr></thead><tbody>{overview.requirements.map((item) => <tr key={item.componentCode}><td><button onClick={() => { setSelectedCode(item.componentCode); setForm((current) => ({ ...current, productionTarget: String(item.additionalNeeded) })); }}>{item.componentName}</button><small>{item.componentCode}</small></td><td>{item.sourceProducts.join(", ")}</td><td>{item.requiredQuantity}</td><td>{item.availableQuantity}</td><td><b>{item.additionalNeeded}</b></td></tr>)}</tbody></table>{!overview.requirements.length && <div className="workshop-empty">선택 날짜에 BOM이 연결된 생산 수요가 없습니다.</div>}</div></section>
+      {overview.requirements.length > 0 && <section className="package-panel batch-create"><header><div><small>START BATCH</small><h2>생산 batch 시작</h2></div><p>목표수량은 작업자가 확정하며 이력번호는 batch 동안 고정됩니다.</p></header><div className="batch-form-grid"><label><span>부위</span><select value={selectedCode} onChange={(event) => setSelectedCode(event.target.value)}>{overview.requirements.map((item) => <option key={item.componentCode} value={item.componentCode}>{item.componentName} ({item.componentCode})</option>)}</select></label><TraceFields form={form} setForm={setForm} onEnter={() => void createBatch("hid")} /><button disabled={busy === "create"} onClick={() => void createBatch()}>{busy === "create" ? "시작 중…" : "batch 시작"}</button></div><RecentTraces values={overview.recentTraceability} onUse={(trace) => applyRecent(trace, "new")} /></section>}
+      <section className="batch-list"><header><div><small>ACTIVE BATCHES</small><h2>생산 batch와 스킨팩 등록</h2></div><p>중량 저장 1회가 스킨팩 1개와 라벨 1개를 생성합니다.</p></header>{overview.batches.map((batch) => <article key={batch.id} className={batch.status === "in_progress" ? "active" : "complete"}><header><div><small>{batch.componentCode} · SEGMENT {batch.segmentNo}</small><h3>{batch.cutName}</h3><p>이력번호 <code>{batch.traceabilityNo}</code> · {batch.origin || "원산지 미입력"} · {batch.grade || "등급 미입력"}</p></div><strong>{batch.producedQuantity} / {batch.productionTarget}</strong></header><div className="batch-metrics"><span>당일 필요 <b>{batch.requiredQuantity}</b></span><span>시작 가용 <b>{batch.availableQuantityAtStart}</b></span><span>추가 필요 <b>{batch.additionalNeeded}</b></span></div>{batch.status === "in_progress" && <><div className="pack-entry"><label><span>다음 스킨팩 중량(g)</span><input ref={(node) => { weightRefs.current[batch.id] = node; }} type="number" min="1" step="1" value={weights[batch.id] ?? ""} onChange={(event) => setWeights((current) => ({ ...current, [batch.id]: event.target.value }))} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void createSkinPack(batch); } }} /></label><button disabled={busy === `pack:${batch.id}` || batch.producedQuantity >= batch.productionTarget} onClick={() => void createSkinPack(batch)}>저장 + 다음 팩</button></div><div className="batch-adjust"><label><span>생산목표 조정</span><input type="number" min={batch.producedQuantity} value={targets[batch.id] ?? batch.productionTarget} onChange={(event) => setTargets((current) => ({ ...current, [batch.id]: event.target.value }))} /></label><button onClick={() => void adjustTarget(batch)}>목표 저장</button><button onClick={() => void post({ action: "complete_batch", batchId: batch.id }, `complete:${batch.id}`, "batch를 완료했습니다.")}>batch 완료</button></div><details className="trace-change"><summary>이력번호 변경 · 새 구간 시작</summary><div className="batch-form-grid"><TraceFields form={batchForms[batch.id] ?? emptyTrace()} setForm={(next) => setBatchForms((current) => ({ ...current, [batch.id]: typeof next === "function" ? next(current[batch.id] ?? emptyTrace()) : next }))} onEnter={() => void changeTrace(batch, "hid")} /><button onClick={() => void changeTrace(batch)}>현재 구간 완료 후 변경</button></div><RecentTraces values={overview.recentTraceability} onUse={(trace) => applyRecent(trace, batch.id)} /></details></>}<footer><span>{batch.status === "completed" ? "완료된 불변 구간" : "진행 중"}</span><a href={`/api/workshop/production/batches/${encodeURIComponent(batch.id)}/csv`}>스킨팩 long CSV</a></footer></article>)}{!overview.batches.length && <div className="workshop-empty">선택 날짜에 생성된 생산 batch가 없습니다.</div>}</section>
+    </main>
+  </div>;
+}
+
+function TraceFields({ form, setForm, onEnter }: { form: TraceForm; setForm: React.Dispatch<React.SetStateAction<TraceForm>>; onEnter: () => void }) {
+  const field = (key: keyof TraceForm, value: string) => setForm((current) => ({ ...current, [key]: value }));
+  return <><label><span>생산목표</span><input type="number" min="0" step="1" value={form.productionTarget} onChange={(event) => field("productionTarget", event.target.value)} /></label><label className="trace-scan"><span>이력번호 스캔·입력</span><input inputMode="numeric" value={form.rawScan} onChange={(event) => field("rawScan", event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); onEnter(); } }} placeholder="숫자 입력 후 Enter" /></label><label><span>원산지</span><input value={form.origin} onChange={(event) => field("origin", event.target.value)} /></label><label><span>도축장</span><input value={form.slaughterhouse} onChange={(event) => field("slaughterhouse", event.target.value)} /></label><label><span>축종</span><input value={form.cattleType} onChange={(event) => field("cattleType", event.target.value)} /></label><label><span>등급</span><input value={form.grade} onChange={(event) => field("grade", event.target.value)} /></label><label><span>보관방법</span><input value={form.storageMethod} onChange={(event) => field("storageMethod", event.target.value)} /></label><label><span>소비기한 문구</span><input value={form.expiryText} onChange={(event) => field("expiryText", event.target.value)} /></label><label><span>포장재질</span><input value={form.packagingMaterial} onChange={(event) => field("packagingMaterial", event.target.value)} /></label><label><span>식품유형</span><input value={form.foodType} onChange={(event) => field("foodType", event.target.value)} /></label></>;
+}
+
+function RecentTraces({ values, onUse }: { values: RecentProductionTrace[]; onUse: (trace: RecentProductionTrace) => void }) {
+  if (!values.length) return null;
+  return <div className="recent-traces"><span>최근 사용</span>{values.map((trace) => <button key={trace.traceabilityNo} onClick={() => onUse(trace)}>{trace.traceabilityNo}</button>)}</div>;
+}

@@ -29,3 +29,13 @@ export async function reassignCompletedPackage(order: WorkshopOrder, candidate: 
   if (!response.ok) throw new Error(data.error || "대체 완성품을 적용하지 못했습니다.");
   return data;
 }
+export async function assemblePackage(orderId: string, productId: string, assemblyKey: string) {
+  const response = await fetch("/api/workshop/packages/assemble", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ orderId, productId, assemblyKey }),
+  });
+  const data = await response.json() as { error?: string; packageCode?: string; alreadyApplied?: boolean };
+  if (!response.ok) throw new Error(data.error || "스킨팩으로 선물세트를 조립하지 못했습니다.");
+  return data;
+}

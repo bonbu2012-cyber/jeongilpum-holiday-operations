@@ -1,9 +1,8 @@
 import { env } from "cloudflare:workers";
 import { getChatGPTUser } from "../../../chatgpt-auth";
-import { prepareEnsureOrderPackages } from "../../../lib/package-persistence";
 
 type StatusPayload={orderId?:string;status?:"confirmed"|"in_progress"|"ready"|"fulfilled"|"cancelled";expectedVersion?:number};
-type Current={id:string;order_no:string;order_status:string;version:number};
+type Current={id:string;order_status:string;version:number};
 const runtimeEnv=env as typeof env&{DB:D1Database;OPERATOR_USER_IDS?:string;OPERATOR_EMAILS?:string};
 const allowed:Record<string,string[]>={submitted:["confirmed","cancelled"],confirmed:["in_progress","cancelled"],in_progress:["ready","cancelled"],ready:["fulfilled","cancelled"]};
 function configured(value:string|undefined){return(value??"").split(",").map(item=>item.trim()).filter(Boolean)}
@@ -16,7 +15,7 @@ export async function PATCH(request:Request){
  try{
   const x=await request.json() as StatusPayload;
   if(!x.orderId||!x.status||!Number.isInteger(x.expectedVersion))return Response.json({error:"상태 변경 정보가 올바르지 않습니다."},{status:400});
-  const current=await runtimeEnv.DB.prepare("SELECT id,order_no,order_status,version FROM orders WHERE id=?").bind(x.orderId).first<Current>();
+  const current=await runtimeEnv.DB.prepare("SELECT id,order_status,version FROM orders WHERE id=?").bind(x.orderId).first<Current>();
   if(!current)return Response.json({error:"주문을 찾을 수 없습니다."},{status:404});
   if(current.version!==x.expectedVersion)return Response.json({error:"다른 직원이 먼저 수정했습니다. 최신 내용을 다시 확인해주세요.",latestVersion:current.version},{status:409});
   if(!allowed[current.order_status]?.includes(x.status))return Response.json({error:"현재 단계에서 허용되지 않는 변경입니다."},{status:409});
@@ -25,10 +24,6 @@ export async function PATCH(request:Request){
    runtimeEnv.DB.prepare("UPDATE orders SET order_status=?,version=version+1,updated_at=? WHERE id=? AND version=? AND order_status=?").bind(x.status,now,x.orderId,x.expectedVersion,current.order_status),
    runtimeEnv.DB.prepare("INSERT INTO order_events(id,order_id,event_type,before_data,after_data,actor_id,created_at) VALUES(?,?,?,?,?,?,?)").bind(crypto.randomUUID(),x.orderId,"status_changed",JSON.stringify({status:current.order_status}),JSON.stringify({status:x.status}),user.userId,now)
   ];
-  if(x.status==="confirmed"){
-   const prepared=await prepareEnsureOrderPackages(runtimeEnv.DB,{orderId:current.id,orderNo:current.order_no,actorId:user.userId,now});
-   statements.push(...prepared.statements);
-  }
   if(x.status==="in_progress")statements.push(runtimeEnv.DB.prepare("UPDATE packages SET package_status='in_progress',updated_at=? WHERE order_id=? AND package_status='queued'").bind(now,x.orderId));
   if(x.status==="ready")statements.push(runtimeEnv.DB.prepare("UPDATE packages SET package_status='completed',updated_at=? WHERE order_id=? AND package_status='in_progress'").bind(now,x.orderId));
   if(x.status==="fulfilled")statements.push(runtimeEnv.DB.prepare("UPDATE packages SET package_status='handed_over',updated_at=? WHERE order_id=? AND package_status='completed'").bind(now,x.orderId));

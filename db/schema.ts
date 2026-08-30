@@ -194,6 +194,7 @@ export const packages = sqliteTable("packages", {
   orderId: text("order_id").notNull().references(() => orders.id),
   orderItemId: text("order_item_id").references(() => orderItems.id),
   packageSequence: integer("package_sequence"),
+  assemblyKey: text("assembly_key"),
   packageCode: text("package_code").notNull().unique(),
   productId: text("product_id").notNull().references(() => products.id),
   productNameSnapshot: text("product_name_snapshot").notNull(),
@@ -203,6 +204,7 @@ export const packages = sqliteTable("packages", {
 }, (table) => [
   index("idx_packages_order").on(table.orderId),
   uniqueIndex("idx_packages_item_sequence").on(table.orderItemId, table.packageSequence),
+  uniqueIndex("idx_packages_assembly_key").on(table.assemblyKey),
   index("idx_packages_status").on(table.packageStatus),
 ]);
 
@@ -211,17 +213,24 @@ export const productComponents = sqliteTable("product_components", {
   productId: text("product_id").notNull().references(() => products.id),
   componentCode: text("component_code").notNull(),
   componentName: text("component_name").notNull(),
+  quantityPerProduct: integer("quantity_per_product").notNull().default(1),
   sortOrder: integer("sort_order").notNull().default(0),
   traceabilityRequired: integer("traceability_required", { mode: "boolean" }).notNull().default(true),
   weightRequired: integer("weight_required", { mode: "boolean" }).notNull().default(true),
   originRequired: integer("origin_required", { mode: "boolean" }).notNull().default(false),
   slaughterhouseRequired: integer("slaughterhouse_required", { mode: "boolean" }).notNull().default(false),
+  storageMethodDefault: text("storage_method_default").notNull().default(""),
+  expiryTextDefault: text("expiry_text_default").notNull().default(""),
+  packagingMaterialDefault: text("packaging_material_default").notNull().default(""),
+  foodTypeDefault: text("food_type_default").notNull().default(""),
   active: integer("active", { mode: "boolean" }).notNull().default(true),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 }, (table) => [
   uniqueIndex("idx_product_components_code").on(table.productId, table.componentCode),
   index("idx_product_components_product_order").on(table.productId, table.active, table.sortOrder),
+  index("idx_product_components_component_code").on(table.componentCode, table.active),
+  check("product_components_quantity_positive", sql.raw("quantity_per_product > 0")),
 ]);
 
 export const traceabilityRecords = sqliteTable("traceability_records", {
@@ -241,27 +250,107 @@ export const traceabilityRecords = sqliteTable("traceability_records", {
   index("idx_traceability_recent_worker").on(table.lastUsedBy, table.lastUsedAt),
 ]);
 
-export const packageComponents = sqliteTable("package_components", {
+export const productionBatches = sqliteTable("production_batches", {
   id: text("id").primaryKey(),
-  packageId: text("package_id").notNull().references(() => packages.id),
-  productComponentId: text("product_component_id").references(() => productComponents.id),
-  componentNameSnapshot: text("component_name_snapshot").notNull(),
-  sortOrder: integer("sort_order").notNull().default(0),
-  traceabilityRequired: integer("traceability_required", { mode: "boolean" }).notNull().default(true),
-  weightRequired: integer("weight_required", { mode: "boolean" }).notNull().default(true),
-  originRequired: integer("origin_required", { mode: "boolean" }).notNull().default(false),
-  slaughterhouseRequired: integer("slaughterhouse_required", { mode: "boolean" }).notNull().default(false),
-  traceabilityNo: text("traceability_no").references(() => traceabilityRecords.traceabilityNo),
-  weightG: integer("weight_g"),
+  productionDate: text("production_date").notNull(),
+  parentBatchId: text("parent_batch_id"),
+  segmentNo: integer("segment_no").notNull().default(1),
+  componentCode: text("component_code").notNull(),
+  cutNameSnapshot: text("cut_name_snapshot").notNull(),
+  requiredQuantity: integer("required_quantity").notNull(),
+  availableQuantityAtStart: integer("available_quantity_at_start").notNull(),
+  additionalNeeded: integer("additional_needed").notNull(),
+  productionTarget: integer("production_target").notNull(),
+  producedQuantity: integer("produced_quantity").notNull().default(0),
+  traceabilityNo: text("traceability_no").notNull().references(() => traceabilityRecords.traceabilityNo),
   origin: text("origin").notNull().default(""),
   slaughterhouse: text("slaughterhouse").notNull().default(""),
-  enteredBy: text("entered_by"),
-  enteredAt: text("entered_at"),
+  cattleType: text("cattle_type").notNull().default(""),
+  grade: text("grade").notNull().default(""),
+  storageMethod: text("storage_method").notNull().default(""),
+  expiryText: text("expiry_text").notNull().default(""),
+  packagingMaterial: text("packaging_material").notNull().default(""),
+  foodType: text("food_type").notNull().default(""),
+  status: text("status").notNull().default("in_progress"),
+  startedBy: text("started_by").notNull(),
+  startedAt: text("started_at").notNull(),
+  completedAt: text("completed_at"),
+  createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 }, (table) => [
-  uniqueIndex("idx_package_components_template").on(table.packageId, table.productComponentId),
-  index("idx_package_components_package_order").on(table.packageId, table.sortOrder),
-  check("package_components_weight_positive", sql`${table.weightG} is null or ${table.weightG} > 0`),
+  index("idx_production_batches_date_component").on(table.productionDate, table.componentCode, table.status),
+  uniqueIndex("idx_production_batches_parent_segment").on(table.parentBatchId, table.segmentNo),
+  check("production_batches_required_nonnegative", sql.raw("required_quantity >= 0")),
+  check("production_batches_available_nonnegative", sql.raw("available_quantity_at_start >= 0")),
+  check("production_batches_additional_nonnegative", sql.raw("additional_needed >= 0")),
+  check("production_batches_target_nonnegative", sql.raw("production_target >= 0")),
+  check("production_batches_produced_nonnegative", sql.raw("produced_quantity >= 0")),
+  check("production_batches_status_valid", sql.raw("status in ('planned','in_progress','completed','cancelled')")),
+]);
+
+export const skinPacks = sqliteTable("skin_packs", {
+  id: text("id").primaryKey(),
+  productionBatchId: text("production_batch_id").notNull().references(() => productionBatches.id),
+  batchSequence: integer("batch_sequence").notNull(),
+  skinPackCode: text("skin_pack_code").notNull().unique(),
+  componentCode: text("component_code").notNull(),
+  cutNameSnapshot: text("cut_name_snapshot").notNull(),
+  weightG: integer("weight_g").notNull(),
+  traceabilityNo: text("traceability_no").notNull().references(() => traceabilityRecords.traceabilityNo),
+  origin: text("origin").notNull().default(""),
+  slaughterhouse: text("slaughterhouse").notNull().default(""),
+  cattleType: text("cattle_type").notNull().default(""),
+  grade: text("grade").notNull().default(""),
+  manufacturedAt: text("manufactured_at").notNull(),
+  storageMethod: text("storage_method").notNull().default(""),
+  expiryText: text("expiry_text").notNull().default(""),
+  packagingMaterial: text("packaging_material").notNull().default(""),
+  foodType: text("food_type").notNull().default(""),
+  status: text("status").notNull().default("available"),
+  idempotencyKey: text("idempotency_key").notNull().unique(),
+  createdBy: text("created_by").notNull(),
+  assignedAt: text("assigned_at"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, (table) => [
+  uniqueIndex("idx_skin_packs_batch_sequence").on(table.productionBatchId, table.batchSequence),
+  index("idx_skin_packs_available_component").on(table.componentCode, table.status, table.createdAt),
+  index("idx_skin_packs_batch").on(table.productionBatchId, table.createdAt),
+  check("skin_packs_weight_positive", sql.raw("weight_g > 0")),
+  check("skin_packs_status_valid", sql.raw("status in ('available','assigned','voided','consumed')")),
+]);
+
+export const skinPackLabels = sqliteTable("skin_pack_labels", {
+  id: text("id").primaryKey(),
+  skinPackId: text("skin_pack_id").notNull().references(() => skinPacks.id),
+  version: integer("version").notNull(),
+  status: text("status").notNull().default("draft"),
+  payloadJson: text("payload_json").notNull(),
+  createdBy: text("created_by").notNull(),
+  createdAt: text("created_at").notNull(),
+  printedBy: text("printed_by"),
+  printedAt: text("printed_at"),
+  voidedBy: text("voided_by"),
+  voidedAt: text("voided_at"),
+  voidReason: text("void_reason"),
+}, (table) => [
+  uniqueIndex("idx_skin_pack_labels_version").on(table.skinPackId, table.version),
+  index("idx_skin_pack_labels_status").on(table.skinPackId, table.status),
+  check("skin_pack_labels_status_valid", sql.raw("status in ('draft','printed','void')")),
+]);
+
+export const packageSkinPacks = sqliteTable("package_skin_packs", {
+  id: text("id").primaryKey(),
+  packageId: text("package_id").notNull().references(() => packages.id),
+  skinPackId: text("skin_pack_id").notNull().references(() => skinPacks.id),
+  productComponentId: text("product_component_id").notNull().references(() => productComponents.id),
+  quantitySlot: integer("quantity_slot").notNull().default(1),
+  assignedBy: text("assigned_by").notNull(),
+  assignedAt: text("assigned_at").notNull(),
+}, (table) => [
+  uniqueIndex("idx_package_skin_packs_skin_pack").on(table.skinPackId),
+  uniqueIndex("idx_package_skin_packs_component_slot").on(table.packageId, table.productComponentId, table.quantitySlot),
+  index("idx_package_skin_packs_package").on(table.packageId, table.assignedAt),
 ]);
 
 export const packageLabels = sqliteTable("package_labels", {
@@ -281,7 +370,7 @@ export const packageLabels = sqliteTable("package_labels", {
 }, (table) => [
   uniqueIndex("idx_package_labels_version").on(table.packageId, table.version),
   index("idx_package_labels_status").on(table.packageId, table.status),
-  check("package_labels_status_valid", sql`${table.status} in ('draft', 'printed', 'void')`),
+  check("package_labels_status_valid", sql.raw("status in ('draft','printed','void')")),
 ]);
 
 export const packageAssignmentHistory = sqliteTable("package_assignment_history", {

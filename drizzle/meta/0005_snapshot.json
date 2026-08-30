@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "98388ae5-4855-4403-a24d-eabdc3f13ca6",
+  "id": "3d29a1f6-2ffd-48d7-9be7-b2d92393ea00",
   "prevId": "f51a553c-1b07-40b9-9290-5241e157afa1",
   "tables": {
     "configuration_events": {
@@ -1379,197 +1379,6 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "package_components": {
-      "name": "package_components",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "package_id": {
-          "name": "package_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "product_component_id": {
-          "name": "product_component_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "component_name_snapshot": {
-          "name": "component_name_snapshot",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "sort_order": {
-          "name": "sort_order",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "traceability_required": {
-          "name": "traceability_required",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": true
-        },
-        "weight_required": {
-          "name": "weight_required",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": true
-        },
-        "origin_required": {
-          "name": "origin_required",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": false
-        },
-        "slaughterhouse_required": {
-          "name": "slaughterhouse_required",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": false
-        },
-        "traceability_no": {
-          "name": "traceability_no",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "weight_g": {
-          "name": "weight_g",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "origin": {
-          "name": "origin",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "''"
-        },
-        "slaughterhouse": {
-          "name": "slaughterhouse",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "''"
-        },
-        "entered_by": {
-          "name": "entered_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "entered_at": {
-          "name": "entered_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "idx_package_components_template": {
-          "name": "idx_package_components_template",
-          "columns": [
-            "package_id",
-            "product_component_id"
-          ],
-          "isUnique": true
-        },
-        "idx_package_components_package_order": {
-          "name": "idx_package_components_package_order",
-          "columns": [
-            "package_id",
-            "sort_order"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "package_components_package_id_packages_id_fk": {
-          "name": "package_components_package_id_packages_id_fk",
-          "tableFrom": "package_components",
-          "tableTo": "packages",
-          "columnsFrom": [
-            "package_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "package_components_product_component_id_product_components_id_fk": {
-          "name": "package_components_product_component_id_product_components_id_fk",
-          "tableFrom": "package_components",
-          "tableTo": "product_components",
-          "columnsFrom": [
-            "product_component_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "package_components_traceability_no_traceability_records_traceability_no_fk": {
-          "name": "package_components_traceability_no_traceability_records_traceability_no_fk",
-          "tableFrom": "package_components",
-          "tableTo": "traceability_records",
-          "columnsFrom": [
-            "traceability_no"
-          ],
-          "columnsTo": [
-            "traceability_no"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {
-        "package_components_weight_positive": {
-          "name": "package_components_weight_positive",
-          "value": "\"package_components\".\"weight_g\" is null or \"package_components\".\"weight_g\" > 0"
-        }
-      }
-    },
     "package_labels": {
       "name": "package_labels",
       "columns": {
@@ -1704,9 +1513,134 @@
       "checkConstraints": {
         "package_labels_status_valid": {
           "name": "package_labels_status_valid",
-          "value": "\"package_labels\".\"status\" in ('draft', 'printed', 'void')"
+          "value": "status in ('draft','printed','void')"
         }
       }
+    },
+    "package_skin_packs": {
+      "name": "package_skin_packs",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "package_id": {
+          "name": "package_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "skin_pack_id": {
+          "name": "skin_pack_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "product_component_id": {
+          "name": "product_component_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "quantity_slot": {
+          "name": "quantity_slot",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "assigned_by": {
+          "name": "assigned_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "assigned_at": {
+          "name": "assigned_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "idx_package_skin_packs_skin_pack": {
+          "name": "idx_package_skin_packs_skin_pack",
+          "columns": [
+            "skin_pack_id"
+          ],
+          "isUnique": true
+        },
+        "idx_package_skin_packs_component_slot": {
+          "name": "idx_package_skin_packs_component_slot",
+          "columns": [
+            "package_id",
+            "product_component_id",
+            "quantity_slot"
+          ],
+          "isUnique": true
+        },
+        "idx_package_skin_packs_package": {
+          "name": "idx_package_skin_packs_package",
+          "columns": [
+            "package_id",
+            "assigned_at"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "package_skin_packs_package_id_packages_id_fk": {
+          "name": "package_skin_packs_package_id_packages_id_fk",
+          "tableFrom": "package_skin_packs",
+          "tableTo": "packages",
+          "columnsFrom": [
+            "package_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "package_skin_packs_skin_pack_id_skin_packs_id_fk": {
+          "name": "package_skin_packs_skin_pack_id_skin_packs_id_fk",
+          "tableFrom": "package_skin_packs",
+          "tableTo": "skin_packs",
+          "columnsFrom": [
+            "skin_pack_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "package_skin_packs_product_component_id_product_components_id_fk": {
+          "name": "package_skin_packs_product_component_id_product_components_id_fk",
+          "tableFrom": "package_skin_packs",
+          "tableTo": "product_components",
+          "columnsFrom": [
+            "product_component_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
     },
     "packages": {
       "name": "packages",
@@ -1735,6 +1669,13 @@
         "package_sequence": {
           "name": "package_sequence",
           "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "assembly_key": {
+          "name": "assembly_key",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
@@ -1803,6 +1744,13 @@
           "columns": [
             "order_item_id",
             "package_sequence"
+          ],
+          "isUnique": true
+        },
+        "idx_packages_assembly_key": {
+          "name": "idx_packages_assembly_key",
+          "columns": [
+            "assembly_key"
           ],
           "isUnique": true
         },
@@ -2013,6 +1961,14 @@
           "notNull": true,
           "autoincrement": false
         },
+        "quantity_per_product": {
+          "name": "quantity_per_product",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
         "sort_order": {
           "name": "sort_order",
           "type": "integer",
@@ -2052,6 +2008,38 @@
           "notNull": true,
           "autoincrement": false,
           "default": false
+        },
+        "storage_method_default": {
+          "name": "storage_method_default",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
+        "expiry_text_default": {
+          "name": "expiry_text_default",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
+        "packaging_material_default": {
+          "name": "packaging_material_default",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
+        "food_type_default": {
+          "name": "food_type_default",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
         },
         "active": {
           "name": "active",
@@ -2093,6 +2081,14 @@
             "sort_order"
           ],
           "isUnique": false
+        },
+        "idx_product_components_component_code": {
+          "name": "idx_product_components_component_code",
+          "columns": [
+            "component_code",
+            "active"
+          ],
+          "isUnique": false
         }
       },
       "foreignKeys": {
@@ -2112,7 +2108,12 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {}
+      "checkConstraints": {
+        "product_components_quantity_positive": {
+          "name": "product_components_quantity_positive",
+          "value": "quantity_per_product > 0"
+        }
+      }
     },
     "product_daily_limits": {
       "name": "product_daily_limits",
@@ -2335,6 +2336,266 @@
         }
       }
     },
+    "production_batches": {
+      "name": "production_batches",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "production_date": {
+          "name": "production_date",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "parent_batch_id": {
+          "name": "parent_batch_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "segment_no": {
+          "name": "segment_no",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "component_code": {
+          "name": "component_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "cut_name_snapshot": {
+          "name": "cut_name_snapshot",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "required_quantity": {
+          "name": "required_quantity",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "available_quantity_at_start": {
+          "name": "available_quantity_at_start",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "additional_needed": {
+          "name": "additional_needed",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "production_target": {
+          "name": "production_target",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "produced_quantity": {
+          "name": "produced_quantity",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "traceability_no": {
+          "name": "traceability_no",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "origin": {
+          "name": "origin",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
+        "slaughterhouse": {
+          "name": "slaughterhouse",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
+        "cattle_type": {
+          "name": "cattle_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
+        "grade": {
+          "name": "grade",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
+        "storage_method": {
+          "name": "storage_method",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
+        "expiry_text": {
+          "name": "expiry_text",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
+        "packaging_material": {
+          "name": "packaging_material",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
+        "food_type": {
+          "name": "food_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'in_progress'"
+        },
+        "started_by": {
+          "name": "started_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "started_at": {
+          "name": "started_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "idx_production_batches_date_component": {
+          "name": "idx_production_batches_date_component",
+          "columns": [
+            "production_date",
+            "component_code",
+            "status"
+          ],
+          "isUnique": false
+        },
+        "idx_production_batches_parent_segment": {
+          "name": "idx_production_batches_parent_segment",
+          "columns": [
+            "parent_batch_id",
+            "segment_no"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "production_batches_traceability_no_traceability_records_traceability_no_fk": {
+          "name": "production_batches_traceability_no_traceability_records_traceability_no_fk",
+          "tableFrom": "production_batches",
+          "tableTo": "traceability_records",
+          "columnsFrom": [
+            "traceability_no"
+          ],
+          "columnsTo": [
+            "traceability_no"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "production_batches_required_nonnegative": {
+          "name": "production_batches_required_nonnegative",
+          "value": "required_quantity >= 0"
+        },
+        "production_batches_available_nonnegative": {
+          "name": "production_batches_available_nonnegative",
+          "value": "available_quantity_at_start >= 0"
+        },
+        "production_batches_additional_nonnegative": {
+          "name": "production_batches_additional_nonnegative",
+          "value": "additional_needed >= 0"
+        },
+        "production_batches_target_nonnegative": {
+          "name": "production_batches_target_nonnegative",
+          "value": "production_target >= 0"
+        },
+        "production_batches_produced_nonnegative": {
+          "name": "production_batches_produced_nonnegative",
+          "value": "produced_quantity >= 0"
+        },
+        "production_batches_status_valid": {
+          "name": "production_batches_status_valid",
+          "value": "status in ('planned','in_progress','completed','cancelled')"
+        }
+      }
+    },
     "products": {
       "name": "products",
       "columns": {
@@ -2538,6 +2799,393 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
+    },
+    "skin_pack_labels": {
+      "name": "skin_pack_labels",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "skin_pack_id": {
+          "name": "skin_pack_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'draft'"
+        },
+        "payload_json": {
+          "name": "payload_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "printed_by": {
+          "name": "printed_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "printed_at": {
+          "name": "printed_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "voided_by": {
+          "name": "voided_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "voided_at": {
+          "name": "voided_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "void_reason": {
+          "name": "void_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "idx_skin_pack_labels_version": {
+          "name": "idx_skin_pack_labels_version",
+          "columns": [
+            "skin_pack_id",
+            "version"
+          ],
+          "isUnique": true
+        },
+        "idx_skin_pack_labels_status": {
+          "name": "idx_skin_pack_labels_status",
+          "columns": [
+            "skin_pack_id",
+            "status"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "skin_pack_labels_skin_pack_id_skin_packs_id_fk": {
+          "name": "skin_pack_labels_skin_pack_id_skin_packs_id_fk",
+          "tableFrom": "skin_pack_labels",
+          "tableTo": "skin_packs",
+          "columnsFrom": [
+            "skin_pack_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "skin_pack_labels_status_valid": {
+          "name": "skin_pack_labels_status_valid",
+          "value": "status in ('draft','printed','void')"
+        }
+      }
+    },
+    "skin_packs": {
+      "name": "skin_packs",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "production_batch_id": {
+          "name": "production_batch_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "batch_sequence": {
+          "name": "batch_sequence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "skin_pack_code": {
+          "name": "skin_pack_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "component_code": {
+          "name": "component_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "cut_name_snapshot": {
+          "name": "cut_name_snapshot",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "weight_g": {
+          "name": "weight_g",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "traceability_no": {
+          "name": "traceability_no",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "origin": {
+          "name": "origin",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
+        "slaughterhouse": {
+          "name": "slaughterhouse",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
+        "cattle_type": {
+          "name": "cattle_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
+        "grade": {
+          "name": "grade",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
+        "manufactured_at": {
+          "name": "manufactured_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "storage_method": {
+          "name": "storage_method",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
+        "expiry_text": {
+          "name": "expiry_text",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
+        "packaging_material": {
+          "name": "packaging_material",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
+        "food_type": {
+          "name": "food_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'available'"
+        },
+        "idempotency_key": {
+          "name": "idempotency_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "assigned_at": {
+          "name": "assigned_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "skin_packs_skin_pack_code_unique": {
+          "name": "skin_packs_skin_pack_code_unique",
+          "columns": [
+            "skin_pack_code"
+          ],
+          "isUnique": true
+        },
+        "skin_packs_idempotency_key_unique": {
+          "name": "skin_packs_idempotency_key_unique",
+          "columns": [
+            "idempotency_key"
+          ],
+          "isUnique": true
+        },
+        "idx_skin_packs_batch_sequence": {
+          "name": "idx_skin_packs_batch_sequence",
+          "columns": [
+            "production_batch_id",
+            "batch_sequence"
+          ],
+          "isUnique": true
+        },
+        "idx_skin_packs_available_component": {
+          "name": "idx_skin_packs_available_component",
+          "columns": [
+            "component_code",
+            "status",
+            "created_at"
+          ],
+          "isUnique": false
+        },
+        "idx_skin_packs_batch": {
+          "name": "idx_skin_packs_batch",
+          "columns": [
+            "production_batch_id",
+            "created_at"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "skin_packs_production_batch_id_production_batches_id_fk": {
+          "name": "skin_packs_production_batch_id_production_batches_id_fk",
+          "tableFrom": "skin_packs",
+          "tableTo": "production_batches",
+          "columnsFrom": [
+            "production_batch_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "skin_packs_traceability_no_traceability_records_traceability_no_fk": {
+          "name": "skin_packs_traceability_no_traceability_records_traceability_no_fk",
+          "tableFrom": "skin_packs",
+          "tableTo": "traceability_records",
+          "columnsFrom": [
+            "traceability_no"
+          ],
+          "columnsTo": [
+            "traceability_no"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "skin_packs_weight_positive": {
+          "name": "skin_packs_weight_positive",
+          "value": "weight_g > 0"
+        },
+        "skin_packs_status_valid": {
+          "name": "skin_packs_status_valid",
+          "value": "status in ('available','assigned','voided','consumed')"
+        }
+      }
     },
     "traceability_records": {
       "name": "traceability_records",

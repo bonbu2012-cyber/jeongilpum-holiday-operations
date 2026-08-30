@@ -3,7 +3,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import AppNav from "./AppNav";
-import { fetchWorkshopOrders, reassignCompletedPackage, runWorkshopAction } from "../lib/workshop-client";
+import { assemblePackage, fetchWorkshopOrders, reassignCompletedPackage, runWorkshopAction } from "../lib/workshop-client";
 import {
   aggregateWorkshopProducts,
   arrivalTimingLabel,
@@ -68,6 +68,7 @@ export default function WorkshopApp() {
   const [refreshing, setRefreshing] = useState(false);
   const [busyOrderId, setBusyOrderId] = useState("");
   const [busyPackageId, setBusyPackageId] = useState("");
+  const [busyAssemblyId, setBusyAssemblyId] = useState("");
   const [lastSync, setLastSync] = useState("");
   const requestSequence = useRef(0);
 
@@ -130,6 +131,17 @@ export default function WorkshopApp() {
     }
   };
 
+  const performAssembly = async (order: WorkshopOrder, productId: string, itemId: string, nextSequence: number) => {
+    setBusyAssemblyId(itemId);
+    try {
+      const result = await assemblePackage(order.id, productId, `${order.id}:${itemId}:${nextSequence}`);
+      setNotice(result.alreadyApplied ? "이미 조립된 선물세트입니다." : `${result.packageCode ?? "선물세트"} 조립을 완료했습니다.`);
+      await load();
+    } catch (caught) {
+      setNotice(caught instanceof Error ? caught.message : "선물세트를 조립하지 못했습니다.");
+      await load(true);
+    } finally { setBusyAssemblyId(""); }
+  };
   const now = new Date();
   const summary = summarizeWorkshopOrders(orders);
   const products = aggregateWorkshopProducts(orders);
@@ -197,7 +209,7 @@ export default function WorkshopApp() {
       {tab === "completed" && <section className="whiteboard-section"><header><div><small>READY</small><h2>준비완료 주문</h2></div></header><TimelineRows orders={completed} onSelect={setSelectedOrder} onAction={perform} busyOrderId={busyOrderId} now={now} empty="선택 날짜의 준비완료 주문이 없습니다." /></section>}
     </main>
 
-    {selectedOrder && <WorkshopDetail order={selectedOrder} onClose={() => setSelectedOrder(null)} onAction={perform} onReassign={performReassignment} busy={busyOrderId === selectedOrder.id} busyPackageId={busyPackageId} />}
+    {selectedOrder && <WorkshopDetail order={selectedOrder} onClose={() => setSelectedOrder(null)} onAction={perform} onReassign={performReassignment} onAssemble={performAssembly} busy={busyOrderId === selectedOrder.id} busyPackageId={busyPackageId} busyAssemblyId={busyAssemblyId} />}
     {notice && <div className="ops-toast" role="status">{notice}<button onClick={() => setNotice("")} aria-label="알림 닫기">×</button></div>}
   </div>;
 }
@@ -231,12 +243,12 @@ function TimelineRow({ order, onSelect, onAction, busy, now }: { order: Workshop
   </article>;
 }
 
-function WorkshopDetail({ order, onClose, onAction, onReassign, busy, busyPackageId }: { order: WorkshopOrder; onClose: () => void; onAction: (order: WorkshopOrder, action: WorkshopAction) => Promise<void>; onReassign: (order: WorkshopOrder, candidate: SubstituteCandidate) => Promise<void>; busy: boolean; busyPackageId: string }) {
+function WorkshopDetail({ order, onClose, onAction, onReassign, onAssemble, busy, busyPackageId, busyAssemblyId }: { order: WorkshopOrder; onClose: () => void; onAction: (order: WorkshopOrder, action: WorkshopAction) => Promise<void>; onReassign: (order: WorkshopOrder, candidate: SubstituteCandidate) => Promise<void>; onAssemble: (order: WorkshopOrder, productId: string, itemId: string, nextSequence: number) => Promise<void>; busy: boolean; busyPackageId: string; busyAssemblyId: string }) {
   const action = order.status === "confirmed" ? order.workAcceptedAt ? "start" : "accept" : order.status === "in_progress" ? "complete" : null;
   return <div className="workshop-drawer-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><aside className="workshop-drawer" role="dialog" aria-modal="true" aria-label={`${order.orderNo} 작업 상세`}><header><div><small>{order.orderNo}</small><h2>{order.status === "ready" ? "✓ " : "☐ "}{order.buyerName}</h2></div><button onClick={onClose} aria-label="작업 상세 닫기">×</button></header>
     <section className="workshop-detail-grid"><p><span>수령방법</span><b>{order.fulfillmentType === "pickup" ? "방문수령" : "택배발송"}</b></p><p><span>작업 기준일정</span><b>{order.scheduleLabel}</b></p><p><span>작업상태</span><b>{workshopStatusLabel(order)}</b></p><p><span>고객상태</span><b>{order.customerArrived ? arrivalTimingLabel(order.arrivalOffsetMinutes) : "도착 전"}</b>{order.actualArrivedAt && <small>실제 {shortDateTime(order.actualArrivedAt)}</small>}</p>{order.workAcceptedAt && <p><span>작업 수락</span><b>{shortDateTime(order.workAcceptedAt)}</b><small>담당 {order.workAcceptedBy ?? "운영자"}</small></p>}{order.workStartedAt && <p><span>작업 시작</span><b>{shortDateTime(order.workStartedAt)}</b></p>}</section>
-    <section className="workshop-detail-items"><h3>작업 상품</h3>{order.items.map((item) => <div key={item.id}><b>{item.name}</b><span>× {item.quantity}</span>{item.packageTotal > 0 ? <small>{item.packageCompleted} / {item.packageTotal} 완료</small> : <small>{order.status === "ready" ? "주문 전체 준비완료" : "부분완료 근거 없음"}</small>}</div>)}</section>
-    {order.packages.length > 0 && <section className="workshop-detail-packages"><h3>개별 패키지</h3><p>이력번호·중량·QR·라벨 정보는 패키지별 상세에서 입력합니다.</p>{order.packages.map((value) => <a key={value.id} href={"/workshop/packages/" + encodeURIComponent(value.packageCode)}><span><b>{value.productName}</b><small>{value.packageCode}</small></span><strong>{value.packageStatus} →</strong></a>)}</section>}
+    <section className="workshop-detail-items"><h3>작업 상품</h3><p className="assembly-priority">조기도착 시에도 먼저 가용 스킨팩 조립을 시도하고, 부족할 때만 아래 대체 완성품을 사용합니다.</p>{order.items.map((item) => <div key={item.id}><b>{item.name}</b><span>× {item.quantity}</span><small>{item.packageCompleted} / {item.quantity} 세트 조립</small>{item.packageTotal < item.quantity && <button className="assemble-package" disabled={Boolean(busyAssemblyId)} onClick={() => void onAssemble(order, item.productId, item.id, item.packageTotal + 1)}>{busyAssemblyId === item.id ? "조립 중…" : "가용 스킨팩으로 1세트 조립"}</button>}</div>)}</section>
+    {order.packages.length > 0 && <section className="workshop-detail-packages"><h3>개별 패키지</h3><p>조립에 사용된 스킨팩·이력·중량과 패키지 QR을 조회합니다.</p>{order.packages.map((value) => <a key={value.id} href={"/workshop/packages/" + encodeURIComponent(value.packageCode)}><span><b>{value.productName}</b><small>{value.packageCode}</small></span><strong>{value.packageStatus} →</strong></a>)}</section>}
     {order.substituteCandidates.length > 0 && <section className="workshop-substitutes"><h3>대체 가능한 완성품</h3><p>조기도착 고객에게 같은 날 더 늦은 주문의 동일 완성품을 1:1 맞교환합니다.</p>{order.substituteCandidates.map((candidate) => <div key={candidate.packageId}><span><b>{candidate.productName} · {candidate.packageCode}</b><small>{candidate.sourceOrderNo} · {candidate.sourcePickupAt.slice(11, 16)} 예약분</small></span><button disabled={Boolean(busyPackageId)} onClick={() => void onReassign(order, candidate)}>{busyPackageId === candidate.packageId ? "재배정 중…" : "대체 완성품 적용"}</button></div>)}</section>}
     {order.note && <section className="workshop-detail-note"><h3>작업 요청사항</h3><p>{order.note}</p></section>}
     <section className="workshop-detail-history"><h3>작업·변경 이력</h3>{order.events.length ? <ol>{order.events.map((event) => <li key={event.id}><b>{eventLabel[event.type] ?? event.type}</b><time>{new Date(event.createdAt).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })}</time>{event.reason && <small>{event.reason}</small>}</li>)}</ol> : <p>표시할 작업 이력이 없습니다.</p>}</section>
