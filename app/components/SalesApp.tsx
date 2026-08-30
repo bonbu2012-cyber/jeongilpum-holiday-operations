@@ -180,9 +180,9 @@ export default function SalesApp() {
   return <div className="ops-app sales-app">
     <header className="ops-header sales-header">
       <a href="/sales" className="ops-brand"><img className="operations-brand-logo" src="/jeongilpum-logo.png" alt="정일품 정육식당 로고"/><span>정일품 주문관리<small>판매장 운영</small></span></a>
-      <AppNav current="admin" />
       <div className="ops-alerts"><button onClick={() => void loadDate()} disabled={refreshing}>{refreshing ? "동기화 중…" : "지금 새로고침"}</button><a href="/signout-with-chatgpt?return_to=/">로그아웃</a></div>
     </header>
+    <AppNav current="admin" />
 
     <main className="ops-main sales-main">
       <section className="sales-date-toolbar" aria-label="운영 날짜 선택">

@@ -192,7 +192,6 @@ export default function AdminApp() {
             정일품 주문관리<small>판매장</small>
           </span>
         </a>
-        <AppNav current="admin" />
         <div className="ops-alerts">
           <button onClick={() => void load()} disabled={refreshing}>
             {refreshing ? "동기화 중…" : "새로고침"}
@@ -201,11 +200,12 @@ export default function AdminApp() {
         </div>
       </header>
 
+      <AppNav current="admin" />
       <main className="ops-main">
         {view === "home" ? (
           <>
             <div className="ops-welcome">
-              <small>2026 추석 · 실제 주문 데이터</small>
+              <small>실제 주문 데이터</small>
               <h1>무엇을 도와드릴까요?</h1>
               <p>
                 최근 동기화 {lastSync || "준비 중"} · 최대 3초 간격 자동 반영

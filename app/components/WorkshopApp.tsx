@@ -149,9 +149,9 @@ export default function WorkshopApp() {
   return <div className="workshop-app">
     <header className="workshop-header">
       <a href="/workshop" className="workshop-brand"><img className="operations-brand-logo" src="/jeongilpum-logo.png" alt="정일품 정육식당 로고"/><span>정일품 작업장<small>DIGITAL WORK WHITEBOARD</small></span></a>
-      <AppNav current="workshop" />
       <button className="workshop-sync" onClick={() => void load()} disabled={refreshing}>{refreshing ? "동기화 중…" : "지금 새로고침"}</button>
     </header>
+    <AppNav current="workshop" />
 
     <main className="workshop-main">
       <section className="workshop-date-toolbar" aria-label="작업 기준일 선택">

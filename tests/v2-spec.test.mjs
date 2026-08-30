@@ -109,7 +109,7 @@ test("custom order and settings workflows stay durable",async()=>{
 });
 
 test("all operating surfaces share navigation and sales has an alias route",async()=>{
- const [nav,kiosk,admin,workshop,settings,css,sales,salesCss]=await Promise.all([read("app/components/AppNav.tsx"),read("app/components/KioskApp.tsx"),read("app/components/AdminApp.tsx"),read("app/components/WorkshopApp.tsx"),read("app/components/SettingsApp.tsx"),read("app/globals.css"),read("app/sales/page.tsx"),read("app/sales-flow.css")]);
+ const [nav,kiosk,admin,workshop,settings,css,sales]=await Promise.all([read("app/components/AppNav.tsx"),read("app/components/KioskApp.tsx"),read("app/components/AdminApp.tsx"),read("app/components/WorkshopApp.tsx"),read("app/components/SettingsApp.tsx"),read("app/globals.css"),read("app/sales/page.tsx")]);
  for(const href of ["/kiosk","/sales","/workshop","/settings"])assert.match(nav,new RegExp('href: "'+href.replaceAll("/","\\/")+'"'));
  assert.match(nav,/aria-current/);
  assert.match(kiosk,/AppNav current="kiosk"/);
@@ -118,8 +118,8 @@ test("all operating surfaces share navigation and sales has an alias route",asyn
  assert.match(settings,/AppNav current="settings"/);
  assert.match(sales,/SalesApp/);
  assert.match(css,/\.category-rail\{[^}]*position:sticky;top:92px;height:calc\(100vh - 92px\)/);
- assert.doesNotMatch(salesCss,/\.sales-header \.app-nav\{display:none\}/);
- assert.match(salesCss,/@media\(max-width:900px\)[\s\S]*\.sales-header \.app-nav\{[^}]*display:flex/);
+ assert.match(css,/\.app-nav\{[^}]*position:fixed;[^}]*right:14px;[^}]*flex-direction:column/);
+ assert.match(css,/@media\(max-width:1180px\)\{\.app-nav\{[^}]*bottom:14px;[^}]*flex-direction:row/);
 });
 
 test("sales and workshop refetch within three seconds and recover on focus and online",async()=>{
@@ -177,6 +177,7 @@ test("kiosk brand logo and editable headline use durable audited settings",async
  ]);
  assert.match(kiosk,/정일품 정육식당/);
  assert.match(kiosk,/src="\/jeongilpum-logo\.png"/);
+ assert.doesNotMatch(kiosk,/명절 선물세트|2026 추석 예약/);
  assert.match(sales,/className="operations-brand-logo" src="\/jeongilpum-logo\.png"/);
  assert.match(workshop,/className="operations-brand-logo" src="\/jeongilpum-logo\.png"/);
  assert.match(kiosk,/\{headline\}/);
