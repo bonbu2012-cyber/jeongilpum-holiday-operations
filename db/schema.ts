@@ -285,6 +285,7 @@ export const productionBatches = sqliteTable("production_batches", {
   check("production_batches_additional_nonnegative", sql.raw("additional_needed >= 0")),
   check("production_batches_target_nonnegative", sql.raw("production_target >= 0")),
   check("production_batches_produced_nonnegative", sql.raw("produced_quantity >= 0")),
+  check("production_batches_produced_within_target", sql.raw("produced_quantity <= production_target")),
   check("production_batches_status_valid", sql.raw("status in ('planned','in_progress','completed','cancelled')")),
 ]);
 

@@ -2590,6 +2590,10 @@
           "name": "production_batches_produced_nonnegative",
           "value": "produced_quantity >= 0"
         },
+        "production_batches_produced_within_target": {
+          "name": "production_batches_produced_within_target",
+          "value": "produced_quantity <= production_target"
+        },
         "production_batches_status_valid": {
           "name": "production_batches_status_valid",
           "value": "status in ('planned','in_progress','completed','cancelled')"

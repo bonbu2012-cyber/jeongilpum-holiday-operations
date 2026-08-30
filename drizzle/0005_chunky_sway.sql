@@ -49,7 +49,6 @@ CREATE TABLE `package_skin_packs` (
 CREATE UNIQUE INDEX `idx_package_skin_packs_skin_pack` ON `package_skin_packs` (`skin_pack_id`);--> statement-breakpoint
 CREATE UNIQUE INDEX `idx_package_skin_packs_component_slot` ON `package_skin_packs` (`package_id`,`product_component_id`,`quantity_slot`);--> statement-breakpoint
 CREATE INDEX `idx_package_skin_packs_package` ON `package_skin_packs` (`package_id`,`assigned_at`);--> statement-breakpoint
-CREATE TRIGGER `package_skin_pack_requires_available` BEFORE INSERT ON `package_skin_packs` WHEN NOT EXISTS (SELECT 1 FROM `skin_packs` WHERE `id`=NEW.`skin_pack_id` AND `status`='available') BEGIN SELECT RAISE(ABORT, 'SKIN_PACK_NOT_AVAILABLE'); END;--> statement-breakpoint
 CREATE TABLE `product_components` (
 	`id` text PRIMARY KEY NOT NULL,
 	`product_id` text NOT NULL,
@@ -108,6 +107,7 @@ CREATE TABLE `production_batches` (
 	CONSTRAINT "production_batches_additional_nonnegative" CHECK(additional_needed >= 0),
 	CONSTRAINT "production_batches_target_nonnegative" CHECK(production_target >= 0),
 	CONSTRAINT "production_batches_produced_nonnegative" CHECK(produced_quantity >= 0),
+	CONSTRAINT "production_batches_produced_within_target" CHECK(produced_quantity <= production_target),
 	CONSTRAINT "production_batches_status_valid" CHECK(status in ('planned','in_progress','completed','cancelled'))
 );
 --> statement-breakpoint
@@ -167,8 +167,6 @@ CREATE UNIQUE INDEX `skin_packs_idempotency_key_unique` ON `skin_packs` (`idempo
 CREATE UNIQUE INDEX `idx_skin_packs_batch_sequence` ON `skin_packs` (`production_batch_id`,`batch_sequence`);--> statement-breakpoint
 CREATE INDEX `idx_skin_packs_available_component` ON `skin_packs` (`component_code`,`status`,`created_at`);--> statement-breakpoint
 CREATE INDEX `idx_skin_packs_batch` ON `skin_packs` (`production_batch_id`,`created_at`);--> statement-breakpoint
-CREATE TRIGGER `skin_pack_sequence_guard` BEFORE INSERT ON `skin_packs` WHEN NOT EXISTS (SELECT 1 FROM `production_batches` WHERE `id`=NEW.`production_batch_id` AND `status`='in_progress' AND `produced_quantity`<`production_target` AND NEW.`batch_sequence`=`produced_quantity`+1) BEGIN SELECT RAISE(ABORT, 'SKIN_PACK_BATCH_SEQUENCE_CONFLICT'); END;--> statement-breakpoint
-CREATE TRIGGER `skin_pack_increment_batch` AFTER INSERT ON `skin_packs` BEGIN UPDATE `production_batches` SET `produced_quantity`=`produced_quantity`+1,`updated_at`=NEW.`created_at` WHERE `id`=NEW.`production_batch_id`; END;--> statement-breakpoint
 CREATE TABLE `traceability_records` (
 	`traceability_no` text PRIMARY KEY NOT NULL,
 	`last_raw_scan` text NOT NULL,

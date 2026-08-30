@@ -118,16 +118,24 @@ export async function POST(request: Request) {
       const skinPackId = `sp:${batch.id}:${sequence}`;
       const skinPackCode = buildSkinPackCode(batch.component_code, batch.production_date, codeSequence);
       const label: SkinPackLabelPayload = { skinPackCode, cutName: batch.cut_name_snapshot, weightG: Number(payload.weightG), traceabilityNo: batch.traceability_no, origin: batch.origin, slaughterhouse: batch.slaughterhouse, grade: batch.grade, manufacturedAt: now, storageMethod: batch.storage_method, expiryText: batch.expiry_text, packagingMaterial: batch.packaging_material, foodType: batch.food_type };
-      const results = await runtimeEnv.DB.batch([
-        runtimeEnv.DB.prepare("INSERT OR IGNORE INTO skin_packs(id,production_batch_id,batch_sequence,skin_pack_code,component_code,cut_name_snapshot,weight_g,traceability_no,origin,slaughterhouse,cattle_type,grade,manufactured_at,storage_method,expiry_text,packaging_material,food_type,status,idempotency_key,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'available',?,?,?,?)").bind(skinPackId, batch.id, sequence, skinPackCode, batch.component_code, batch.cut_name_snapshot, payload.weightG, batch.traceability_no, batch.origin, batch.slaughterhouse, batch.cattle_type, batch.grade, now, batch.storage_method, batch.expiry_text, batch.packaging_material, batch.food_type, payload.idempotencyKey, auth.user.userId, now, now),
-        runtimeEnv.DB.prepare("INSERT INTO skin_pack_labels(id,skin_pack_id,version,status,payload_json,created_by,created_at) SELECT ?,?,1,'draft',?,?,? WHERE EXISTS(SELECT 1 FROM skin_packs WHERE id=?) AND NOT EXISTS(SELECT 1 FROM skin_pack_labels WHERE skin_pack_id=?)").bind(crypto.randomUUID(), skinPackId, JSON.stringify(label), auth.user.userId, now, skinPackId, skinPackId),
-      ]);
-      if (!results[0].meta.changes) {
+      try {
+        const results = await runtimeEnv.DB.batch([
+          runtimeEnv.DB.prepare("INSERT INTO skin_packs(id,production_batch_id,batch_sequence,skin_pack_code,component_code,cut_name_snapshot,weight_g,traceability_no,origin,slaughterhouse,cattle_type,grade,manufactured_at,storage_method,expiry_text,packaging_material,food_type,status,idempotency_key,created_by,created_at,updated_at) SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'available',?,?,?,? FROM production_batches pb WHERE pb.id=? AND pb.status='in_progress' AND pb.produced_quantity=? AND pb.produced_quantity<pb.production_target").bind(skinPackId, batch.id, sequence, skinPackCode, batch.component_code, batch.cut_name_snapshot, payload.weightG, batch.traceability_no, batch.origin, batch.slaughterhouse, batch.cattle_type, batch.grade, now, batch.storage_method, batch.expiry_text, batch.packaging_material, batch.food_type, payload.idempotencyKey, auth.user.userId, now, now, batch.id, batch.produced_quantity),
+          runtimeEnv.DB.prepare("INSERT INTO skin_pack_labels(id,skin_pack_id,version,status,payload_json,created_by,created_at) SELECT ?,?,1,'draft',?,?,? WHERE EXISTS(SELECT 1 FROM skin_packs WHERE id=? AND idempotency_key=?) AND NOT EXISTS(SELECT 1 FROM skin_pack_labels WHERE skin_pack_id=?)").bind(crypto.randomUUID(), skinPackId, JSON.stringify(label), auth.user.userId, now, skinPackId, payload.idempotencyKey, skinPackId),
+          runtimeEnv.DB.prepare("UPDATE production_batches SET produced_quantity=produced_quantity+1,updated_at=? WHERE id=? AND status='in_progress' AND produced_quantity=? AND produced_quantity<production_target AND EXISTS(SELECT 1 FROM skin_packs WHERE id=? AND idempotency_key=?)").bind(now, batch.id, batch.produced_quantity, skinPackId, payload.idempotencyKey),
+        ]);
+        if (!results[0].meta.changes || !results[1].meta.changes || !results[2].meta.changes) {
+          const duplicate = await runtimeEnv.DB.prepare("SELECT id,skin_pack_code FROM skin_packs WHERE idempotency_key=?").bind(payload.idempotencyKey).first<ExistingPack>();
+          if (duplicate) return Response.json({ ok: true, skinPackId: duplicate.id, skinPackCode: duplicate.skin_pack_code, alreadyApplied: true });
+          return Response.json({ error: "생산목표 또는 batch 순번이 변경되었습니다. 최신 batch를 다시 확인해주세요." }, { status: 409 });
+        }
+        return Response.json({ ok: true, skinPackId, skinPackCode, label });
+      } catch (error) {
         const duplicate = await runtimeEnv.DB.prepare("SELECT id,skin_pack_code FROM skin_packs WHERE idempotency_key=?").bind(payload.idempotencyKey).first<ExistingPack>();
         if (duplicate) return Response.json({ ok: true, skinPackId: duplicate.id, skinPackCode: duplicate.skin_pack_code, alreadyApplied: true });
-        return Response.json({ error: "다른 작업자가 먼저 팩을 등록했습니다. 최신 batch를 다시 확인해주세요." }, { status: 409 });
+        if (error instanceof Error && /UNIQUE|constraint/i.test(error.message)) return Response.json({ error: "다른 작업자가 먼저 팩을 등록했습니다. 최신 batch를 다시 확인해주세요." }, { status: 409 });
+        throw error;
       }
-      return Response.json({ ok: true, skinPackId, skinPackCode, label });
     }
 
     if (payload.action === "complete_batch") {

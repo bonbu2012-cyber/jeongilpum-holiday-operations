@@ -46,7 +46,7 @@ export async function POST(request: Request) {
       runtimeEnv.DB.prepare("INSERT INTO packages(id,order_id,order_item_id,package_sequence,assembly_key,package_code,product_id,product_name_snapshot,package_status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?, 'completed',?,?)").bind(packageId, order.id, item.id, sequence, payload.assemblyKey, packageCode, item.product_id, item.product_name_snapshot, now, now),
     ];
     for (const value of selected) {
-      statements.push(runtimeEnv.DB.prepare("INSERT INTO package_skin_packs(id,package_id,skin_pack_id,product_component_id,quantity_slot,assigned_by,assigned_at) VALUES(?,?,?,?,?,?,?)").bind(crypto.randomUUID(), packageId, value.pack.id, value.component.id, value.slot, user.userId, now));
+      statements.push(runtimeEnv.DB.prepare("INSERT INTO package_skin_packs(id,package_id,skin_pack_id,product_component_id,quantity_slot,assigned_by,assigned_at) VALUES(?, ?, (SELECT id FROM skin_packs WHERE id=? AND status='available'), ?, ?, ?, ?)").bind(crypto.randomUUID(), packageId, value.pack.id, value.component.id, value.slot, user.userId, now));
       statements.push(runtimeEnv.DB.prepare("UPDATE skin_packs SET status='assigned',assigned_at=?,updated_at=? WHERE id=? AND status='available'").bind(now, now, value.pack.id));
     }
     statements.push(runtimeEnv.DB.prepare("INSERT INTO package_assignment_history(id,package_id,from_order_id,to_order_id,reason,changed_by,changed_at) VALUES(?,?,NULL,?,'INITIAL_ASSEMBLY',?,?)").bind(crypto.randomUUID(), packageId, order.id, user.userId, now));
