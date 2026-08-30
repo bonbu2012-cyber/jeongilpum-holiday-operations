@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ProductionBatch, ProductionOverview, RecentProductionTrace } from "../lib/production-types";
 import AppNav from "./AppNav";
@@ -85,10 +86,10 @@ export default function ProductionApp() {
 
   return <div className="workshop-app production-app">
     <header className="workshop-header">
-      <a href="/workshop" className="workshop-brand"><b>正</b><span>정일품 생산장<small>BATCH &amp; SKIN PACK</small></span></a>
-      <AppNav current="workshop" />
+      <a href="/workshop" className="workshop-brand"><Image className="operations-brand-logo" src="/jeongilpum-logo.png" alt="정일품 정육식당 로고" width={46} height={46}/><span>정일품 생산장<small>BATCH &amp; SKIN PACK</small></span></a>
       <a className="workshop-sync production-link" href="/workshop">화이트보드</a>
     </header>
+    <AppNav current="workshop" />
     <main className="workshop-main production-main">
       <section className="workshop-date-toolbar production-date"><div><small>ORDER-DRIVEN PRODUCTION</small><h1>날짜별 부위 생산</h1><span>방문수령일·택배 발송일 주문 → BOM → 가용재고 → 추가 생산량</span></div><label><span>생산 기준일</span><input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label></section>
       {error && <div className="package-message error" role="alert">{error}</div>}{notice && <div className="package-message" role="status">{notice}</div>}

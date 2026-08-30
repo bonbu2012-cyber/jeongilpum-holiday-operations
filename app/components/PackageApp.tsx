@@ -39,10 +39,11 @@ export default function PackageApp({ packageCode }: { packageCode: string }) {
     finally { setBusy(false); }
   }
 
-  if (!detail) return <div className="package-page"><header className="workshop-header"><a href="/workshop" className="workshop-brand"><b>正</b><span>정일품 작업장<small>ASSEMBLED PACKAGE</small></span></a><AppNav current="workshop" /></header><main className="package-loading">{error || "패키지 정보를 불러오는 중…"}</main></div>;
+  if (!detail) return <div className="package-page"><header className="workshop-header"><a href="/workshop" className="workshop-brand"><Image className="operations-brand-logo" src="/jeongilpum-logo.png" alt="정일품 정육식당 로고" width={46} height={46}/><span>정일품 작업장<small>ASSEMBLED PACKAGE</small></span></a></header><AppNav current="workshop" /><main className="package-loading">{error || "패키지 정보를 불러오는 중…"}</main></div>;
 
   return <div className="package-page">
-    <header className="workshop-header"><a href="/workshop" className="workshop-brand"><b>正</b><span>정일품 작업장<small>ASSEMBLED PACKAGE</small></span></a><AppNav current="workshop" /></header>
+    <header className="workshop-header"><a href="/workshop" className="workshop-brand"><Image className="operations-brand-logo" src="/jeongilpum-logo.png" alt="정일품 정육식당 로고" width={46} height={46}/><span>정일품 작업장<small>ASSEMBLED PACKAGE</small></span></a></header>
+    <AppNav current="workshop" />
     <main className="package-main">
       <nav className="package-breadcrumb"><a href="/workshop">← 작업장으로</a><a href="/workshop/production">생산 배치</a><span>{detail.orderNo}</span></nav>
       <section className="package-hero">
