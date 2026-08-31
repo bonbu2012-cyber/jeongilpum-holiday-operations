@@ -392,7 +392,7 @@ test("payment correction preserves the original and uses reversal plus optional 
   );
   assert.doesNotMatch(transactionApi, /UPDATE customer_ledger_transactions|DELETE FROM customer_ledger_transactions/);
   assert.match(transactionApi, /related_transaction_id/);
-  assert.match(transactionApi, /verifyCustomerLedgerPassword/);
+  assert.match(transactionApi, /verifyCustomerLedgerAdminPassword/);
   database.close();
 });
 
@@ -414,8 +414,8 @@ test("customer ledger is double-password protected, expires after five minutes, 
   for (const method of ["card", "cash", "bank_transfer"]) assert.match(transactions, new RegExp(method));
   assert.match(auth, /const SESSION_SECONDS = 5 \* 60/);
   assert.match(auth, /HttpOnly; Secure; SameSite=Strict/);
-  assert.match(access, /verifyCustomerLedgerPassword/);
-  assert.match(transactions, /verifyCustomerLedgerPassword/);
+  assert.match(access, /verifyCustomerLedgerEmployeePassword/);
+  assert.match(transactions, /verifyCustomerLedgerAdminPassword/);
   assert.match(ledger, /5 \* 60 \* 1000/);
   assert.match(legacyPaymentApi, /status: 410/);
   assert.doesNotMatch(workshop, /고객 결제·미수|결제누계|결제수단|외상 처리/);

@@ -2,7 +2,7 @@ import {
   clearCustomerLedgerSession,
   hasCustomerLedgerSession,
   requireCustomerLedgerOperator,
-  verifyCustomerLedgerPassword,
+  verifyCustomerLedgerEmployeePassword,
   withCustomerLedgerSession,
 } from "../../../lib/customer-ledger-auth";
 
@@ -21,12 +21,12 @@ export async function POST(request: Request) {
   const operator = await requireCustomerLedgerOperator();
   if ("response" in operator) return operator.response;
   const payload = await request.json() as AccessPayload;
-  const verified = await verifyCustomerLedgerPassword(payload.password?.trim() ?? "");
+  const verified = await verifyCustomerLedgerEmployeePassword(payload.password?.trim() ?? "");
   if (verified.configurationMissing) {
-    return Response.json({ error: "고객 장부 관리자 비밀번호 설정이 필요합니다." }, { status: 503 });
+    return Response.json({ error: "고객 장부 직원 패스워드 설정이 필요합니다." }, { status: 503 });
   }
   if (!verified.ok) {
-    return Response.json({ error: "관리자 비밀번호가 올바르지 않습니다." }, { status: 403 });
+    return Response.json({ error: "직원 패스워드가 올바르지 않습니다." }, { status: 403 });
   }
   return withCustomerLedgerSession(Response.json({ unlocked: true }), operator.user.userId);
 }

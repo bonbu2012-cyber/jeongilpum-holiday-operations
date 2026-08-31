@@ -20,7 +20,7 @@
 | PATCH | `/api/orders/arrival` | 고객도착 등록 | 운영자 |
 | POST | `/api/orders/fulfillment` | legacy 주문 일정 지정 | 운영자 |
 | POST | `/api/orders/payments` | 폐기된 주문별 결제 API, 410 응답 | 운영자 |
-| GET/POST/DELETE | `/api/customer-ledger/access` | 장부 세션 확인·5분 해제·잠금 | 운영자 + 관리자 패스워드 |
+| GET/POST/DELETE | `/api/customer-ledger/access` | 장부 세션 확인·5분 해제·잠금 | 운영자 + 직원 패스워드 |
 | GET | `/api/customer-ledger` | 고객 장부 목록·상세·미수·선수금 조회 | 장부 세션 |
 | POST | `/api/customer-ledger/transactions` | 고객 결제와 원본 보존 정정 | 장부 세션 + 관리자 패스워드 |
 | POST | `/api/customer-ledger/consultations` | 상담 메모 및 상담 후 장부 분리 적용 | 장부 세션, 적용은 관리자 패스워드 |

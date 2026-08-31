@@ -1,7 +1,7 @@
 import {
   customerLedgerEnv,
   requireCustomerLedgerSession,
-  verifyCustomerLedgerPassword,
+  verifyCustomerLedgerAdminPassword,
   withCustomerLedgerSession,
 } from "../../../lib/customer-ledger-auth";
 
@@ -91,7 +91,7 @@ export async function POST(request: Request) {
       if (!consultationId || !applicationMemo || !Number.isInteger(transferAmount) || transferAmount < 0) {
         return Response.json({ error: "분리 적용 내용과 이관금액을 확인해주세요." }, { status: 400 });
       }
-      const password = await verifyCustomerLedgerPassword(clean(payload.adminPassword));
+      const password = await verifyCustomerLedgerAdminPassword(clean(payload.adminPassword));
       if (password.configurationMissing) {
         return Response.json({ error: "고객 장부 관리자 비밀번호 설정이 필요합니다." }, { status: 503 });
       }

@@ -1,7 +1,7 @@
 import {
   customerLedgerEnv,
   requireCustomerLedgerSession,
-  verifyCustomerLedgerPassword,
+  verifyCustomerLedgerAdminPassword,
   withCustomerLedgerSession,
 } from "../../../lib/customer-ledger-auth";
 import { normalizeCustomerPhone } from "../../../lib/customer-ledger-domain";
@@ -79,7 +79,7 @@ export async function POST(request: Request) {
     if (!customerAccountId || !idempotencyKey || !await accountExists(customerAccountId)) {
       return Response.json({ error: "고객 장부와 중복방지 정보를 확인해주세요." }, { status: 400 });
     }
-    const password = await verifyCustomerLedgerPassword(clean(payload.adminPassword));
+    const password = await verifyCustomerLedgerAdminPassword(clean(payload.adminPassword));
     if (password.configurationMissing) {
       return Response.json({ error: "고객 장부 관리자 비밀번호 설정이 필요합니다." }, { status: 503 });
     }

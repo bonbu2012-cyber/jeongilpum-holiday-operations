@@ -233,8 +233,8 @@ export default function CustomerLedgerApp({
 
       {!unlocked ? <form className="ledger-lock" onSubmit={(event) => { event.preventDefault(); void unlock(); }}>
         <b>관리자 확인이 필요합니다</b>
-        <p>고객정보와 결제장부는 관리자 패스워드 확인 후 5분 동안 열립니다.</p>
-        <label><span>관리자 패스워드</span><input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" /></label>
+        <p>고객정보와 결제장부는 직원 패스워드 확인 후 5분 동안 열립니다.</p>
+        <label><span>직원 패스워드</span><input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" /></label>
         {error && <p className="payment-error" role="alert">{error}</p>}
         <button className="task-primary" disabled={loading || !password}>{loading ? "확인 중…" : "고객 장부 열기"}</button>
       </form> : <>

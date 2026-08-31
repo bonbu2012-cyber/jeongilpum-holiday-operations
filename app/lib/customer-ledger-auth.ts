@@ -9,6 +9,7 @@ export type CustomerLedgerRuntimeEnv = typeof env & {
   DB: D1Database;
   OPERATOR_USER_IDS?: string;
   OPERATOR_EMAILS?: string;
+  CUSTOMER_LEDGER_EMPLOYEE_PASSWORD?: string;
   CUSTOMER_LEDGER_ADMIN_PASSWORD?: string;
   CUSTOMER_LEDGER_SESSION_SECRET?: string;
 };
@@ -70,11 +71,18 @@ export async function requireCustomerLedgerOperator() {
   return { user } as const;
 }
 
-export async function verifyCustomerLedgerPassword(password: string) {
-  const configured = customerLedgerEnv.CUSTOMER_LEDGER_ADMIN_PASSWORD ?? "";
+async function verifyConfiguredPassword(password: string, configured: string) {
   if (!configured) return { ok: false, configurationMissing: true };
   const [providedDigest, configuredDigest] = await Promise.all([digest(password), digest(configured)]);
   return { ok: equalBytes(providedDigest, configuredDigest), configurationMissing: false };
+}
+
+export function verifyCustomerLedgerEmployeePassword(password: string) {
+  return verifyConfiguredPassword(password, customerLedgerEnv.CUSTOMER_LEDGER_EMPLOYEE_PASSWORD ?? "");
+}
+
+export function verifyCustomerLedgerAdminPassword(password: string) {
+  return verifyConfiguredPassword(password, customerLedgerEnv.CUSTOMER_LEDGER_ADMIN_PASSWORD ?? "");
 }
 
 export async function createCustomerLedgerSession(userId: string) {
