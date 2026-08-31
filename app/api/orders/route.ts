@@ -6,6 +6,11 @@ import {
   SALES_SEARCH_ORDERS_SQL,
 } from "../../lib/sales-order-query";
 import { arrivalOffsetMinutes, findSubstituteCandidates } from "../../lib/workshop-operations";
+import {
+  customerBalances,
+  normalizeCustomerName,
+  primaryCustomerAccountId,
+} from "../../lib/customer-ledger-domain";
 
 type OrderRow = {
   id: string;
@@ -91,6 +96,15 @@ type CreditRow = {
   due_date: string | null;
   memo: string;
   status: "open" | "settled";
+};
+type CustomerAccountLinkRow = {
+  order_id: string;
+  customer_account_id: string;
+};
+type CustomerLedgerSummaryRow = {
+  customer_account_id: string;
+  total_ordered: number;
+  net_received: number;
 };
 type CustomItemPayload = {
   category?: string;
@@ -193,7 +207,7 @@ async function serializeOrders(rows: OrderRow[]) {
   if (!rows.length) return [];
   const ids = rows.map((row) => row.id);
   const placeholders = ids.map(() => "?").join(",");
-  const [itemResult, packageResult, fulfillmentResult, customizationResult, paymentResult, creditResult, eventResult] =
+  const [itemResult, packageResult, fulfillmentResult, customizationResult, paymentResult, creditResult, eventResult, customerLinkResult] =
     await Promise.all([
       runtimeEnv.DB
         .prepare(`SELECT id,order_id,product_id,product_name_snapshot,quantity,sale_unit_price FROM order_items WHERE order_id IN (${placeholders})`)
@@ -223,7 +237,40 @@ async function serializeOrders(rows: OrderRow[]) {
         .prepare(`SELECT id,order_id,event_type,reason,after_data,created_at FROM order_events WHERE order_id IN (${placeholders}) ORDER BY created_at DESC,id DESC`)
         .bind(...ids)
         .all<EventRow>(),
+      runtimeEnv.DB
+        .prepare(`SELECT order_id,customer_account_id FROM order_customer_accounts WHERE order_id IN (${placeholders})`)
+        .bind(...ids)
+        .all<CustomerAccountLinkRow>(),
     ]);
+  const customerAccountIds = [...new Set(customerLinkResult.results.map((row) => row.customer_account_id))];
+  let customerSummaryRows: CustomerLedgerSummaryRow[] = [];
+  if (customerAccountIds.length) {
+    const customerPlaceholders = customerAccountIds.map(() => "?").join(",");
+    const customerSummaryResult = await runtimeEnv.DB.prepare(`
+      WITH charges AS (
+        SELECT oca.customer_account_id,
+          COALESCE(SUM(CASE WHEN o.order_status!='cancelled' THEN o.total_amount ELSE 0 END),0) AS total_ordered
+        FROM order_customer_accounts oca
+        JOIN orders o ON o.id=oca.order_id
+        WHERE oca.customer_account_id IN (${customerPlaceholders})
+        GROUP BY oca.customer_account_id
+      ), receipts AS (
+        SELECT customer_account_id,
+          COALESCE(SUM(CASE WHEN type IN ('reversal','transfer_out') THEN -amount ELSE amount END),0) AS net_received
+        FROM customer_ledger_transactions
+        WHERE customer_account_id IN (${customerPlaceholders})
+        GROUP BY customer_account_id
+      )
+      SELECT ca.id AS customer_account_id,
+        COALESCE(ch.total_ordered,0) AS total_ordered,
+        COALESCE(r.net_received,0) AS net_received
+      FROM customer_accounts ca
+      LEFT JOIN charges ch ON ch.customer_account_id=ca.id
+      LEFT JOIN receipts r ON r.customer_account_id=ca.id
+      WHERE ca.id IN (${customerPlaceholders})
+    `).bind(...customerAccountIds, ...customerAccountIds, ...customerAccountIds).all<CustomerLedgerSummaryRow>();
+    customerSummaryRows = customerSummaryResult.results;
+  }
 
   const reassignedPackageIds = new Set(eventResult.results.flatMap((event) => {
     if (event.event_type !== "PACKAGE_REASSIGNED" || !event.after_data) return [];
@@ -284,6 +331,11 @@ async function serializeOrders(rows: OrderRow[]) {
     const workStartedAt = events.find((event) => event.event_type === "WORK_STARTED")?.created_at ?? null;
     const workCompletedAt = events.find((event) => event.event_type === "WORK_COMPLETED")?.created_at ?? null;
     const actualArrivedAt = events.find((event) => event.event_type === "CUSTOMER_ARRIVED")?.created_at ?? null;
+    const customerAccountId = customerLinkResult.results.find((link) => link.order_id === row.id)?.customer_account_id ?? null;
+    const customerSummary = customerSummaryRows.find((summary) => summary.customer_account_id === customerAccountId);
+    const customerTotalOrdered = customerSummary?.total_ordered ?? row.total_amount;
+    const customerNetReceived = customerSummary?.net_received ?? paidAmount;
+    const customerLedgerBalance = customerBalances(customerTotalOrdered, customerNetReceived);
 
     const paymentStatus = balance === 0
       ? "paid"
@@ -317,6 +369,12 @@ async function serializeOrders(rows: OrderRow[]) {
       substituteCandidateCount: substituteCandidates.get(row.id)?.length ?? 0,
       note: fulfillment?.note ?? row.customer_note,
       totalAmount: row.total_amount,
+      customerAccountId,
+      customerTotalOrdered,
+      customerNetReceived,
+      customerReceivable: customerLedgerBalance.receivable,
+      customerAdvance: customerLedgerBalance.advance,
+      customerPaymentStatus: customerLedgerBalance.state,
       paidAmount,
       balance,
       paymentStatus,
@@ -569,8 +627,23 @@ export async function POST(request: Request) {
       : null;
     const allItems = customOrderItem ? [...pricedItems, customOrderItem] : pricedItems;
     const total = allItems.reduce((sum, item) => sum + item.lineTotal, 0);
+    const normalizedCustomerName = normalizeCustomerName(buyer);
+    const existingCustomerAccount = await runtimeEnv.DB
+      .prepare(`SELECT id FROM customer_accounts
+        WHERE normalized_name=? AND normalized_phone=? AND is_primary=1
+        ORDER BY ledger_sequence LIMIT 1`)
+      .bind(normalizedCustomerName, phone)
+      .first<{ id: string }>();
+    const customerAccountId = existingCustomerAccount?.id
+      ?? await primaryCustomerAccountId(normalizedCustomerName, phone);
 
     const statements: D1PreparedStatement[] = [
+      runtimeEnv.DB
+        .prepare(`INSERT OR IGNORE INTO customer_accounts(
+          id,normalized_name,normalized_phone,display_name,display_phone,ledger_sequence,
+          ledger_label,is_primary,created_at,updated_at
+        ) VALUES(?,?,?,?,?,1,'',1,?,?)`)
+        .bind(customerAccountId, normalizedCustomerName, phone, buyer, phone, now, now),
       runtimeEnv.DB
         .prepare(`INSERT INTO orders(id,order_no,season_id,buyer_name_snapshot,buyer_phone_snapshot,order_status,fulfillment_type,schedule_label,recipient_name,recipient_phone,road_address,detail_address,customer_note,total_amount,idempotency_key,version,submitted_at,created_at,updated_at) VALUES(?,?,?,?,?,'submitted',?,?,?,?,?,?,?,?,?,1,?,?,?)`)
         .bind(
@@ -592,6 +665,11 @@ export async function POST(request: Request) {
           now,
           now,
         ),
+      runtimeEnv.DB
+        .prepare(`INSERT INTO order_customer_accounts(
+          order_id,customer_account_id,linked_at,linked_by,link_reason
+        ) VALUES(?,?,?,NULL,'order_identity')`)
+        .bind(orderId, customerAccountId, now),
       ...allItems.map((item) =>
         runtimeEnv.DB
           .prepare(`INSERT INTO order_items(id,order_id,product_id,product_name_snapshot,list_price_snapshot,sale_unit_price,quantity,line_total,created_at) VALUES(?,?,?,?,?,?,?,?,?)`)

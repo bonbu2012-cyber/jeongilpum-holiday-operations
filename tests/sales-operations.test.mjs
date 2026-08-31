@@ -45,6 +45,12 @@ function order(overrides = {}) {
     paymentStatus: "unpaid",
     creditDueDate: null,
     creditMemo: null,
+    customerAccountId: "customer-1",
+    customerTotalOrdered: 220000,
+    customerNetReceived: 0,
+    customerReceivable: 220000,
+    customerAdvance: 0,
+    customerPaymentStatus: "credit",
     version: 1,
     submittedAt: "2026-09-23T00:00:00.000Z",
     items: [{ id: "item-1", productId: "mi", name: "미", quantity: 1, unitPrice: 220000 }],
@@ -155,7 +161,7 @@ test("customer arrival SQL is idempotent and leaves one audit event", () => {
   database.close();
 });
 
-test("sales API keeps cancelled history searchable and exposes work progress, payments, and events", async () => {
+test("sales API keeps cancelled history searchable and exposes work progress, customer ledger, and events", async () => {
   const [api, queries, arrival, sales, detail, availability] = await Promise.all([
     read("app/api/orders/route.ts"),
     read("app/lib/sales-order-query.ts"),
@@ -176,8 +182,8 @@ test("sales API keeps cancelled history searchable and exposes work progress, pa
   assert.match(sales, /addEventListener\("focus"/);
   assert.match(sales, /addEventListener\("online"/);
   assert.match(sales, /useCallback\([\s\S]*\}, \[selectedDate\]\)/);
-  for (const label of ["시간", "고객", "상품", "수량", "수령", "작업상태", "고객상태", "변경"]) assert.match(sales, new RegExp(label));
-  for (const label of ["총 주문금액", "결제누계", "잔액", "결제내역"]) assert.match(detail, new RegExp(label));
+  for (const label of ["시간", "고객", "상품", "수량", "구분", "작업상태", "결제", "고객상태", "변경"]) assert.match(sales, new RegExp(label));
+  for (const label of ["고객 총 주문금액", "고객 순입금", "현재 미수금", "현재 선수금", "고객 장부에서 결제 관리"]) assert.match(detail, new RegExp(label));
   assert.match(availability, /remainingQuantity/);
   assert.equal(workStatusLabel(order({ status: "fulfilled", fulfillmentType: "shipping" })), "출고완료");
 });

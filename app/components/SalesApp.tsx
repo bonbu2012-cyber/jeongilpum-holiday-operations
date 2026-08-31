@@ -16,6 +16,7 @@ import {
   type SalesFilter,
 } from "../lib/sales-operations";
 import AppNav from "./AppNav";
+import CustomerLedgerApp from "./CustomerLedgerApp";
 import SalesOrderDetail, { type SchedulePayload } from "./SalesOrderDetail";
 import "../operations-flow.css";
 import "../sales-flow.css";
@@ -62,6 +63,8 @@ export default function SalesApp() {
   const [notice, setNotice] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [lastSync, setLastSync] = useState("");
+  const [ledgerOpen, setLedgerOpen] = useState(false);
+  const [ledgerCustomerId, setLedgerCustomerId] = useState<string | null>(null);
 
   const loadDate = useCallback(async (options?: { silent?: boolean }) => {
     if (!options?.silent) setRefreshing(true);
@@ -159,6 +162,10 @@ export default function SalesApp() {
     await refreshAll();
     return true;
   };
+  const openLedger = (customerAccountId?: string | null) => {
+    setLedgerCustomerId(customerAccountId ?? null);
+    setLedgerOpen(true);
+  };
 
   const scheduledOrders = useMemo(() => orders.filter((order) =>
     order.fulfillmentId && order.status !== "cancelled" && scheduleDate(order) === selectedDate),
@@ -213,6 +220,7 @@ export default function SalesApp() {
 
       <section className="sales-search-panel">
         <div className="sales-search"><input value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => event.key === "Enter" && void search()} placeholder="이름 · 전화번호 · 주문번호 · 받는분 · 기업명 검색" aria-label="전체 주문 통합 검색" /><button onClick={() => void search()}>전체 이력 검색</button></div>
+        <button className="customer-ledger-open" onClick={() => openLedger()}>고객 결제·미수 장부</button>
         <button className="legacy-count" onClick={() => setShowLegacy((value) => !value)}>일정 미지정 주문 <b>{legacyOrders.length}</b>건</button>
       </section>
 
@@ -233,14 +241,15 @@ export default function SalesApp() {
 
     </main>
 
-    {selectedOrder && <SalesOrderDetail order={selectedOrder} onClose={() => setSelectedOrder(null)} onArrival={markArrival} onStatus={updateStatus} onSaved={() => void refreshAll()} assignSchedule={assignSchedule} />}
+    {selectedOrder && <SalesOrderDetail order={selectedOrder} onClose={() => setSelectedOrder(null)} onArrival={markArrival} onStatus={updateStatus} onOpenLedger={openLedger} assignSchedule={assignSchedule} />}
+    {ledgerOpen && <CustomerLedgerApp initialCustomerId={ledgerCustomerId} onClose={() => { setLedgerOpen(false); setLedgerCustomerId(null); }} onChanged={() => void refreshAll()} />}
     {notice && <div className="ops-toast" role="status">{notice}<button onClick={() => setNotice("")} aria-label="알림 닫기">×</button></div>}
   </div>;
 }
 
 function OrderTable({ orders, onSelect, history = false }: { orders: OrderRecord[]; onSelect: (order: OrderRecord) => void; history?: boolean }) {
   return <div className="sales-table-scroll"><table className="sales-order-table">
-    <thead><tr><th>시간</th><th>고객</th><th>상품</th><th>수량</th><th>구분</th><th>작업상태</th><th>고객상태</th><th>변경</th></tr></thead>
+    <thead><tr><th>시간</th><th>고객</th><th>상품</th><th>수량</th><th>구분</th><th>작업상태</th><th>결제</th><th>고객상태</th><th>변경</th></tr></thead>
     <tbody>{orders.map((order) => {
       const progress = order.packageTotal > 0 ? order.packageCompleted + " / " + order.packageTotal + " 완료" : null;
       return <tr key={order.id} className={[order.customerArrived && !isTerminalOrder(order) ? "arrived" : "", order.status === "cancelled" ? "cancelled" : ""].filter(Boolean).join(" ")} tabIndex={0} onClick={() => onSelect(order)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") onSelect(order); }}>
@@ -250,9 +259,20 @@ function OrderTable({ orders, onSelect, history = false }: { orders: OrderRecord
         <td>{order.items.reduce((sum, item) => sum + item.quantity, 0)}</td>
         <td>{order.fulfillmentId ? (order.fulfillmentType === "pickup" ? "방문" : "택배") : "기존"}</td>
         <td><span className={"sales-work-state " + order.status}>{history && order.status === "cancelled" ? "취소" : workStatusLabel(order)}</span>{progress && <small>{progress}</small>}</td>
+        <td><PaymentStatus order={order} /></td>
         <td>{order.customerArrived ? <b className="arrived-label">도착</b> : "-"}</td>
         <td>{order.hasUnacknowledgedChange ? <b className="change-label">미확인</b> : "-"}</td>
       </tr>;
     })}</tbody>
   </table></div>;
+}
+
+function PaymentStatus({ order }: { order: OrderRecord }) {
+  const label = {
+    credit: order.customerReceivable > 0 ? "외상 " + order.customerReceivable.toLocaleString("ko-KR") + "원" : "외상",
+    partial: "부분 " + order.customerReceivable.toLocaleString("ko-KR") + "원",
+    paid: "완료",
+    advance: "선수 " + order.customerAdvance.toLocaleString("ko-KR") + "원",
+  }[order.customerPaymentStatus];
+  return <b className={"customer-payment-label " + order.customerPaymentStatus}>{label}</b>;
 }

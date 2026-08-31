@@ -403,76 +403,23 @@ function OrderCard({
 }
 
 function PaymentPanel({ order, onSaved }: { order: OrderRecord; onSaved: () => void }) {
-  const [mode, setMode] = useState<"payment" | "credit" | null>(null);
-  const [method, setMethod] = useState<"card" | "cash" | "bank_transfer">("card");
-  const [amount, setAmount] = useState(String(order.balance));
-  const [paidAt, setPaidAt] = useState(() => new Date().toISOString().slice(0, 16));
-  const [dueDate, setDueDate] = useState("");
-  const [memo, setMemo] = useState("");
-  const [error, setError] = useState("");
-  const [saving, setSaving] = useState(false);
-  const statusText = { unpaid: "미결제", partial: "부분결제", paid: "결제완료", credit: "외상" }[order.paymentStatus];
-
-  const open = (next: "payment" | "credit") => {
-    setMode(next);
-    setAmount(String(order.balance));
-    setError("");
-  };
-  const save = async () => {
-    const numericAmount = Number(amount);
-    if (!Number.isInteger(numericAmount) || numericAmount <= 0) {
-      setError("결제금액을 1원 이상 입력해주세요.");
-      return;
-    }
-    setSaving(true);
-    setError("");
-    try {
-      const response = await fetch("/api/orders/payments", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: mode,
-          orderId: order.id,
-          method: mode === "payment" ? method : undefined,
-          amount: numericAmount,
-          paidAt: mode === "payment" ? new Date(paidAt).toISOString() : undefined,
-          dueDate: mode === "credit" ? dueDate : undefined,
-          memo,
-          idempotencyKey: crypto.randomUUID(),
-        }),
-      });
-      const data = await response.json() as { error?: string };
-      if (!response.ok) throw new Error(data.error || "결제정보를 저장하지 못했습니다.");
-      setMode(null);
-      setMemo("");
-      onSaved();
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "결제정보를 저장하지 못했습니다.");
-    } finally {
-      setSaving(false);
-    }
-  };
+  const statusText = {
+    credit: "외상",
+    partial: "부분 결제",
+    paid: "결제 완료",
+    advance: "선수금",
+  }[order.customerPaymentStatus];
 
   return <section className="payment-panel">
-    <header><h3>결제정보</h3><em className={`payment-state ${order.paymentStatus}`}>{statusText}</em></header>
+    <header><h3>고객 결제·미수</h3><em className={`payment-state ${order.customerPaymentStatus}`}>{statusText}</em></header>
     <div className="payment-summary">
-      <p><span>총 주문금액</span><b>{won(order.totalAmount)}</b></p>
-      <p><span>결제누계</span><b>{won(order.paidAmount)}</b></p>
-      <p><span>잔액</span><b>{won(order.balance)}</b></p>
-      <p><span>결제상태</span><b>{statusText}</b></p>
+      <p><span>고객 총 주문</span><b>{won(order.customerTotalOrdered)}</b></p>
+      <p><span>고객 순입금</span><b>{won(order.customerNetReceived)}</b></p>
+      <p><span>현재 미수금</span><b>{won(order.customerReceivable)}</b></p>
+      <p><span>현재 선수금</span><b>{won(order.customerAdvance)}</b></p>
     </div>
-    {order.paymentStatus === "credit" && <p className="credit-note">외상 예정일 {order.creditDueDate || "미지정"}{order.creditMemo ? ` · ${order.creditMemo}` : ""}</p>}
-    {order.payments.length > 0 && <ul className="payment-history">{order.payments.map((payment) => <li key={payment.id}><span>{{card:"카드",cash:"현금",bank_transfer:"계좌이체"}[payment.method || "card"]} · {new Date(payment.paidAt).toLocaleString("ko-KR")}</span><b>{won(payment.amount)}</b></li>)}</ul>}
-    {order.balance > 0 && <div className="payment-actions"><button type="button" onClick={() => open("payment")}>결제 기록</button><button type="button" onClick={() => open("credit")}>외상 처리</button></div>}
-    {mode && <div className="payment-editor">
-      <h4>{mode === "payment" ? "결제 기록" : "외상 처리"}</h4>
-      {mode === "payment" && <div className="payment-methods">{([["card","카드"],["cash","현금"],["bank_transfer","계좌이체"]] as const).map(([value,label]) => <button type="button" key={value} className={method === value ? "selected" : ""} onClick={() => setMethod(value)}>{label}</button>)}</div>}
-      <label><span>{mode === "payment" ? "결제금액" : "외상 잔액"}</span><input type="number" min="1" max={order.balance} value={amount} onChange={(event) => setAmount(event.target.value)} /></label>
-      {mode === "payment" ? <label><span>결제일시</span><input type="datetime-local" value={paidAt} onChange={(event) => setPaidAt(event.target.value)} /></label> : <label><span>예정일</span><input type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} /></label>}
-      <label><span>메모</span><input value={memo} onChange={(event) => setMemo(event.target.value)} /></label>
-      {error && <p className="payment-error" role="alert">{error}</p>}
-      <div><button type="button" onClick={() => setMode(null)} disabled={saving}>닫기</button><button type="button" className="task-primary" onClick={() => void save()} disabled={saving}>{saving ? "저장 중…" : mode === "payment" ? "결제 등록" : "외상 저장"}</button></div>
-    </div>}
+    <p className="credit-note">결제 등록·정정과 고객 미수 관리는 판매장의 고객 장부에서 처리합니다.</p>
+    <div className="payment-actions"><a className="task-primary" href="/sales" onClick={onSaved}>판매장 고객 장부 열기</a></div>
   </section>;
 }
 

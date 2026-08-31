@@ -40,9 +40,16 @@ async function baseDatabase(location = ":memory:") {
   return database;
 }
 
-async function migratedDatabase(location = ":memory:") {
+async function preLedgerDatabase(location = ":memory:") {
   const database = await baseDatabase(location);
   await applyProviderSafeMigration(database, "drizzle/0004_brown_omega_red.sql");
+  await applyBreakpointMigration(database, "drizzle/0005_chunky_sway.sql");
+  return database;
+}
+
+async function migratedDatabase(location = ":memory:") {
+  const database = await preLedgerDatabase(location);
+  await applyBreakpointMigration(database, "drizzle/0006_hot_hercules.sql");
   return database;
 }
 
@@ -170,7 +177,19 @@ test("corrected 0004 upgrades a production-like database without changing existi
 
 test("schema contains every required table, index, and provider-safe constraint", async () => {
   const database = await migratedDatabase();
-  for (const table of ["payments", "order_credit_terms", "product_daily_limits", "product_daily_reservations", "order_item_customizations"]) {
+  for (const table of [
+    "payments",
+    "order_credit_terms",
+    "product_daily_limits",
+    "product_daily_reservations",
+    "order_item_customizations",
+    "customer_accounts",
+    "order_customer_accounts",
+    "customer_ledger_transactions",
+    "customer_ledger_consultations",
+    "customer_ledger_consultation_orders",
+    "customer_ledger_events",
+  ]) {
     assert.equal(database.prepare("SELECT COUNT(*) AS count FROM sqlite_schema WHERE type='table' AND name=?").get(table).count, 1);
   }
   for (const index of [
@@ -181,6 +200,11 @@ test("schema contains every required table, index, and provider-safe constraint"
     "idx_daily_reservations_product_date",
     "idx_daily_reservations_order",
     "idx_order_item_customizations_item",
+    "idx_customer_accounts_identity_sequence",
+    "idx_customer_ledger_transactions_idempotency",
+    "idx_customer_ledger_transactions_customer_time",
+    "idx_customer_ledger_transactions_reversal_once",
+    "idx_order_customer_accounts_customer",
   ]) {
     assert.equal(database.prepare("SELECT COUNT(*) AS count FROM sqlite_schema WHERE type='index' AND name=?").get(index).count, 1);
   }
@@ -325,57 +349,76 @@ test("cancellation batch releases its limited-product reservation", async () => 
   database.close();
 });
 
-test("partial payments are separate rows and calculate a 50,000 won balance", async () => {
-  const [database, paymentApi] = await Promise.all([
+test("0006 groups the same name and phone into one unallocated customer ledger", async () => {
+  const database = await preLedgerDatabase();
+  insertOrder(database, "customer-order-1", 300_000);
+  insertOrder(database, "customer-order-2", 200_000);
+  recordPayment(database, { id: "pay-1", orderId: "customer-order-1", method: "card", amount: 100_000, idempotencyKey: "pay-idem-1", paidAt: "2026-09-01T10:00:00.000Z" });
+  recordPayment(database, { id: "pay-2", orderId: "customer-order-1", method: "bank_transfer", amount: 150_000, idempotencyKey: "pay-idem-2", paidAt: "2026-09-01T11:00:00.000Z" });
+
+  await applyBreakpointMigration(database, "drizzle/0006_hot_hercules.sql");
+
+  assert.equal(database.prepare("SELECT COUNT(*) AS count FROM customer_accounts").get().count, 1);
+  assert.equal(database.prepare("SELECT COUNT(*) AS count FROM order_customer_accounts").get().count, 2);
+  const account = database.prepare("SELECT id FROM customer_accounts").get();
+  const totals = database.prepare(`
+    SELECT
+      (SELECT SUM(o.total_amount) FROM orders o JOIN order_customer_accounts oca ON oca.order_id=o.id WHERE oca.customer_account_id=? AND o.order_status!='cancelled') AS ordered,
+      (SELECT SUM(CASE WHEN type IN ('reversal','transfer_out') THEN -amount ELSE amount END) FROM customer_ledger_transactions WHERE customer_account_id=?) AS received
+  `).get(account.id, account.id);
+  assert.equal(totals.ordered, 500_000);
+  assert.equal(totals.received, 250_000);
+  assert.equal(totals.ordered - totals.received, 250_000);
+  assert.equal(database.prepare("SELECT COUNT(*) AS count FROM pragma_table_info('customer_ledger_transactions') WHERE name='order_id'").get().count, 0);
+  database.close();
+});
+
+test("payment correction preserves the original and uses reversal plus optional replacement", async () => {
+  const [database, transactionApi] = await Promise.all([
     migratedDatabase(),
-    read("app/api/orders/payments/route.ts"),
+    read("app/api/customer-ledger/transactions/route.ts"),
   ]);
-  insertOrder(database, "payment-order", 300_000);
-  recordPayment(database, { id: "pay-1", orderId: "payment-order", method: "card", amount: 100_000, idempotencyKey: "pay-idem-1", paidAt: "2026-09-01T10:00:00.000Z" });
-  recordPayment(database, { id: "pay-2", orderId: "payment-order", method: "bank_transfer", amount: 150_000, idempotencyKey: "pay-idem-2", paidAt: "2026-09-01T11:00:00.000Z" });
-  const row = database.prepare("SELECT COUNT(*) AS rows, SUM(amount) AS paid FROM payments WHERE order_id='payment-order'").get();
-  assert.equal(row.rows, 2);
-  assert.equal(row.paid, 250_000);
-  assert.equal(300_000 - row.paid, 50_000);
-  assert.doesNotMatch(paymentApi, /UPDATE payments|DELETE FROM payments/);
+  const now = "2026-09-01T10:00:00.000Z";
+  database.prepare("INSERT INTO customer_accounts(id,normalized_name,normalized_phone,display_name,display_phone,created_at,updated_at) VALUES('customer','테스트 고객','01012345678','테스트 고객','01012345678',?,?)").run(now, now);
+  database.prepare("INSERT INTO customer_ledger_transactions(id,customer_account_id,type,method,amount,transacted_at,memo,idempotency_key,recorded_by,created_at) VALUES('original','customer','payment','cash',100000,?,'','original-key','operator',?)").run(now, now);
+  database.prepare("INSERT INTO customer_ledger_transactions(id,customer_account_id,type,amount,transacted_at,memo,related_transaction_id,idempotency_key,recorded_by,created_at) VALUES('reversal','customer','reversal',100000,?,'금액 정정','original','reversal-key','operator',?)").run(now, now);
+  database.prepare("INSERT INTO customer_ledger_transactions(id,customer_account_id,type,method,amount,transacted_at,memo,related_transaction_id,idempotency_key,recorded_by,created_at) VALUES('replacement','customer','payment','card',70000,?,'정정 결제','original','replacement-key','operator',?)").run(now, now);
+  const net = database.prepare("SELECT SUM(CASE WHEN type IN ('reversal','transfer_out') THEN -amount ELSE amount END) AS amount FROM customer_ledger_transactions WHERE customer_account_id='customer'").get().amount;
+  assert.equal(net, 70_000);
+  assert.equal(database.prepare("SELECT COUNT(*) AS count FROM customer_ledger_transactions WHERE id='original'").get().count, 1);
   assert.throws(
-    () => database.prepare("INSERT INTO payments(id,order_id,type,method,amount,paid_at,recorded_by,memo,idempotency_key,created_at) VALUES('bad','payment-order','payment','credit',1,'2026','operator','','bad','2026')").run(),
-    /payments_valid_entry|CHECK constraint failed/,
+    () => database.prepare("INSERT INTO customer_ledger_transactions(id,customer_account_id,type,amount,transacted_at,memo,related_transaction_id,idempotency_key,recorded_by,created_at) VALUES('duplicate-reversal','customer','reversal',100000,?,'중복','original','duplicate-reversal-key','operator',?)").run(now, now),
+    /idx_customer_ledger_transactions_reversal_once|UNIQUE constraint failed/,
   );
+  assert.doesNotMatch(transactionApi, /UPDATE customer_ledger_transactions|DELETE FROM customer_ledger_transactions/);
+  assert.match(transactionApi, /related_transaction_id/);
+  assert.match(transactionApi, /verifyCustomerLedgerPassword/);
   database.close();
 });
 
-test("credit status settles in the same batch as the final bank transfer", async () => {
-  const [database, paymentApi] = await Promise.all([
-    migratedDatabase(),
-    read("app/api/orders/payments/route.ts"),
-  ]);
-  insertOrder(database, "credit-order", 300_000);
-  recordPayment(database, { id: "credit-pay-1", orderId: "credit-order", method: "card", amount: 100_000, idempotencyKey: "credit-idem-1", paidAt: "2026-09-01T10:00:00.000Z" });
-  recordPayment(database, { id: "credit-pay-2", orderId: "credit-order", method: "bank_transfer", amount: 150_000, idempotencyKey: "credit-idem-2", paidAt: "2026-09-01T11:00:00.000Z" });
-  database.prepare("INSERT INTO order_credit_terms(id,order_id,outstanding_amount,due_date,memo,status,recorded_by,created_at) VALUES(?,?,50000,'2026-09-20','잔금','open','operator',?)")
-    .run("credit-term", "credit-order", "2026-09-01T11:30:00.000Z");
-  recordPayment(database, { id: "credit-pay-3", orderId: "credit-order", method: "bank_transfer", amount: 50_000, idempotencyKey: "credit-idem-3", paidAt: "2026-09-02T10:00:00.000Z" });
-  assert.equal(database.prepare("SELECT status FROM order_credit_terms WHERE id='credit-term'").get().status, "settled");
-  assert.equal(database.prepare("SELECT SUM(amount) AS paid FROM payments WHERE order_id='credit-order'").get().paid, 300_000);
-  assert.match(paymentApi, /UPDATE order_credit_terms SET status='settled'/);
-  database.close();
-});
-
-test("sales shows payments while workshop remains payment-free", async () => {
-  const [admin, workshop, paymentApi, availabilityApi] = await Promise.all([
+test("customer ledger is double-password protected, expires after five minutes, and stays out of workshop", async () => {
+  const [sales, detail, ledger, auth, access, transactions, legacyPaymentApi, workshop, availabilityApi] = await Promise.all([
+    read("app/components/SalesApp.tsx"),
     read("app/components/SalesOrderDetail.tsx"),
-    read("app/components/WorkshopApp.tsx"),
+    read("app/components/CustomerLedgerApp.tsx"),
+    read("app/lib/customer-ledger-auth.ts"),
+    read("app/api/customer-ledger/access/route.ts"),
+    read("app/api/customer-ledger/transactions/route.ts"),
     read("app/api/orders/payments/route.ts"),
+    read("app/components/WorkshopApp.tsx"),
     read("app/api/availability/route.ts"),
   ]);
-  for (const label of ["총 주문금액", "결제누계", "잔액", "결제상태", "결제 기록", "외상 처리"]) {
-    assert.match(admin, new RegExp(label));
+  for (const label of ["고객 결제·미수 장부", "현재 미수금", "현재 선수금", "결제 등록", "결제 기록 정정", "상담 메모"]) {
+    assert.match(ledger + sales + detail, new RegExp(label));
   }
-  assert.match(paymentApi, /card/);
-  assert.match(paymentApi, /cash/);
-  assert.match(paymentApi, /bank_transfer/);
-  assert.doesNotMatch(workshop, /결제누계|결제수단|외상 처리/);
+  for (const method of ["card", "cash", "bank_transfer"]) assert.match(transactions, new RegExp(method));
+  assert.match(auth, /const SESSION_SECONDS = 5 \* 60/);
+  assert.match(auth, /HttpOnly; Secure; SameSite=Strict/);
+  assert.match(access, /verifyCustomerLedgerPassword/);
+  assert.match(transactions, /verifyCustomerLedgerPassword/);
+  assert.match(ledger, /5 \* 60 \* 1000/);
+  assert.match(legacyPaymentApi, /status: 410/);
+  assert.doesNotMatch(workshop, /고객 결제·미수|결제누계|결제수단|외상 처리/);
   assert.match(availabilityApi, /dailyLimit/);
   assert.match(availabilityApi, /remainingQuantity/);
 });

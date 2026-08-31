@@ -189,6 +189,105 @@ export const orderCreditTerms = sqliteTable("order_credit_terms", {
   check("order_credit_terms_status_valid", sql`${table.status} in ('open', 'settled')`),
 ]);
 
+export const customerAccounts = sqliteTable("customer_accounts", {
+  id: text("id").primaryKey(),
+  normalizedName: text("normalized_name").notNull(),
+  normalizedPhone: text("normalized_phone").notNull(),
+  displayName: text("display_name").notNull(),
+  displayPhone: text("display_phone").notNull(),
+  ledgerSequence: integer("ledger_sequence").notNull().default(1),
+  ledgerLabel: text("ledger_label").notNull().default(""),
+  isPrimary: integer("is_primary", { mode: "boolean" }).notNull().default(true),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, (table) => [
+  uniqueIndex("idx_customer_accounts_identity_sequence").on(table.normalizedName, table.normalizedPhone, table.ledgerSequence),
+  index("idx_customer_accounts_phone").on(table.normalizedPhone, table.isPrimary),
+]);
+
+export const orderCustomerAccounts = sqliteTable("order_customer_accounts", {
+  orderId: text("order_id").primaryKey().references(() => orders.id),
+  customerAccountId: text("customer_account_id").notNull().references(() => customerAccounts.id),
+  linkedAt: text("linked_at").notNull(),
+  linkedBy: text("linked_by"),
+  linkReason: text("link_reason").notNull().default("order_identity"),
+}, (table) => [
+  index("idx_order_customer_accounts_customer").on(table.customerAccountId, table.linkedAt),
+]);
+
+export const customerLedgerTransactions = sqliteTable("customer_ledger_transactions", {
+  id: text("id").primaryKey(),
+  customerAccountId: text("customer_account_id").notNull().references(() => customerAccounts.id),
+  type: text("type").notNull(),
+  method: text("method"),
+  amount: integer("amount").notNull(),
+  transactedAt: text("transacted_at").notNull(),
+  payerName: text("payer_name"),
+  payerPhone: text("payer_phone"),
+  payerRelation: text("payer_relation"),
+  memo: text("memo").notNull().default(""),
+  relatedTransactionId: text("related_transaction_id"),
+  consultationId: text("consultation_id"),
+  legacyPaymentId: text("legacy_payment_id"),
+  idempotencyKey: text("idempotency_key").notNull(),
+  recordedBy: text("recorded_by").notNull(),
+  createdAt: text("created_at").notNull(),
+}, (table) => [
+  uniqueIndex("idx_customer_ledger_transactions_idempotency").on(table.idempotencyKey),
+  uniqueIndex("idx_customer_ledger_transactions_legacy_payment").on(table.legacyPaymentId),
+  index("idx_customer_ledger_transactions_customer_time").on(table.customerAccountId, table.transactedAt),
+  uniqueIndex("idx_customer_ledger_transactions_reversal_once")
+    .on(table.relatedTransactionId)
+    .where(sql`${table.type} = 'reversal'`),
+  check("customer_ledger_transactions_valid", sql`
+    (${table.type} = 'payment' and ${table.method} in ('card', 'cash', 'bank_transfer') and ${table.amount} > 0)
+    or (${table.type} = 'reversal' and ${table.amount} > 0 and ${table.relatedTransactionId} is not null)
+    or (${table.type} in ('transfer_in', 'transfer_out') and ${table.amount} > 0 and ${table.consultationId} is not null)
+    or (${table.type} = 'adjustment' and ${table.amount} <> 0)
+  `),
+]);
+
+export const customerLedgerConsultations = sqliteTable("customer_ledger_consultations", {
+  id: text("id").primaryKey(),
+  customerAccountId: text("customer_account_id").notNull().references(() => customerAccounts.id),
+  note: text("note").notNull(),
+  status: text("status").notNull().default("pending"),
+  createdBy: text("created_by").notNull(),
+  createdAt: text("created_at").notNull(),
+  appliedBy: text("applied_by"),
+  appliedAt: text("applied_at"),
+  targetCustomerAccountId: text("target_customer_account_id").references(() => customerAccounts.id),
+  transferAmount: integer("transfer_amount").notNull().default(0),
+  applicationMemo: text("application_memo").notNull().default(""),
+}, (table) => [
+  index("idx_customer_ledger_consultations_customer_status").on(table.customerAccountId, table.status, table.createdAt),
+  check("customer_ledger_consultations_status_valid", sql`${table.status} in ('pending', 'applied')`),
+  check("customer_ledger_consultations_transfer_nonnegative", sql`${table.transferAmount} >= 0`),
+]);
+
+export const customerLedgerConsultationOrders = sqliteTable("customer_ledger_consultation_orders", {
+  id: text("id").primaryKey(),
+  consultationId: text("consultation_id").notNull().references(() => customerLedgerConsultations.id),
+  orderId: text("order_id").notNull().references(() => orders.id),
+  createdAt: text("created_at").notNull(),
+}, (table) => [
+  uniqueIndex("idx_customer_ledger_consultation_order").on(table.consultationId, table.orderId),
+  index("idx_customer_ledger_consultation_orders_order").on(table.orderId),
+]);
+
+export const customerLedgerEvents = sqliteTable("customer_ledger_events", {
+  id: text("id").primaryKey(),
+  customerAccountId: text("customer_account_id").notNull().references(() => customerAccounts.id),
+  eventType: text("event_type").notNull(),
+  beforeData: text("before_data"),
+  afterData: text("after_data"),
+  reason: text("reason"),
+  actorId: text("actor_id").notNull(),
+  createdAt: text("created_at").notNull(),
+}, (table) => [
+  index("idx_customer_ledger_events_customer_time").on(table.customerAccountId, table.createdAt),
+]);
+
 export const packages = sqliteTable("packages", {
   id: text("id").primaryKey(),
   orderId: text("order_id").notNull().references(() => orders.id),

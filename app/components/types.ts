@@ -37,6 +37,7 @@ export type SeasonSchedule = {
 export type OrderStatus = "submitted" | "confirmed" | "in_progress" | "ready" | "fulfilled" | "cancelled";
 export type PaymentStatus = "unpaid" | "partial" | "paid" | "credit";
 export type PaymentMethod = "card" | "cash" | "bank_transfer";
+export type CustomerPaymentStatus = "credit" | "partial" | "paid" | "advance";
 
 export type OrderItem = {
   id: string;
@@ -88,6 +89,12 @@ export type OrderRecord = {
   substituteCandidateCount: number;
   note: string;
   totalAmount: number;
+  customerAccountId: string | null;
+  customerTotalOrdered: number;
+  customerNetReceived: number;
+  customerReceivable: number;
+  customerAdvance: number;
+  customerPaymentStatus: CustomerPaymentStatus;
   paidAmount: number;
   balance: number;
   paymentStatus: PaymentStatus;
