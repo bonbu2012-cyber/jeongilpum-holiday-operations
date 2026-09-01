@@ -19,6 +19,7 @@ import {
   type WorkshopTab,
 } from "../lib/workshop-operations";
 import type { SubstituteCandidate, WorkshopOrder } from "../lib/workshop-types";
+import { operationalDateFromSearch } from "../lib/operational-date";
 import "../workshop-flow.css";
 
 const todayInSeoul = () => {
@@ -71,6 +72,11 @@ export default function WorkshopApp() {
   const [busyAssemblyId, setBusyAssemblyId] = useState("");
   const [lastSync, setLastSync] = useState("");
   const requestSequence = useRef(0);
+
+  useEffect(() => {
+    const queryDate = operationalDateFromSearch(window.location.search);
+    if (queryDate) setSelectedDate(queryDate);
+  }, []);
 
   const load = useCallback(async (silent = false) => {
     const requestId = ++requestSequence.current;

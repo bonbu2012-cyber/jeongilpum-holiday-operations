@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ProductionBatch, ProductionOverview, RecentProductionTrace } from "../lib/production-types";
+import { operationalDateFromSearch } from "../lib/operational-date";
 import AppNav from "./AppNav";
 import "../workshop-flow.css";
 
@@ -22,6 +23,11 @@ export default function ProductionApp() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const weightRefs = useRef<Record<string, HTMLInputElement | null>>({});
+
+  useEffect(() => {
+    const queryDate = operationalDateFromSearch(window.location.search);
+    if (queryDate) setDate(queryDate);
+  }, []);
 
   const load = useCallback(async () => {
     const response = await fetch(`/api/workshop/production?date=${encodeURIComponent(date)}`, { cache: "no-store" });

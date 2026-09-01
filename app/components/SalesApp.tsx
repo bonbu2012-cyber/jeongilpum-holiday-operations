@@ -15,6 +15,7 @@ import {
   type AttentionFilter,
   type SalesFilter,
 } from "../lib/sales-operations";
+import { operationalDateFromSearch } from "../lib/operational-date";
 import AppNav from "./AppNav";
 import CustomerLedgerApp from "./CustomerLedgerApp";
 import SalesOrderDetail, { type SchedulePayload, type StatusChangeOptions } from "./SalesOrderDetail";
@@ -65,6 +66,11 @@ export default function SalesApp() {
   const [lastSync, setLastSync] = useState("");
   const [ledgerOpen, setLedgerOpen] = useState(false);
   const [ledgerCustomerId, setLedgerCustomerId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const queryDate = operationalDateFromSearch(window.location.search);
+    if (queryDate) setSelectedDate(queryDate);
+  }, []);
 
   const loadDate = useCallback(async (options?: { silent?: boolean }) => {
     if (!options?.silent) setRefreshing(true);
