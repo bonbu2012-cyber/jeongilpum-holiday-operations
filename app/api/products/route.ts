@@ -8,6 +8,7 @@ import {
   salesSeasons,
 } from "../../../db/schema";
 import { DEFAULT_KIOSK_HEADLINE, parseStoredSetting } from "../../lib/app-settings";
+import { resolveCatalogProductImageUrl } from "../../lib/catalog-product-images";
 
 function todayInSeoul() {
   return new Intl.DateTimeFormat("en-CA", {
@@ -82,6 +83,7 @@ export async function GET(request: Request) {
       : null;
     const productResponse = productRows.map(({ product, dailyLimit, reservedQuantity }) => ({
       ...product,
+      imageUrl: resolveCatalogProductImageUrl(product.id, product.imageUrl),
       dailyLimit,
       reservedQuantity,
       remainingQuantity: dailyLimit === null ? null : Math.max(0, dailyLimit - reservedQuantity),

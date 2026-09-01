@@ -45,6 +45,7 @@ Cloudflare D1 (SQLite)
 - 복잡하고 원자성이 중요한 운영 query는 D1 prepared statement와 `batch()`를 직접 사용한다.
 - 여러 테이블을 변경하는 요청은 하나의 batch로 묶는다.
 - 사용자 입력을 SQL 문자열에 직접 이어 붙이지 않고 `.bind()`를 사용한다.
+- 상품 사진은 `products.image_url`의 비어 있지 않은 값을 우선 사용한다. 값이 없으면 `GET /api/products`가 `app/lib/catalog-product-images.ts`의 상품 ID 매핑을 통해 `public/products/`의 카탈로그 v23 사진을 제공한다.
 
 ## 고객 주문 흐름
 
