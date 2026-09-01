@@ -97,6 +97,8 @@ test("onsite sale stays in a separate staff zone, skips customer info, and keeps
   assert.match(api, /orderStatus,\s+fulfillmentType,\s+scheduleLabel/);
   assert.match(api, /fulfillmentType === "onsite" \? "pickup" : fulfillmentType,\s+pickupAt/);
   assert.match(kiosk, /response\.status===401&&draft\.fulfillmentType==="onsite"/);
+  assert.match(kiosk, /\["localhost","127\.0\.0\.1","\[::1\]"\]\.includes\(location\.hostname\)/);
+  assert.match(kiosk, /로컬 미리보기에서는 현장판매를 저장할 수 없습니다/);
   assert.match(kiosk, /signin-with-chatgpt\?return_to=%2Fkiosk%3Fresume%3Dpayment/);
   assert.match(kiosk, /resume==="payment"&&restored\.fulfillmentType==="onsite"&&restored\.paymentMethod&&hasItems/);
   assert.match(access, /getChatGPTUser/);
