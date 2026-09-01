@@ -1,6 +1,6 @@
 # Task: 현장판매 로그인 복귀와 직원 도움 제거
 
-- Status: Active
+- Status: Completed
 - Owner: Codex onsite-login-help task
 - Branch: `codex/onsite-login-help-fix`
 - Base commit: `89c03ca1b159ff6e6c53eb7097e70f2fe1d9a410`
@@ -42,23 +42,26 @@
 
 ## Acceptance criteria
 
-- [ ] 키오스크 어디에도 `직원 도움` 버튼이나 안내 문구가 표시되지 않는다.
-- [ ] 현장판매 저장 요청의 401 응답은 직원 로그인 화면으로 이동한다.
-- [ ] 로그인 완료 뒤 같은 현장판매 초안의 결제 단계로 돌아온다.
-- [ ] API의 인증·권한 검사는 그대로 유지된다.
+- [x] 키오스크 어디에도 `직원 도움` 버튼이나 안내 문구가 표시되지 않는다.
+- [x] 현장판매 저장 요청의 401 응답은 직원 로그인 화면으로 이동한다.
+- [x] 로그인 완료 뒤 같은 현장판매 초안의 결제 단계로 돌아온다.
+- [x] API의 인증·권한 검사는 그대로 유지된다.
 
 ## Validation
 
-- [ ] related test
-- [ ] lint
-- [ ] typecheck
-- [ ] full test
-- [ ] build
-- [ ] local preview
+- [x] related test: `node --test tests/onsite-sales.test.mjs` (2 passed)
+- [x] lint: `npm run lint`
+- [x] typecheck: `npm run typecheck`
+- [x] full test: `npm test` (66 passed)
+- [x] build: `npm run build`
+- [x] local preview: `http://localhost:3000/` HTTP 200, Codex browser tab 갱신 요청
 
 ## Completion
 
-- Final commit:
-- Completed at:
-- Remaining TODO:
+- Final commit: `37484f9`
+- Completed at: 2026-09-01
+- Remaining TODO: 로컬 Vinext는 Sites dispatcher 인증 경로를 제공하지 않으므로 실제 SIWC 복귀와 D1 기록은 배포된 Sites에서 확인한다. Production 배포는 사용자 요청 전까지 수행하지 않는다.
 
+## Integration notes
+
+- 키오스크 헤더 작업의 진행 중 변경은 별도 stash로 보존했다. 이번 커밋을 원래 작업 branch에 반영한 뒤 파일별 hunk로 복원한다.
