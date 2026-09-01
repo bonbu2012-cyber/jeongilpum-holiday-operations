@@ -1,6 +1,6 @@
 # Task: 테스트 주문 취소 사유와 고객 장부 정리
 
-- Status: Active
+- Status: Completed
 - Owner: Codex
 - Branch: `codex/order-cancellation-reasons`
 - Base commit: `5b451586ce04ee2dc9182f51aaaf1652b952f431`
@@ -37,16 +37,19 @@
 
 ## Validation
 
-- [ ] lint
-- [ ] typecheck
-- [ ] full test
-- [ ] build
-- [ ] Production smoke
+- [x] lint
+- [x] typecheck
+- [x] full test (66/66)
+- [x] build
+- [x] Production smoke
 
 ## Completion
 
-- Final implementation commit:
-- Sites version:
-- Production URL:
-- Completed at:
-- Remaining TODO:
+- Final implementation commit: `8d3b2f6`
+- Deployed source commit: `c20aee77ae98bcdf8e119f4302abe8b9f4bd4b87`
+- Sites version: 22
+- Deployment ID: `appgdep_6a9626a44e148191b4cbb9017f528598`
+- Production URL: `https://jeongilpum-chuseok-mvp.bonbu2012.chatgpt.site`
+- Data preservation: 핵심 14개 테이블 배포 전후 row count 동일
+- Completed at: 2026-09-01
+- Remaining TODO: 없음
