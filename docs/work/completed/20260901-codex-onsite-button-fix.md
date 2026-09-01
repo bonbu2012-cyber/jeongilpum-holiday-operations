@@ -1,6 +1,6 @@
 # Task: 현장판매 버튼 이동 오류 수정
 
-- Status: Active
+- Status: Completed
 - Owner: Codex
 - Branch: `codex/onsite-button-fix`
 - Base commit: `45b74d04ed14ca2a9100f29a0a9304f673b221cb`
@@ -30,15 +30,22 @@
 
 ## Acceptance criteria
 
-- [ ] 현장판매 버튼을 누르면 고객정보 단계로 이동한다.
-- [ ] 현장판매 저장은 여전히 운영자 인증과 allowlist를 요구한다.
-- [ ] 방문수령·택배 흐름에 회귀가 없다.
+- [x] 현장판매 버튼을 누르면 고객정보 단계로 이동한다.
+- [x] 현장판매 저장은 여전히 운영자 인증과 allowlist를 요구한다.
+- [x] 방문수령·택배 흐름에 회귀가 없다.
 
 ## Validation
 
-- [ ] lint
-- [ ] typecheck
-- [ ] related tests
-- [ ] full test
-- [ ] build
+- [x] lint
+- [x] typecheck
+- [x] related tests
+- [x] full test
+- [x] build
 
+브라우저 자동화 런타임은 Windows 샌드박스 ACL 오류로 시작되지 않았다. 대신 로컬 API에서 기존 사전 검사가 401로 흐름을 차단하는 것을 재현했고, 선택 함수의 즉시 이동 회귀 테스트와 전체 66개 테스트로 검증했다.
+
+## Completion
+
+- Final commit: `2f61acf`
+- Completed at: 2026-09-01
+- Production deployment: 수행하지 않음
