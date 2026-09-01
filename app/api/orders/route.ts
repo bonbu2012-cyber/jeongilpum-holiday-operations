@@ -14,6 +14,7 @@ import {
 } from "../../lib/customer-ledger-domain";
 import {
   isLocalDevelopmentRequest,
+  isLocalPreviewActor,
   LOCAL_PREVIEW_ACTOR_ID,
 } from "../../lib/local-preview-auth";
 
@@ -469,7 +470,9 @@ async function serializeOrders(rows: OrderRow[]) {
 export async function GET(request: Request) {
   const user = await getChatGPTUser();
   if (!user) return Response.json({ error: "로그인이 필요합니다." }, { status: 401 });
-  if (!isOperator(user)) return Response.json({ error: "운영자 권한이 없습니다." }, { status: 403 });
+  if (!isOperator(user) && !isLocalPreviewActor(user.userId, request.url, import.meta.env.DEV)) {
+    return Response.json({ error: "운영자 권한이 없습니다." }, { status: 403 });
+  }
   try {
     const params = new URL(request.url).searchParams;
     const q = params.get("q")?.trim() ?? "";
@@ -559,7 +562,7 @@ export async function POST(request: Request) {
       if (!user && !localDevelopmentRequest) {
         return Response.json({ error: "현장판매는 직원 로그인이 필요합니다." }, { status: 401 });
       }
-      if (user && !isOperator(user)) {
+      if (user && !isOperator(user) && !isLocalPreviewActor(user.userId, request.url, import.meta.env.DEV)) {
         return Response.json({ error: "현장판매를 기록할 운영자 권한이 없습니다." }, { status: 403 });
       }
       onsiteActorId = user?.userId ?? LOCAL_PREVIEW_ACTOR_ID;

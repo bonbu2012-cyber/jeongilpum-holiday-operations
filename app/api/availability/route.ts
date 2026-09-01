@@ -1,5 +1,7 @@
+/// <reference types="vite/client" />
 import { env } from "cloudflare:workers";
 import { getChatGPTUser } from "../../chatgpt-auth";
+import { isLocalPreviewActor } from "../../lib/local-preview-auth";
 
 const runtimeEnv = env as typeof env & {
   DB: D1Database;
@@ -28,7 +30,9 @@ function todayInSeoul() {
 export async function GET(request: Request) {
   const user = await getChatGPTUser();
   if (!user) return Response.json({ error: "로그인이 필요합니다." }, { status: 401 });
-  if (!isOperator(user)) return Response.json({ error: "운영자 권한이 없습니다." }, { status: 403 });
+  if (!isOperator(user) && !isLocalPreviewActor(user.userId, request.url, import.meta.env.DEV)) {
+    return Response.json({ error: "운영자 권한이 없습니다." }, { status: 403 });
+  }
   const requestedDate = new URL(request.url).searchParams.get("date") ?? todayInSeoul();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(requestedDate)) {
     return Response.json({ error: "조회 날짜 형식을 확인해주세요." }, { status: 400 });
