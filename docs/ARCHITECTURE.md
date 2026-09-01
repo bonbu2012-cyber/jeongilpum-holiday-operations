@@ -85,6 +85,30 @@ sessionStorage는 새로고침·뒤로가기를 위한 제출 전 초안이다. 
 - client fetch와 API response 모두 cache를 비활성화한다.
 - WebSocket, SSE, Supabase Realtime은 사용하지 않는다.
 
+## 관리자 종합통제실
+
+`/control-room`은 기존 판매장·작업장·생산 화면을 대체하지 않는 읽기 전용 운영 허브다. Asia/Seoul 기준 선택일의 주문·작업·생산·패키지 위험을 한 화면에 모으고, 이후 처리는 `?date=YYYY-MM-DD`를 유지한 채 각 업무 화면에서 수행한다.
+
+```text
+ChatGPT 로그인
+→ OPERATOR_USER_IDS / OPERATOR_EMAILS 확인
+→ CONTROL_ROOM_ADMIN_USER_IDS / CONTROL_ROOM_ADMIN_EMAILS 확인
+→ 두 allowlist를 모두 통과한 경우에만 page와 API 허용
+```
+
+통제실 데이터 경계는 다음과 같다.
+
+- `GET /api/control-room/live?date=YYYY-MM-DD`: 선택일 주문·작업·생산·패키지 요약과 고정 우선순위 경보를 반환한다. 2.5초 polling 및 focus·online 재조회 대상이다.
+- `GET /api/control-room/forecast?startDate=YYYY-MM-DD&days=7`: 시작일 다음 날부터 최대 7일의 주문부하와 생산부족 전망을 반환한다. 60초 polling 및 focus 재조회 대상이다.
+- 모든 응답은 `no-store`이며 인증 실패 401, 이중 allowlist 실패 403, 날짜 오류 400을 구분한다.
+- 응답에는 주문번호와 상태처럼 조치에 필요한 최소 정보만 포함하며 고객 전화·주소·결제금액은 포함하지 않는다.
+
+고정 경보의 우선순위는 `긴급 → 주의 → 생산주의`다. 고객 도착 미준비와 일정 경과 미완료는 긴급, 30분 이내 미완료·미확인 주문변경·오늘 패키지 미완성은 주의, BOM 누락과 가용팩 및 진행 중 생산목표로 충당되지 않는 부족량은 생산주의로 분류한다.
+
+결제·미수 영역은 기본 잠금 상태다. 별도 통제실 금융 API를 만들지 않고 기존 고객장부의 5분 access session과 목록 API를 재사용하며, 잠금 해제 뒤에만 브라우저에서 합계를 계산해 표시한다. 금액 조회는 자동 polling하지 않아 장부 session의 비활동 만료 의미를 유지한다.
+
+생산 전망은 현재 가용 Skin Pack 재고에 날짜별 진행 중 생산목표의 잔여량을 더하고, 각 날짜의 미완료 방문·택배 주문 BOM 수요를 순서대로 차감한다. 생산 schema가 아직 없는 환경에서는 주문 전망은 제공하되 생산 지표를 unavailable로 표시한다.
+
 ## 고객 결제·미수 장부
 
 ```text

@@ -69,7 +69,9 @@ export default function SalesApp() {
 
   useEffect(() => {
     const queryDate = operationalDateFromSearch(window.location.search);
-    if (queryDate) setSelectedDate(queryDate);
+    if (!queryDate) return;
+    const frame = requestAnimationFrame(() => setSelectedDate(queryDate));
+    return () => cancelAnimationFrame(frame);
   }, []);
 
   const loadDate = useCallback(async (options?: { silent?: boolean }) => {

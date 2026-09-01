@@ -52,11 +52,11 @@ export function hasControlRoomPageAccess(user: Pick<ChatGPTUser, "userId" | "ema
 export async function requireControlRoomApiAccess(request: Request) {
   const user = await getChatGPTUser();
   if (!user) {
-    return { response: Response.json({ error: "로그인이 필요합니다." }, { status: 401 }) } as const;
+    return { response: Response.json({ error: "로그인이 필요합니다." }, { status: 401, headers: controlRoomNoStoreHeaders }) } as const;
   }
   if (isLocalPreviewActor(user.userId, request.url, import.meta.env.DEV)) return { user } as const;
   if (!configuredAccess(user)) {
-    return { response: Response.json({ error: "종합통제실 관리자 권한이 없습니다." }, { status: 403 }) } as const;
+    return { response: Response.json({ error: "종합통제실 관리자 권한이 없습니다." }, { status: 403, headers: controlRoomNoStoreHeaders }) } as const;
   }
   return { user } as const;
 }

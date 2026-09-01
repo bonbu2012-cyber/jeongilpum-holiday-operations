@@ -21,7 +21,9 @@
 - `app/components/WorkshopApp.tsx`
 - `app/components/ProductionApp.tsx`
 - `app/lib/control-room-*.ts`
+- `app/lib/operational-date.ts`
 - `app/control-room-flow.css`
+- `package.json`
 - `tests/control-room.test.mjs`
 - `docs/ARCHITECTURE.md`
 - `docs/DEVELOPMENT_AND_TESTING.md`

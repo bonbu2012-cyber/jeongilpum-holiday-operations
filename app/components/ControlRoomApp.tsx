@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @next/next/no-html-link-for-pages -- Vinext dev runtime requires a plain brand anchor here. */
 
 import Image from "next/image";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -54,9 +55,9 @@ export default function ControlRoomApp({ initialDate }: { initialDate: string })
       setLive(data);
       setLiveError("");
     } catch (error) {
-      if (requestId === liveSequence.current && (!silent || !live)) setLiveError(error instanceof Error ? error.message : "오늘 운영현황을 불러오지 못했습니다.");
+      if (requestId === liveSequence.current && !silent) setLiveError(error instanceof Error ? error.message : "오늘 운영현황을 불러오지 못했습니다.");
     }
-  }, [initialDate, live]);
+  }, [initialDate]);
 
   const loadForecast = useCallback(async (silent = false) => {
     const requestId = ++forecastSequence.current;
@@ -68,9 +69,9 @@ export default function ControlRoomApp({ initialDate }: { initialDate: string })
       setForecast(data);
       setForecastError("");
     } catch (error) {
-      if (requestId === forecastSequence.current && (!silent || !forecast)) setForecastError(error instanceof Error ? error.message : "7일 운영전망을 불러오지 못했습니다.");
+      if (requestId === forecastSequence.current && !silent) setForecastError(error instanceof Error ? error.message : "7일 운영전망을 불러오지 못했습니다.");
     }
-  }, [forecast, initialDate]);
+  }, [initialDate]);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => void loadLive());

@@ -75,7 +75,9 @@ export default function WorkshopApp() {
 
   useEffect(() => {
     const queryDate = operationalDateFromSearch(window.location.search);
-    if (queryDate) setSelectedDate(queryDate);
+    if (!queryDate) return;
+    const frame = requestAnimationFrame(() => setSelectedDate(queryDate));
+    return () => cancelAnimationFrame(frame);
   }, []);
 
   const load = useCallback(async (silent = false) => {

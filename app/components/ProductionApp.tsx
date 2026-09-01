@@ -26,7 +26,9 @@ export default function ProductionApp() {
 
   useEffect(() => {
     const queryDate = operationalDateFromSearch(window.location.search);
-    if (queryDate) setDate(queryDate);
+    if (!queryDate) return;
+    const frame = requestAnimationFrame(() => setDate(queryDate));
+    return () => cancelAnimationFrame(frame);
   }, []);
 
   const load = useCallback(async () => {
