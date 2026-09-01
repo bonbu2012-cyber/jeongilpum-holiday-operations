@@ -1,6 +1,6 @@
 # Task: 현장판매와 마지막 결제방식 단계
 
-- Status: Active
+- Status: Completed
 - Owner: Codex
 - Branch: `codex/onsite-sales-payment-flow`
 - Base commit: `edb8d344ad082df54d21433cfef12d38dbde1f43`
@@ -57,21 +57,23 @@
 
 ## Acceptance criteria
 
-- [ ] 메인 주문 유형에 현장판매가 방문수령·택배발송과 함께 보인다.
-- [ ] 현장판매 선택과 제출은 운영자만 가능하다.
-- [ ] 마지막 단계에서 결제방식을 선택하며 현장판매는 실제 고객 장부 입금으로 기록된다.
-- [ ] 현장판매는 판매장 당일 목록과 검색에 보이고 작업장 일정에는 보이지 않는다.
-- [ ] 상품·주문·결제·감사이력이 한 D1 batch로 저장된다.
+- [x] 메인 주문 유형에 현장판매가 방문수령·택배발송과 함께 보인다.
+- [x] 현장판매 선택과 제출은 운영자만 가능하다.
+- [x] 마지막 단계에서 결제방식을 선택하며 현장판매는 실제 고객 장부 입금으로 기록된다.
+- [x] 현장판매는 판매장 당일 목록과 검색에 보이고 작업장 일정에는 보이지 않는다.
+- [x] 상품·주문·결제·감사이력이 한 D1 batch로 저장된다.
 
 ## Validation
 
-- [ ] lint
-- [ ] typecheck
-- [ ] related tests
-- [ ] full test
-- [ ] build
-- [ ] existing schema compatibility test
+- [x] lint
+- [x] typecheck
+- [x] related tests
+- [x] full test
+- [x] build
+- [x] existing schema compatibility test
 - [ ] manual smoke, 해당 시
+
+로컬 메인 route HTTP 200을 확인했다. 브라우저 DOM·클릭 QA는 사용자가 요청하지 않아 수행하지 않았다.
 
 ## Integration notes
 
@@ -81,6 +83,6 @@
 
 ## Completion
 
-- Final commit:
-- Completed at:
-- Remaining TODO:
+- Final commit: `d9da944714702b7a7b6e3b2d99cbbb08dae109ab`
+- Completed at: 2026-09-01
+- Remaining TODO: Production 배포는 사용자 요청이 없어 수행하지 않았다. `docs/PAGES_AND_FEATURES.md`, `docs/API_AND_INTEGRATIONS.md`는 기존 active claim 해제 후 현장판매 항목을 추가해야 한다.
