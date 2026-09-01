@@ -1,11 +1,11 @@
 # Task: 카탈로그 상품 사진 연결
 
-- Status: Active
+- Status: Completed
 - Owner: Codex catalog-image task
 - Branch: `codex/catalog-product-images`
 - Base commit: `9337ea457b008e78821125a066b9cef8cc05200c`
 - Started at: 2026-09-01
-- Target environment: Production
+- Target environment: Local
 
 ## Goal
 
@@ -39,23 +39,23 @@
 1. 카탈로그 v23의 상품별 사진 매핑 확인
 2. 웹용 이미지 최적화와 상품 API fallback 구현
 3. 관련 테스트, lint, typecheck, 전체 test, build 검증
-4. Sites 저장·배포와 결과 확인
+4. 정적 파일 응답과 로컬 실행 결과 확인
 
 ## Acceptance criteria
 
-- [ ] 12개 활성 상품이 카탈로그 v23과 일치하는 사진을 표시한다.
-- [ ] O'meat 두 상품은 카탈로그와 동일한 공용 사진을 사용한다.
-- [ ] 설정에서 저장한 비어 있지 않은 사진 URL은 기본 사진보다 우선한다.
-- [ ] DB schema와 운영 데이터는 변경하지 않는다.
+- [x] 12개 활성 상품이 카탈로그 v23과 일치하는 사진을 표시한다.
+- [x] O'meat 두 상품은 카탈로그와 동일한 공용 사진을 사용한다.
+- [x] 설정에서 저장한 비어 있지 않은 사진 URL은 기본 사진보다 우선한다.
+- [x] DB schema와 운영 데이터는 변경하지 않는다.
 
 ## Validation
 
-- [ ] related test
-- [ ] lint
-- [ ] typecheck
-- [ ] full test
-- [ ] build
-- [ ] local preview
+- [x] related test: 3 passed
+- [x] lint
+- [x] typecheck
+- [x] full test: 66 passed
+- [x] build
+- [ ] local preview: `/kiosk`와 11개 정적 사진 URL은 HTTP 200. 로컬 D1이 현재 schema까지 초기화되지 않아 `/api/products` 데이터 렌더는 확인하지 못함.
 
 ## Integration notes
 
@@ -65,6 +65,6 @@
 
 ## Completion
 
-- Final commit:
-- Completed at:
-- Remaining TODO:
+- Final commit: `ce6de3e`
+- Completed at: 2026-09-01
+- Remaining TODO: Production 배포는 사용자의 명시적 요청이 없어 실행하지 않음.
