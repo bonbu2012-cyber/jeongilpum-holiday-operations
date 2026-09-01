@@ -4,6 +4,7 @@ import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { SALES_DATE_ORDERS_SQL } from "../app/lib/sales-order-query.ts";
 import { WORKSHOP_DATE_ORDERS_SQL } from "../app/lib/workshop-operations.ts";
+import { isLocalDevelopmentRequest, LOCAL_PREVIEW_ACTOR_ID } from "../app/lib/local-preview-auth.ts";
 
 const root = new URL("../", import.meta.url);
 const read = (path) => readFile(new URL(path, root), "utf8");
@@ -36,6 +37,17 @@ async function migratedDatabase() {
   await applyBreakpointMigration(database, "drizzle/0006_hot_hercules.sql");
   return database;
 }
+
+test("local onsite completion is limited to development HTTP loopback requests", () => {
+  assert.equal(LOCAL_PREVIEW_ACTOR_ID, "local-preview-operator");
+  assert.equal(isLocalDevelopmentRequest("http://localhost:3000/api/orders", true), true);
+  assert.equal(isLocalDevelopmentRequest("http://127.0.0.1:3000/api/orders", true), true);
+  assert.equal(isLocalDevelopmentRequest("http://[::1]:3000/api/orders", true), true);
+  assert.equal(isLocalDevelopmentRequest("http://localhost:3000/api/orders", false), false);
+  assert.equal(isLocalDevelopmentRequest("https://localhost/api/orders", true), false);
+  assert.equal(isLocalDevelopmentRequest("http://192.168.0.10:3000/api/orders", true), false);
+  assert.equal(isLocalDevelopmentRequest("not a url", true), false);
+});
 
 test("anonymous onsite sale reuses the valid immediate-pickup fulfillment while preserving an onsite order type", async () => {
   const database = await migratedDatabase();
@@ -104,6 +116,8 @@ test("onsite sale stays in a separate staff zone, skips customer info, and keeps
   assert.match(access, /getChatGPTUser/);
   assert.match(access, /isConfiguredOperator/);
   assert.match(api, /fulfillmentType === "onsite"/);
+  assert.match(api, /isLocalDevelopmentRequest\(request\.url, import\.meta\.env\.DEV\)/);
+  assert.match(api, /user\?\.userId \?\? LOCAL_PREVIEW_ACTOR_ID/);
   assert.match(api, /getChatGPTUser/);
   assert.match(api, /isOperator/);
   assert.match(api, /INSERT INTO customer_ledger_transactions/);

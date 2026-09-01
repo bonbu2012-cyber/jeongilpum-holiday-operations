@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import { env } from "cloudflare:workers";
 import { getChatGPTUser } from "../../chatgpt-auth";
 import {
@@ -11,6 +12,10 @@ import {
   normalizeCustomerName,
   primaryCustomerAccountId,
 } from "../../lib/customer-ledger-domain";
+import {
+  isLocalDevelopmentRequest,
+  LOCAL_PREVIEW_ACTOR_ID,
+} from "../../lib/local-preview-auth";
 
 type OrderRow = {
   id: string;
@@ -550,13 +555,14 @@ export async function POST(request: Request) {
         return Response.json({ error: "현장판매 결제방식을 선택해주세요." }, { status: 400 });
       }
       const user = await getChatGPTUser();
-      if (!user) {
+      const localDevelopmentRequest = isLocalDevelopmentRequest(request.url, import.meta.env.DEV);
+      if (!user && !localDevelopmentRequest) {
         return Response.json({ error: "현장판매는 직원 로그인이 필요합니다." }, { status: 401 });
       }
-      if (!isOperator(user)) {
+      if (user && !isOperator(user)) {
         return Response.json({ error: "현장판매를 기록할 운영자 권한이 없습니다." }, { status: 403 });
       }
-      onsiteActorId = user.userId;
+      onsiteActorId = user?.userId ?? LOCAL_PREVIEW_ACTOR_ID;
     }
 
     const existing = await runtimeEnv.DB
