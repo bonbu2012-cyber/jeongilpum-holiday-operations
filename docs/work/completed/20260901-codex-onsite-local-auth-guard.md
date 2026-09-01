@@ -1,6 +1,6 @@
 # Task: 현장판매 로컬 로그인 404 방지
 
-- Status: Active
+- Status: Completed
 - Owner: Codex onsite local-auth task
 - Branch: `codex/onsite-local-auth-guard`
 - Base commit: `8f77188587dfacd716237a3dc19189b32be81b34`
@@ -37,23 +37,22 @@
 
 ## Acceptance criteria
 
-- [ ] localhost/127.0.0.1에서 현장판매 401이 로그인 404로 이동하지 않는다.
-- [ ] 로컬 결제 화면에서 운영 Sites에서 기록해야 한다는 안내가 표시된다.
-- [ ] 운영 origin에서는 직원 로그인으로 이동하고 결제 단계로 복귀한다.
-- [ ] API 권한 검사는 변경하지 않는다.
+- [x] localhost/127.0.0.1에서 현장판매 401이 로그인 404로 이동하지 않는다.
+- [x] 로컬 결제 화면에서 운영 Sites에서 기록해야 한다는 안내가 표시된다.
+- [x] 운영 origin에서는 직원 로그인으로 이동하고 결제 단계로 복귀한다.
+- [x] API 권한 검사는 변경하지 않는다.
 
 ## Validation
 
-- [ ] related test
-- [ ] lint
-- [ ] typecheck
-- [ ] full test
-- [ ] build
-- [ ] local preview
+- [x] related test: `node --test tests/onsite-sales.test.mjs` (2 passed)
+- [x] lint: `npm run lint`
+- [x] typecheck: `npm run typecheck`
+- [x] full test: `npm test` (66 passed)
+- [x] build: `npm run build`
+- [x] local preview: `/kiosk?resume=payment` HTTP 200, Codex 브라우저 열기 요청
 
 ## Completion
 
-- Final commit:
-- Completed at:
-- Remaining TODO:
-
+- Final commit: `69136bb`
+- Completed at: 2026-09-01
+- Remaining TODO: 실제 로그인과 D1 기록은 Sites dispatcher가 있는 배포 환경에서 확인한다. Production 배포는 사용자가 명시적으로 요청할 때 수행한다.
