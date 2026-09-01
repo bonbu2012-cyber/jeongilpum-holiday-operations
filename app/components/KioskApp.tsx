@@ -24,7 +24,9 @@ function normalizeDraft(value:Partial<OrderDraft>&{roadAddress?:string;detailAdd
  return {...emptyDraft(),...value,cart:value.cart??{},customItem:value.customItem??null,paymentMethod:value.paymentMethod??null,postalCode:value.postalCode??"",roadAddr:value.roadAddr??value.roadAddress??"",roadAddrReference:value.roadAddrReference??"",jibunAddr:value.jibunAddr??"",detailAddr:value.detailAddr??value.detailAddress??"",addressMode:value.addressMode??"search",pickupDate:value.pickupDate??"",pickupTime:value.pickupTime??"",shipDate:value.shipDate??""};
 }
 function Photo({product,large=false}:{product:Product;large?:boolean}){
- return <div className={"product-photo "+(large?"large":"")}>{product.imageUrl?<img src={product.imageUrl} alt={product.name}/>:<div className="photo-empty" role="img" aria-label={product.name+" 제품 사진 준비 중"}><span>▧</span><b>제품 사진</b><small>준비 중</small></div>}{product.badge&&<em>{product.badge}</em>}</div>;
+ const badge=product.badge?.trim();
+ const badgeClass=badge?.toLowerCase()==="best"?"badge-best":badge==="실속"?"badge-value":"";
+ return <div className={"product-photo "+(large?"large":"")}>{product.imageUrl?<img src={product.imageUrl} alt={product.name}/>:<div className="photo-empty" role="img" aria-label={product.name+" 제품 사진 준비 중"}><span>▧</span><b>제품 사진</b><small>준비 중</small></div>}{badge&&<em className={badgeClass}>{badge}</em>}</div>;
 }
 function Quantity({value,onChange,big=false,max=null}:{value:number;onChange:(value:number)=>void;big?:boolean;max?:number|null}){
  const closed=max!==null&&max<=0,atMax=max!==null&&value>=max;

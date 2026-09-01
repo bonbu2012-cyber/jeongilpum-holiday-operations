@@ -202,6 +202,13 @@ test("kiosk brand logo and editable headline use durable audited settings",async
  assert.match(kioskCss,/\.kiosk-app \.kiosk-brand-name\{[^}]*align-items:center/);
  assert.match(kioskCss,/@media\(max-width:700px\)\{[\s\S]*?\.kiosk-app \.kiosk-brand-logo\{width:34px;height:34px\}/);
  assert.match(kioskCss,/@media\(max-width:700px\)\{[\s\S]*?\.kiosk-app \.kiosk-title\{display:none\}\}/);
+ assert.match(kiosk,/badge\?\.toLowerCase\(\)==="best"\?"badge-best"/);
+ assert.match(kiosk,/badge==="실속"\?"badge-value"/);
+ assert.match(kiosk,/className=\{badgeClass\}/);
+ assert.match(kioskCss,/\.kiosk-app \.product-photo>em\{[^}]*min-width:62px;[^}]*font-size:12px;[^}]*font-weight:900;[^}]*box-shadow:/);
+ assert.match(kioskCss,/\.kiosk-app \.product-photo>em\.badge-best\{[^}]*#ff5447[^}]*#c71924/);
+ assert.match(kioskCss,/\.kiosk-app \.product-photo>em\.badge-value\{[^}]*#ffe266[^}]*#f3a400[^}]*color:#492900/);
+ assert.match(kioskCss,/@media\(max-width:700px\)\{\.kiosk-app \.product-photo>em\{[^}]*min-width:52px;[^}]*font-size:10px/);
  assert.deepEqual([...logo.subarray(0,8)],[137,80,78,71,13,10,26,10]);
  assert.equal(appSettings.parseStoredSetting('{"value":" 새 문구 "}',appSettings.DEFAULT_KIOSK_HEADLINE),"새 문구");
  assert.equal(appSettings.parseStoredSetting('broken',appSettings.DEFAULT_KIOSK_HEADLINE),"소중한 분께 전할 선물을 선택하세요");
