@@ -53,4 +53,7 @@
 
 - Final commit: `3547bcf`
 - Completed at: 2026-09-01
-- Remaining TODO: Production에는 배포하지 않았다. 다른 활성 작업이 종료된 뒤 통합 branch에 병합한다.
+- Sites version: 23
+- Production URL: `https://jeongilpum-chuseok-mvp.bonbu2012.chatgpt.site`
+- Production deployed at: 2026-09-01
+- Remaining TODO: 없음
