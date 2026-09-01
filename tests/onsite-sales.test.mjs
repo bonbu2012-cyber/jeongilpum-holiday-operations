@@ -70,7 +70,7 @@ test("onsite sale reuses the valid immediate-pickup fulfillment while preserving
   database.close();
 });
 
-test("onsite sale UI and API require operator access and one atomic financial write", async () => {
+test("onsite sale selection advances immediately while the API keeps operator access and one atomic financial write", async () => {
   const [kiosk, api, access] = await Promise.all([
     read("app/components/KioskApp.tsx"),
     read("app/api/orders/route.ts"),
@@ -79,6 +79,9 @@ test("onsite sale UI and API require operator access and one atomic financial wr
   for (const label of ["현장판매", "방문수령", "택배발송", "결제방식을 선택해주세요", "현금", "카드", "계좌이체"]) {
     assert.match(kiosk, new RegExp(label));
   }
+  assert.doesNotMatch(kiosk, /fetch\("\/api\/orders\/onsite-access"/);
+  assert.match(kiosk, /go\(type==="onsite"\?"onsite-info"/);
+  assert.match(kiosk, /직원 로그인 후 계속/);
   assert.match(access, /getChatGPTUser/);
   assert.match(access, /isConfiguredOperator/);
   assert.match(api, /fulfillmentType === "onsite"/);
