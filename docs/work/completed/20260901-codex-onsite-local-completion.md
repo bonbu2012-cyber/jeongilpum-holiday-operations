@@ -1,6 +1,6 @@
 # Task: 현장판매 로컬 완료 지원
 
-- Status: Active
+- Status: Completed
 - Owner: Codex onsite local-completion task
 - Branch: `codex/onsite-local-completion`
 - Base commit: `0e553550f2e171ea767959031812b5163116cc3c`
@@ -39,24 +39,23 @@
 
 ## Acceptance criteria
 
-- [ ] localhost 개발 서버의 현장판매가 401 없이 D1 저장 단계로 진행한다.
-- [ ] 운영 빌드 또는 비-loopback origin은 기존 직원 로그인과 operator allowlist를 요구한다.
-- [ ] 로컬 기록도 기존 D1 batch, idempotency, 감사 이벤트를 그대로 사용한다.
-- [ ] 고객정보 없는 현장판매 완료 화면으로 진행할 수 있다.
+- [x] localhost 개발 서버의 현장판매가 401 없이 D1 저장 단계로 진행한다.
+- [x] 운영 빌드 또는 비-loopback origin은 기존 직원 로그인과 operator allowlist를 요구한다.
+- [x] 로컬 기록도 기존 D1 batch, idempotency, 감사 이벤트를 그대로 사용한다.
+- [x] 고객정보 없는 현장판매 완료 화면으로 진행할 수 있다.
 
 ## Validation
 
-- [ ] related test
-- [ ] local API non-writing probe
-- [ ] lint
-- [ ] typecheck
-- [ ] full test
-- [ ] build
-- [ ] local preview
+- [x] related test: `node --test tests/onsite-sales.test.mjs` (3 passed)
+- [x] local API non-writing probe: loopback 현장판매 요청이 401이 아닌 잘못된 상품 409까지 도달
+- [x] lint: `npm run lint`
+- [x] typecheck: `npm run typecheck`
+- [x] full test: `npm test` (66 passed)
+- [x] build: `npm run build`; production bundle에서 local 판별 인자가 `false`로 고정됨
+- [x] local preview: `/kiosk?resume=payment` HTTP 200, Codex 브라우저 열기 요청
 
 ## Completion
 
-- Final commit:
-- Completed at:
-- Remaining TODO:
-
+- Final commit: `af2712d`
+- Completed at: 2026-09-01
+- Remaining TODO: 사용자의 현재 브라우저 초안으로 `현장판매 기록`을 눌러 완료 화면 전환을 확인한다. Production 배포는 사용자 요청 전까지 수행하지 않는다.
