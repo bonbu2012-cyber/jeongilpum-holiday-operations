@@ -23,6 +23,7 @@
 - `app/kiosk-flow.css`
 - `app/api/orders/route.ts`
 - `tests/onsite-sales.test.mjs`
+- `tests/v2-spec.test.mjs` (현장판매 단계·Step 2 기대값만)
 
 ## Shared contracts
 
@@ -50,4 +51,3 @@
 - [ ] related tests
 - [ ] full test
 - [ ] build
-
