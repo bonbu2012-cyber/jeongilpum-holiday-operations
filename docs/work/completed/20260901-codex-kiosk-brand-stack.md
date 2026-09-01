@@ -1,6 +1,6 @@
 # Task: 키오스크 로고와 상호 세로 배치
 
-- Status: Active
+- Status: Completed
 - Owner: Codex kiosk-brand task
 - Branch: `codex/kiosk-brand-stack`
 - Base commit: `f610a6d7754f9a177e83119db209ccedb585af10`
@@ -25,23 +25,23 @@
 
 ## Acceptance criteria
 
-- [ ] 로고가 상호 위에 배치된다.
-- [ ] 로고와 상호가 같은 중심축으로 정렬된다.
-- [ ] 가운데 안내 문구와 시각적 높이·간격이 조화롭다.
-- [ ] 모바일 헤더가 좁은 화면에서도 유지된다.
+- [x] 로고가 상호 위에 배치된다.
+- [x] 로고와 상호가 같은 중심축으로 정렬된다.
+- [x] 가운데 안내 문구와 시각적 높이·간격이 조화롭다.
+- [x] 모바일 헤더가 좁은 화면에서도 유지된다.
 
 ## Validation
 
-- [ ] lint
-- [ ] typecheck
-- [ ] full test
-- [ ] build
-- [ ] Production deployment
+- [x] lint: `npm run lint`
+- [x] typecheck: `npm run typecheck`
+- [x] full test: 66 passed
+- [x] build: `npm run build`
+- [x] Production deployment: Sites version 24
 
 ## Completion
 
-- Final implementation commit:
-- Sites version:
-- Production URL:
-- Completed at:
-- Remaining TODO:
+- Final implementation commit: `59b6d79`
+- Sites version: 24
+- Production URL: `https://jeongilpum-chuseok-mvp.bonbu2012.chatgpt.site`
+- Completed at: 2026-09-01
+- Remaining TODO: 없음
