@@ -1,6 +1,5 @@
 import { aggregateProductionNeeds, type BomComponent, type ProductDemand } from "./production-domain";
-import { loadProductionOverview } from "./production-data";
-import type { ProductionOverview } from "./production-types";
+import type { ComponentRequirement } from "./production-domain";
 import { addOperationalDays } from "./operational-date";
 import type {
   ControlRoomAlert,
@@ -64,6 +63,8 @@ type BomRow = {
 
 type AvailableRow = { component_code: string; quantity: number };
 type BatchSupplyRow = { production_date: string; component_code: string; remaining: number };
+type LiveBatchRow = { component_code: string; production_target: number; produced_quantity: number; status: string };
+type ControlRoomProductionData = { requirements: ComponentRequirement[]; missingProducts: ProductDemand[]; batches: LiveBatchRow[] };
 
 const changeEventTypes = new Set([
   "order_changed",
@@ -179,14 +180,14 @@ export function summarizeControlRoomOrders(
   return { orders, workshop, packages, alerts };
 }
 
-function productionSummary(overview: ProductionOverview | null): ControlRoomProductionSummary {
+function productionSummary(overview: ControlRoomProductionData | null): ControlRoomProductionSummary {
   if (!overview) {
     return { available: false, requiredPacks: 0, availablePacks: 0, shortagePacks: 0, uncoveredPacks: 0, missingBomProducts: 0, activeBatches: 0, batchTarget: 0, batchProduced: 0 };
   }
   const active = overview.batches.filter((batch) => batch.status === "planned" || batch.status === "in_progress");
   const remainingByComponent = new Map<string, number>();
   for (const batch of active) {
-    remainingByComponent.set(batch.componentCode, (remainingByComponent.get(batch.componentCode) ?? 0) + Math.max(0, batch.productionTarget - batch.producedQuantity));
+    remainingByComponent.set(batch.component_code, (remainingByComponent.get(batch.component_code) ?? 0) + Math.max(0, batch.production_target - batch.produced_quantity));
   }
   return {
     available: true,
@@ -196,9 +197,27 @@ function productionSummary(overview: ProductionOverview | null): ControlRoomProd
     uncoveredPacks: overview.requirements.reduce((sum, item) => sum + Math.max(0, item.additionalNeeded - (remainingByComponent.get(item.componentCode) ?? 0)), 0),
     missingBomProducts: overview.missingProducts.length,
     activeBatches: active.length,
-    batchTarget: active.reduce((sum, batch) => sum + batch.productionTarget, 0),
-    batchProduced: active.reduce((sum, batch) => sum + batch.producedQuantity, 0),
+    batchTarget: active.reduce((sum, batch) => sum + batch.production_target, 0),
+    batchProduced: active.reduce((sum, batch) => sum + batch.produced_quantity, 0),
   };
+}
+
+async function loadControlRoomProduction(db: D1Database, date: string): Promise<ControlRoomProductionData> {
+  const [demandResult, availableResult, batchResult] = await Promise.all([
+    db.prepare("SELECT oi.product_id,p.name AS product_name,SUM(oi.quantity) AS quantity FROM orders o JOIN fulfillments f ON f.order_id=o.id JOIN order_items oi ON oi.order_id=o.id JOIN products p ON p.id=oi.product_id WHERE o.order_status NOT IN ('cancelled','fulfilled') AND o.fulfillment_type!='onsite' AND ((f.fulfillment_type='pickup' AND substr(f.pickup_at,1,10)=?) OR (f.fulfillment_type='shipping' AND f.ship_date=?)) GROUP BY oi.product_id,p.name").bind(date, date).all<{ product_id: string; product_name: string; quantity: number }>(),
+    db.prepare("SELECT component_code,COUNT(*) AS quantity FROM skin_packs WHERE status='available' GROUP BY component_code").all<AvailableRow>(),
+    db.prepare("SELECT component_code,production_target,produced_quantity,status FROM production_batches WHERE production_date=? AND status!='cancelled'").bind(date).all<LiveBatchRow>(),
+  ]);
+  const demands: ProductDemand[] = demandResult.results.map((row) => ({ productId: row.product_id, productName: row.product_name, quantity: Number(row.quantity) }));
+  let bom: BomComponent[] = [];
+  if (demands.length) {
+    const placeholders = demands.map(() => "?").join(",");
+    const rows = await db.prepare(`SELECT id,product_id,component_code,component_name,quantity_per_product FROM product_components WHERE active=1 AND product_id IN (${placeholders}) ORDER BY product_id,sort_order`).bind(...demands.map((item) => item.productId)).all<BomRow>();
+    bom = rows.results.map((row) => ({ productId: row.product_id, componentId: row.id, componentCode: row.component_code, componentName: row.component_name, quantityPerProduct: Number(row.quantity_per_product) }));
+  }
+  const available = Object.fromEntries(availableResult.results.map((row) => [row.component_code, Number(row.quantity)]));
+  const expanded = aggregateProductionNeeds(demands, bom, available);
+  return { ...expanded, batches: batchResult.results };
 }
 
 async function loadOperationalOrders(db: D1Database, date: string) {
@@ -233,9 +252,10 @@ async function loadOperationalOrders(db: D1Database, date: string) {
 }
 
 export async function loadControlRoomLive(db: D1Database, date: string, workerId: string, now = new Date()): Promise<ControlRoomLiveResponse> {
+  void workerId;
   const [operational, overview] = await Promise.all([
     loadOperationalOrders(db, date),
-    loadProductionOverview(db, date, workerId).catch(() => null),
+    loadControlRoomProduction(db, date).catch(() => null),
   ]);
   const summarized = summarizeControlRoomOrders(operational.rows, operational.events, date, now);
   const production = productionSummary(overview);
@@ -298,7 +318,7 @@ export async function loadControlRoomForecast(db: D1Database, startDate: string,
       SELECT ${schedule} AS schedule_date,oi.product_id,p.name AS product_name,SUM(oi.quantity) AS quantity
       FROM orders o JOIN fulfillments f ON f.order_id=o.id
       JOIN order_items oi ON oi.order_id=o.id JOIN products p ON p.id=oi.product_id
-      WHERE o.order_status!='cancelled' AND ${schedule} BETWEEN ? AND ?
+      WHERE o.order_status NOT IN ('cancelled','fulfilled') AND o.fulfillment_type!='onsite' AND ${schedule} BETWEEN ? AND ?
       GROUP BY schedule_date,oi.product_id,p.name
     `).bind(rangeStart, rangeEnd).all<DailyDemandRow>();
     demandRows = demands.results;
