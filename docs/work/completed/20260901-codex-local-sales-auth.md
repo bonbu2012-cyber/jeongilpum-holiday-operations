@@ -1,6 +1,6 @@
 # Task: 로컬 판매장 인증 404 제거
 
-- Status: Active
+- Status: Completed
 - Owner: Codex local-sales-auth task
 - Branch: `codex/local-sales-auth`
 - Base commit: `20f97b6617b428530ecc25851ebc197f47484ef6`
@@ -41,24 +41,23 @@ Sites dispatcher가 없는 로컬 Vinext에서 `/sales`가 로그인 경로 404�
 
 ## Acceptance criteria
 
-- [ ] `http://localhost:3000/sales`가 로그인 404 없이 200으로 열린다.
-- [ ] 로컬 판매장 주문·한정상품 조회 API가 200으로 응답한다.
-- [ ] 운영 빌드에서는 로컬 사용자 생성과 허용 조건이 `false`로 고정된다.
-- [ ] 운영 Sites의 로그인·operator allowlist 검사는 유지된다.
+- [x] `http://localhost:3000/sales`가 로그인 404 없이 200으로 열린다.
+- [x] 로컬 판매장 주문·한정상품 조회 API가 200으로 응답한다.
+- [x] 운영 빌드에서는 로컬 사용자 생성과 허용 조건이 `false`로 고정된다.
+- [x] 운영 Sites의 로그인·operator allowlist 검사는 유지된다.
 
 ## Validation
 
-- [ ] related test
-- [ ] local sales/API smoke
-- [ ] lint
-- [ ] typecheck
-- [ ] full test
-- [ ] build
-- [ ] local preview
+- [x] related test: `node --test tests/onsite-sales.test.mjs` (3 passed)
+- [x] local sales/API smoke: `/sales`, `/api/orders`, `/api/availability` 모두 200
+- [x] lint: `npm run lint`
+- [x] typecheck: `npm run typecheck`
+- [x] full test: `npm test` (66 passed)
+- [x] build: `npm run build`; production bundle local host/actor 판별 인자가 `false`로 고정됨
+- [x] local preview: `/sales` Codex 브라우저 열기 요청
 
 ## Completion
 
-- Final commit:
-- Completed at:
-- Remaining TODO:
-
+- Final commit: `d33863a`
+- Completed at: 2026-09-01
+- Remaining TODO: 판매장 상태변경·도착·일정지정 API는 운영 권한 원칙에 따라 이번 로컬 조회 예외 범위에 포함하지 않았다. Production 배포는 사용자 요청 전까지 수행하지 않는다.
