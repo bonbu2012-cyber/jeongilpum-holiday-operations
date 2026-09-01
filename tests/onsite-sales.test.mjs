@@ -88,6 +88,7 @@ test("onsite sale stays in a separate staff zone, skips customer info, and keeps
   assert.match(kiosk, /className="fulfillment-customer-options"/);
   assert.match(kiosk, /go\(type==="onsite"\?"payment"/);
   assert.doesNotMatch(kiosk, /"onsite-info"/);
+  assert.doesNotMatch(kiosk, /직원 도움|StaffHelp|className="staff-help"/);
   assert.match(kiosk, /미기입 현장판매/);
   assert.match(css, /\.onsite-sale-zone\{/);
   assert.match(api, /fulfillmentType === "onsite" \? "현장판매 고객"/);
@@ -95,7 +96,9 @@ test("onsite sale stays in a separate staff zone, skips customer info, and keeps
   assert.match(api, /fulfillmentType !== "onsite" && \(!buyer \|\| phone\.length < 10\)/);
   assert.match(api, /orderStatus,\s+fulfillmentType,\s+scheduleLabel/);
   assert.match(api, /fulfillmentType === "onsite" \? "pickup" : fulfillmentType,\s+pickupAt/);
-  assert.match(kiosk, /직원 로그인 후 계속/);
+  assert.match(kiosk, /response\.status===401&&draft\.fulfillmentType==="onsite"/);
+  assert.match(kiosk, /signin-with-chatgpt\?return_to=%2Fkiosk%3Fresume%3Dpayment/);
+  assert.match(kiosk, /resume==="payment"&&restored\.fulfillmentType==="onsite"&&restored\.paymentMethod&&hasItems/);
   assert.match(access, /getChatGPTUser/);
   assert.match(access, /isConfiguredOperator/);
   assert.match(api, /fulfillmentType === "onsite"/);
