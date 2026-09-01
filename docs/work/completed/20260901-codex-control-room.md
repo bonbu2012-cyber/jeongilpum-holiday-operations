@@ -1,6 +1,6 @@
 # Task: 관리자용 종합통제실
 
-- Status: Active
+- Status: Completed
 - Owner: Codex
 - Branch: `codex/control-room`
 - Base commit: `d79a5ec0d7c04a630517162964e520bc47af36d7`
@@ -48,15 +48,17 @@
 
 ## Validation
 
-- [ ] lint
-- [ ] typecheck
-- [ ] full test
-- [ ] build
-- [ ] local route response
-- [ ] responsive implementation review
+- [x] `npm run lint`
+- [x] `npm run typecheck`
+- [x] `npm test` — 71 passed
+- [x] `npm run build` — `/control-room`, live API, forecast API route 포함
+- [x] local route/API response — page 200, live 200, forecast 200, 다음 7일 반환
+- [x] responsive implementation review — 모바일 단일열, 경보 우선배치, 전망표 가로 scroll 확인
 
 ## Completion
 
-- Final implementation commit:
-- Completed at:
-- Remaining TODO:
+- Implementation commits: `fedd0dd`, `a6a69ee`, `4db9189`, `c35dc0f`
+- Final implementation commit: `c35dc0f712ea19f9823124201619700077558214`
+- Completed at: 2026-09-01
+- Remaining TODO: Production 적용 전 `CONTROL_ROOM_ADMIN_USER_IDS` 또는 `CONTROL_ROOM_ADMIN_EMAILS`를 설정하고 기존 operator allowlist에도 같은 관리자를 포함한다. Production migration과 배포는 이 작업에서 실행하지 않았다.
+- Coordination note: 고객장부 배포 작업이 claim한 `.env.example`, 고객장부 API, PAGES/API/SECURITY 문서는 수정하지 않았다. 통제실 금융 영역은 기존 5분 장부 session과 목록 API를 재사용한다.
