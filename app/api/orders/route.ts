@@ -57,7 +57,7 @@ type SeasonRow = { id: string; sales_start_date: string; sales_end_date: string;
 type FulfillmentRow = {
   id: string;
   order_id: string;
-  fulfillment_type: "pickup" | "shipping";
+  fulfillment_type: "onsite" | "pickup" | "shipping";
   pickup_at: string | null;
   ship_date: string | null;
   recipient_name: string | null;
@@ -120,7 +120,8 @@ type CreatePayload = {
   idempotencyKey?: string;
   buyerName?: string;
   buyerPhone?: string;
-  fulfillmentType?: "pickup" | "shipping";
+  fulfillmentType?: "onsite" | "pickup" | "shipping";
+  paymentMethod?: "card" | "cash" | "bank_transfer" | "later";
   pickupDate?: string;
   pickupTime?: string;
   shipDate?: string;
@@ -143,6 +144,8 @@ const runtimeEnv = env as typeof env & {
 };
 const isoDatePattern = /^\d{4}-\d{2}-\d{2}$/;
 const customCategories = new Set(["진공세트", "프리미엄", "O'meat", "LA갈비", "뼈세트"]);
+const fulfillmentTypes = new Set(["onsite", "pickup", "shipping"]);
+const paymentMethods = new Set(["card", "cash", "bank_transfer"]);
 const orderChangeEventTypes = new Set(["order_changed", "order_updated", "items_changed", "fulfillment_changed", "schedule_changed"]);
 
 function configured(value: string | undefined) {
@@ -166,6 +169,20 @@ function todayInSeoul() {
   }).formatToParts(new Date());
   const value = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
   return `${value("year")}-${value("month")}-${value("day")}`;
+}
+function nowInSeoul() {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date());
+  const value = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
+  return `${value("year")}-${value("month")}-${value("day")}T${value("hour")}:${value("minute")}:${value("second")}+09:00`;
 }
 function validIsoDate(value: string) {
   if (!isoDatePattern.test(value)) return false;
@@ -192,6 +209,9 @@ function createOrderNo() {
   return `JI-${date}-${String(Math.floor(1000 + Math.random() * 9000))}`;
 }
 function fulfillmentScheduleLabel(fulfillment: FulfillmentRow) {
+  if (fulfillment.fulfillment_type === "onsite") {
+    return fulfillment.pickup_at ? `현장판매 · ${fulfillment.pickup_at.slice(11, 16)}` : "현장판매";
+  }
   if (fulfillment.pickup_at) {
     const [date, timePart] = fulfillment.pickup_at.split("T");
     return `${koreanDate(date)} · ${timePart.slice(0, 5)}`;
@@ -289,7 +309,9 @@ async function serializeOrders(rows: OrderRow[]) {
       id: row.id,
       orderNo: row.order_no,
       status: row.order_status as "submitted" | "confirmed" | "in_progress" | "ready" | "fulfilled" | "cancelled",
-      fulfillmentType: fulfillment?.fulfillment_type ?? (row.fulfillment_type as "pickup" | "shipping"),
+      fulfillmentType: row.fulfillment_type === "onsite"
+        ? "onsite"
+        : fulfillment?.fulfillment_type ?? (row.fulfillment_type as "pickup" | "shipping"),
       pickupAt: fulfillment?.pickup_at ?? null,
       actualArrivedAt,
       hasSpecialRequest: Boolean(row.customer_note.trim() || fulfillment?.note.trim()),
@@ -351,8 +373,12 @@ async function serializeOrders(rows: OrderRow[]) {
       buyerName: row.buyer_name_snapshot,
       buyerPhone: row.buyer_phone_snapshot,
       status: row.order_status,
-      fulfillmentType: fulfillment?.fulfillment_type ?? row.fulfillment_type,
-      scheduleLabel: fulfillment ? fulfillmentScheduleLabel(fulfillment) : "일정 미지정 · 기존 주문",
+      fulfillmentType: row.fulfillment_type === "onsite"
+        ? "onsite"
+        : fulfillment?.fulfillment_type ?? row.fulfillment_type,
+      scheduleLabel: row.fulfillment_type === "onsite"
+        ? "현장판매 · " + (fulfillment?.pickup_at?.slice(11, 16) ?? "")
+        : fulfillment ? fulfillmentScheduleLabel(fulfillment) : "일정 미지정 · 기존 주문",
       fulfillmentId: fulfillment?.id ?? null,
       pickupAt: fulfillment?.pickup_at ?? null,
       shipDate: fulfillment?.ship_date ?? null,
@@ -451,12 +477,12 @@ export async function GET(request: Request) {
     if (q && date) {
       result = await runtimeEnv.DB
         .prepare(SALES_DATE_SEARCH_ORDERS_SQL)
-        .bind(date, date, like, like, like, like, like)
+        .bind(date, date, date, like, like, like, like, like)
         .all<OrderRow>();
     } else if (date) {
       result = await runtimeEnv.DB
         .prepare(SALES_DATE_ORDERS_SQL)
-        .bind(date, date)
+        .bind(date, date, date)
         .all<OrderRow>();
     } else if (q) {
       result = await runtimeEnv.DB
@@ -491,6 +517,8 @@ export async function POST(request: Request) {
   try {
     const payload = await request.json() as CreatePayload;
     idempotencyKey = clean(payload.idempotencyKey);
+    const fulfillmentType = clean(payload.fulfillmentType);
+    const paymentChoice = clean(payload.paymentMethod) || "later";
     const buyer = clean(payload.buyerName);
     const phone = normalizePhone(payload.buyerPhone ?? "");
     const items = (payload.items ?? []).filter(
@@ -509,13 +537,27 @@ export async function POST(request: Request) {
       !idempotencyKey
       || !buyer
       || phone.length < 10
-      || !payload.fulfillmentType
+      || !fulfillmentTypes.has(fulfillmentType)
       || (!items.length && !customValid)
     ) {
       return Response.json({ error: "주문자와 상품 정보를 확인해주세요." }, { status: 400 });
     }
     if (custom && !customValid) {
       return Response.json({ error: "맞춤주문은 카테고리와 20만원 이상의 예산이 필요합니다." }, { status: 400 });
+    }
+    let onsiteActorId: string | null = null;
+    if (fulfillmentType === "onsite") {
+      if (!paymentMethods.has(paymentChoice)) {
+        return Response.json({ error: "현장판매 결제방식을 선택해주세요." }, { status: 400 });
+      }
+      const user = await getChatGPTUser();
+      if (!user) {
+        return Response.json({ error: "현장판매는 직원 로그인이 필요합니다." }, { status: 401 });
+      }
+      if (!isOperator(user)) {
+        return Response.json({ error: "현장판매를 기록할 운영자 권한이 없습니다." }, { status: 403 });
+      }
+      onsiteActorId = user.userId;
     }
 
     const existing = await runtimeEnv.DB
@@ -534,19 +576,21 @@ export async function POST(request: Request) {
       return Response.json({ error: "현재 예약 가능한 판매 시즌이 없습니다." }, { status: 409 });
     }
     const today = todayInSeoul();
-    const scheduleDate = payload.fulfillmentType === "pickup"
-      ? clean(payload.pickupDate)
-      : clean(payload.shipDate);
-    if (
+    const scheduleDate = fulfillmentType === "onsite"
+      ? today
+      : fulfillmentType === "pickup"
+        ? clean(payload.pickupDate)
+        : clean(payload.shipDate);
+    if (fulfillmentType !== "onsite" && (
       !validIsoDate(scheduleDate)
       || scheduleDate < today
       || scheduleDate < season.sales_start_date
       || scheduleDate > season.sales_end_date
-    ) {
+    )) {
       return Response.json({ error: "예약 가능한 날짜를 다시 선택해주세요." }, { status: 400 });
     }
     if (
-      payload.fulfillmentType === "pickup"
+      fulfillmentType === "pickup"
       && !validPickupTime(clean(payload.pickupTime))
     ) {
       return Response.json(
@@ -561,7 +605,7 @@ export async function POST(request: Request) {
     const roadAddr = clean(payload.roadAddr);
     const detailAddr = clean(payload.detailAddr);
     if (
-      payload.fulfillmentType === "shipping"
+      fulfillmentType === "shipping"
       && (!recipientName || recipientPhone.length < 10 || postalCode.length !== 5 || roadAddr.length < 5 || !detailAddr)
     ) {
       return Response.json(
@@ -599,14 +643,19 @@ export async function POST(request: Request) {
     const fulfillmentId = crypto.randomUUID();
     const orderNo = createOrderNo();
     const now = new Date().toISOString();
+    const onsiteAt = fulfillmentType === "onsite" ? nowInSeoul() : null;
     const pickupTime = clean(payload.pickupTime);
-    const pickupAt = payload.fulfillmentType === "pickup"
+    const pickupAt = fulfillmentType === "pickup"
       ? `${scheduleDate}T${pickupTime}:00+09:00`
-      : null;
-    const shipDate = payload.fulfillmentType === "shipping" ? scheduleDate : null;
-    const scheduleLabel = payload.fulfillmentType === "pickup"
+      : onsiteAt;
+    const shipDate = fulfillmentType === "shipping" ? scheduleDate : null;
+    const scheduleLabel = fulfillmentType === "onsite"
+      ? `현장판매 · ${onsiteAt?.slice(11, 16) ?? ""}`
+      : fulfillmentType === "pickup"
       ? `${koreanDate(scheduleDate)} · ${pickupTime}`
       : `${koreanDate(scheduleDate)} 발송 예정`;
+    const orderStatus = fulfillmentType === "onsite" ? "fulfilled" : "submitted";
+    const fulfillmentStatus = fulfillmentType === "onsite" ? "fulfilled" : "scheduled";
 
     const pricedItems = items.map((item) => {
       const product = productRows.find((value) => value.id === item.productId)!;
@@ -645,14 +694,15 @@ export async function POST(request: Request) {
         ) VALUES(?,?,?,?,?,1,'',1,?,?)`)
         .bind(customerAccountId, normalizedCustomerName, phone, buyer, phone, now, now),
       runtimeEnv.DB
-        .prepare(`INSERT INTO orders(id,order_no,season_id,buyer_name_snapshot,buyer_phone_snapshot,order_status,fulfillment_type,schedule_label,recipient_name,recipient_phone,road_address,detail_address,customer_note,total_amount,idempotency_key,version,submitted_at,created_at,updated_at) VALUES(?,?,?,?,?,'submitted',?,?,?,?,?,?,?,?,?,1,?,?,?)`)
+        .prepare(`INSERT INTO orders(id,order_no,season_id,buyer_name_snapshot,buyer_phone_snapshot,order_status,fulfillment_type,schedule_label,recipient_name,recipient_phone,road_address,detail_address,customer_note,total_amount,idempotency_key,version,submitted_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?,?)`)
         .bind(
           orderId,
           orderNo,
           season.id,
           buyer,
           phone,
-          payload.fulfillmentType,
+          orderStatus,
+          fulfillmentType === "onsite" ? "pickup" : fulfillmentType,
           scheduleLabel,
           recipientName || null,
           recipientPhone || null,
@@ -685,11 +735,11 @@ export async function POST(request: Request) {
             now,
           )),
       runtimeEnv.DB
-        .prepare(`INSERT INTO fulfillments(id,order_id,fulfillment_type,pickup_at,ship_date,recipient_name,recipient_phone,postal_code,road_addr,road_addr_reference,jibun_addr,detail_addr,status,customer_arrived,note,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,'scheduled',0,?,?,?)`)
+        .prepare(`INSERT INTO fulfillments(id,order_id,fulfillment_type,pickup_at,ship_date,recipient_name,recipient_phone,postal_code,road_addr,road_addr_reference,jibun_addr,detail_addr,status,customer_arrived,note,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,0,?,?,?)`)
         .bind(
           fulfillmentId,
           orderId,
-          payload.fulfillmentType,
+          fulfillmentType,
           pickupAt,
           shipDate,
           recipientName || null,
@@ -699,6 +749,7 @@ export async function POST(request: Request) {
           clean(payload.roadAddrReference) || null,
           clean(payload.jibunAddr) || null,
           detailAddr || null,
+          fulfillmentStatus,
           clean(payload.note),
           now,
           now,
@@ -762,6 +813,48 @@ export async function POST(request: Request) {
           ),
       );
     }
+    if (fulfillmentType === "onsite" && onsiteActorId) {
+      const paymentId = crypto.randomUUID();
+      statements.push(
+        runtimeEnv.DB
+          .prepare(`INSERT INTO customer_ledger_transactions(
+            id,customer_account_id,type,method,amount,transacted_at,payer_name,payer_phone,
+            payer_relation,memo,idempotency_key,recorded_by,created_at
+          ) VALUES(?,?,'payment',?,?,?,?,?,?,?,?,?,?)`)
+          .bind(
+            paymentId,
+            customerAccountId,
+            paymentChoice,
+            total,
+            now,
+            buyer,
+            phone,
+            "본인",
+            `현장판매 ${orderNo}`,
+            `${idempotencyKey}:onsite-payment`,
+            onsiteActorId,
+            now,
+          ),
+        runtimeEnv.DB
+          .prepare("INSERT INTO customer_ledger_events(id,customer_account_id,event_type,after_data,actor_id,created_at) VALUES(?,?,'payment_recorded',?,?,?)")
+          .bind(
+            crypto.randomUUID(),
+            customerAccountId,
+            JSON.stringify({ paymentId, orderId, orderNo, method: paymentChoice, amount: total, source: "onsite_sale" }),
+            onsiteActorId,
+            now,
+          ),
+        runtimeEnv.DB
+          .prepare("INSERT INTO order_events(id,order_id,event_type,after_data,actor_id,created_at) VALUES(?,?,'onsite_sale_completed',?,?,?)")
+          .bind(
+            crypto.randomUUID(),
+            orderId,
+            JSON.stringify({ paymentId, method: paymentChoice, amount: total, soldAt: onsiteAt }),
+            onsiteActorId,
+            now,
+          ),
+      );
+    }
     statements.push(
       runtimeEnv.DB
         .prepare("INSERT INTO order_events(id,order_id,event_type,after_data,created_at) VALUES(?,?,'order_submitted',?,?)")
@@ -769,7 +862,8 @@ export async function POST(request: Request) {
           crypto.randomUUID(),
           orderId,
           JSON.stringify({
-            fulfillmentType: payload.fulfillmentType,
+            fulfillmentType,
+            paymentChoice,
             totalAmount: total,
             pickupAt,
             shipDate,
@@ -785,7 +879,7 @@ export async function POST(request: Request) {
       orderNo,
       idempotencyKey,
       fulfillmentId,
-      fulfillmentType: payload.fulfillmentType,
+      fulfillmentType,
       scheduleDate,
       createdAt: now,
     });

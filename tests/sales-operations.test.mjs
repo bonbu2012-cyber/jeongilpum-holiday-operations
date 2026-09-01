@@ -67,6 +67,10 @@ function order(overrides = {}) {
 test("selected date uses pickup_at for visits and ship_date for shipping", () => {
   assert.equal(scheduleDate(order()), "2026-09-24");
   assert.equal(scheduleDate(order({
+    fulfillmentType: "onsite",
+    pickupAt: "2026-09-24T10:15:00+09:00",
+  })), "2026-09-24");
+  assert.equal(scheduleDate(order({
     fulfillmentType: "shipping",
     pickupAt: null,
     shipDate: "2026-09-25",
@@ -75,12 +79,14 @@ test("selected date uses pickup_at for visits and ship_date for shipping", () =>
 
 test("visit, shipping, incomplete, ready, and cancelled rules are deterministic", () => {
   const fixture = [
+    order({ id: "onsite", status: "fulfilled", fulfillmentType: "onsite", pickupAt: "2026-09-24T09:30:00+09:00" }),
     order({ id: "pickup" }),
     order({ id: "shipping", fulfillmentType: "shipping", pickupAt: null, shipDate: "2026-09-24" }),
     order({ id: "ready", status: "ready" }),
     order({ id: "done", status: "fulfilled" }),
     order({ id: "cancelled", status: "cancelled" }),
   ];
+  assert.deepEqual(filterOperationalOrders(fixture, "onsite", null).map((item) => item.id), ["onsite"]);
   assert.deepEqual(filterOperationalOrders(fixture, "pickup", null).map((item) => item.id), ["pickup", "ready", "done"]);
   assert.deepEqual(filterOperationalOrders(fixture, "shipping", null).map((item) => item.id), ["shipping"]);
   assert.deepEqual(filterOperationalOrders(fixture, "incomplete", null).map((item) => item.id), ["pickup", "shipping", "ready"]);
@@ -122,19 +128,20 @@ test("more than 100 orders keep stable priority sorting and filtering", () => {
 
 test("sales date SQL selects pickup and shipping schedules, excludes cancelled, and keeps history searchable", () => {
   const database = new DatabaseSync(":memory:");
-  database.exec("CREATE TABLE orders(id TEXT PRIMARY KEY,order_no TEXT,buyer_name_snapshot TEXT,buyer_phone_snapshot TEXT,order_status TEXT,recipient_name TEXT,recipient_phone TEXT,created_at TEXT)");
+  database.exec("CREATE TABLE orders(id TEXT PRIMARY KEY,order_no TEXT,buyer_name_snapshot TEXT,buyer_phone_snapshot TEXT,order_status TEXT,fulfillment_type TEXT,recipient_name TEXT,recipient_phone TEXT,created_at TEXT)");
   database.exec("CREATE TABLE fulfillments(id TEXT PRIMARY KEY,order_id TEXT,fulfillment_type TEXT,pickup_at TEXT,ship_date TEXT,recipient_name TEXT,recipient_phone TEXT)");
   const add = (id, status, type, pickupAt, shipDate) => {
-    database.prepare("INSERT INTO orders VALUES(?,?,?,?,?,?,?,?)").run(id, "JI-" + id, "고객 " + id, "01000000000", status, null, null, "2026-08-28T03:00:00.000Z");
+    database.prepare("INSERT INTO orders VALUES(?,?,?,?,?,?,?,?,?)").run(id, "JI-" + id, "고객 " + id, "01000000000", status, type, null, null, "2026-08-28T03:00:00.000Z");
     database.prepare("INSERT INTO fulfillments VALUES(?,?,?,?,?,?,?)").run("f-" + id, id, type, pickupAt, shipDate, null, null);
   };
   add("today-pickup", "submitted", "pickup", "2026-08-28T11:00:00+09:00", null);
+  add("today-onsite", "fulfilled", "onsite", "2026-08-28T10:15:00+09:00", null);
   add("future-pickup", "submitted", "pickup", "2026-08-31T11:00:00+09:00", null);
   add("shipping", "submitted", "shipping", null, "2026-08-30");
   add("cancelled", "cancelled", "pickup", "2026-08-28T12:00:00+09:00", null);
 
-  const idsForDate = (date) => database.prepare(SALES_DATE_ORDERS_SQL).all(date, date).map((row) => row.id);
-  assert.deepEqual(idsForDate("2026-08-28"), ["today-pickup"]);
+  const idsForDate = (date) => database.prepare(SALES_DATE_ORDERS_SQL).all(date, date, date).map((row) => row.id);
+  assert.deepEqual(idsForDate("2026-08-28").sort(), ["today-onsite", "today-pickup"]);
   assert.deepEqual(idsForDate("2026-08-31"), ["future-pickup"]);
   assert.deepEqual(idsForDate("2026-08-30"), ["shipping"]);
   const cancelledSearch = database.prepare(SALES_SEARCH_ORDERS_SQL).all("%cancelled%", "%cancelled%", "%cancelled%", "%cancelled%", "%cancelled%");
@@ -192,4 +199,5 @@ test("sales API keeps cancelled history searchable and exposes work progress, cu
   assert.match(ledgerApi, /COALESCE\(ch\.order_count,0\)>0 OR r\.customer_account_id IS NOT NULL/);
   assert.match(availability, /remainingQuantity/);
   assert.equal(workStatusLabel(order({ status: "fulfilled", fulfillmentType: "shipping" })), "출고완료");
+  assert.equal(workStatusLabel(order({ status: "fulfilled", fulfillmentType: "onsite" })), "판매완료");
 });

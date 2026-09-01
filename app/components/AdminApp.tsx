@@ -431,7 +431,7 @@ function ScheduleEditor({
   assignSchedule: (order: OrderRecord, payload: SchedulePayload) => Promise<boolean>;
 }) {
   const [open, setOpen] = useState(false);
-  const [fulfillmentType, setFulfillmentType] = useState<"pickup" | "shipping">(order.fulfillmentType);
+  const [fulfillmentType, setFulfillmentType] = useState<"pickup" | "shipping">(order.fulfillmentType === "shipping" ? "shipping" : "pickup");
   const [date, setDate] = useState("");
   const [time, setTime] = useState("08:00");
   const [saving, setSaving] = useState(false);

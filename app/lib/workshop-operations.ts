@@ -9,7 +9,7 @@ export type SubstituteOrderInput = {
   id: string;
   orderNo: string;
   status: OrderStatus;
-  fulfillmentType: "pickup" | "shipping";
+  fulfillmentType: "onsite" | "pickup" | "shipping";
   pickupAt: string | null;
   actualArrivedAt: string | null;
   hasSpecialRequest: boolean;

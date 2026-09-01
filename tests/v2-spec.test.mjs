@@ -7,7 +7,7 @@ const read=(path)=>readFile(new URL(path,root),"utf8");
 test("portrait kiosk keeps the product surface and uses the recovered flow",async()=>{
  const [tsx,css]=await Promise.all([read("app/components/KioskApp.tsx"),read("app/globals.css")]);
  for(const category of ["진공세트","프리미엄","LA갈비","뼈세트","O'meat"])assert.match(tsx,new RegExp(category.replace("'","\\'")));
- for(const step of ["products","cart","fulfillment","pickup-info","pickup-date","pickup-time","shipping-sender","shipping-recipient","shipping-address","shipping-date","review","done"])assert.match(tsx,new RegExp('"'+step+'"'));
+ for(const step of ["products","cart","fulfillment","onsite-info","pickup-info","pickup-date","pickup-time","shipping-sender","shipping-recipient","shipping-address","shipping-date","payment","done"])assert.match(tsx,new RegExp('"'+step+'"'));
  assert.match(tsx,/AnimatePresence/);
  assert.match(tsx,/product-modal/);
  assert.match(tsx,/idempotencyKey/);

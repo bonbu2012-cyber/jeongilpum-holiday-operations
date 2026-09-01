@@ -15,7 +15,7 @@
 .sales-summary-total{display:grid;place-content:center;text-align:center;border-right:1px solid #e4ddd3}
 .sales-summary-total small{font-size:11px;color:var(--muted)}
 .sales-summary-total b{font-size:34px;color:var(--wine)}
-.sales-summary dl{display:grid;grid-template-columns:repeat(8,minmax(75px,1fr));margin:0}
+.sales-summary dl{display:grid;grid-template-columns:repeat(9,minmax(75px,1fr));margin:0}
 .sales-summary dl div{padding:13px 8px;text-align:center;border-right:1px solid #eee8df}
 .sales-summary dt{font-size:10px;color:var(--muted)}
 .sales-summary dd{margin:5px 0 0;font-size:18px;font-weight:900}

@@ -71,7 +71,7 @@ export default function SalesOrderDetail({
 
         <section className="detail-grid">
           <p><span>전화번호</span><b>{order.buyerPhone}</b></p>
-          <p><span>구분</span><b>{order.fulfillmentId ? (order.fulfillmentType === "pickup" ? "방문수령" : "택배발송") : "일정 미지정"}</b></p>
+          <p><span>구분</span><b>{order.fulfillmentId ? (order.fulfillmentType === "onsite" ? "현장판매" : order.fulfillmentType === "pickup" ? "방문수령" : "택배발송") : "일정 미지정"}</b></p>
           <p><span>일정</span><b>{order.scheduleLabel}</b></p>
           <p><span>작업상태</span><b>{workStatusLabel(order)}</b></p>
           {order.recipientName && <p><span>수령인</span><b>{order.recipientName} · {order.recipientPhone}</b></p>}
@@ -79,7 +79,7 @@ export default function SalesOrderDetail({
         </section>
 
         <section className="detail-items"><h3>주문상품</h3>{order.items.map((item) => <div key={item.id}><span>{item.name}</span><b>{item.quantity}개</b><strong>{won(item.unitPrice * item.quantity)}</strong></div>)}</section>
-        <section className="detail-progress"><h3>작업장 진행</h3><p><b>{workStatusLabel(order)}</b>{order.packageTotal > 0 ? <span>{order.packageCompleted} / {order.packageTotal} 완료</span> : <span>package 생성 전 또는 해당 없음</span>}</p></section>
+        {order.fulfillmentType !== "onsite" && <section className="detail-progress"><h3>작업장 진행</h3><p><b>{workStatusLabel(order)}</b>{order.packageTotal > 0 ? <span>{order.packageCompleted} / {order.packageTotal} 완료</span> : <span>package 생성 전 또는 해당 없음</span>}</p></section>}
         {order.customerArrived && <section className="detail-arrival"><h3>고객 도착</h3><div><p><span>예약시간</span><b>{order.pickupAt?.slice(11, 16) ?? "미지정"}</b></p><p><span>실제도착시간</span><b>{order.actualArrivedAt ? new Date(order.actualArrivedAt).toLocaleTimeString("ko-KR", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit" }) : "기록 없음"}</b></p><p><span>도착상태</span><b>{arrivalTimingLabel(order.arrivalOffsetMinutes)}</b></p><p><span>현재 준비상태</span><b>{order.status === "ready" ? "바로 전달 가능" : workStatusLabel(order)}</b></p></div>{order.substituteCandidateCount > 0 && order.status !== "ready" && <strong>대체 가능한 동일 완성품 {order.substituteCandidateCount}개 있음</strong>}</section>}
         {order.note && <section className="detail-note"><h3>요청사항</h3><p>{order.note}</p></section>}
         {!order.fulfillmentId && <ScheduleEditor order={order} assignSchedule={assignSchedule} />}
@@ -151,7 +151,7 @@ function ScheduleEditor({ order, assignSchedule }: {
   assignSchedule: (order: OrderRecord, payload: SchedulePayload) => Promise<boolean>;
 }) {
   const [open, setOpen] = useState(false);
-  const [fulfillmentType, setFulfillmentType] = useState<"pickup" | "shipping">(order.fulfillmentType);
+  const [fulfillmentType, setFulfillmentType] = useState<"pickup" | "shipping">(order.fulfillmentType === "shipping" ? "shipping" : "pickup");
   const [date, setDate] = useState("");
   const [time, setTime] = useState("08:00");
   const [saving, setSaving] = useState(false);

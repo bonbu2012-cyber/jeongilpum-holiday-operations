@@ -183,6 +183,7 @@ export default function SalesApp() {
   const completedOrders = visibleOrders.filter((order) => isTerminalOrder(order));
   const filterOptions: { value: SalesFilter; label: string; count: number }[] = [
     { value: "all", label: "전체", count: summary.total },
+    { value: "onsite", label: "현장", count: summary.onsite },
     { value: "pickup", label: "방문", count: summary.pickup },
     { value: "shipping", label: "택배", count: summary.shipping },
     { value: "incomplete", label: "미완료", count: summary.total - summary.fulfilled },
@@ -210,8 +211,8 @@ export default function SalesApp() {
         <div className="sales-summary-total"><small>{selectedDate === todayInSeoul() ? "오늘 주문" : "선택일 주문"}</small><b>{summary.total}</b></div>
         <dl>
           <div><dt>미준비</dt><dd>{summary.waiting}</dd></div><div><dt>작업중</dt><dd>{summary.inProgress}</dd></div>
-          <div><dt>준비완료</dt><dd>{summary.ready}</dd></div><div><dt>전달/출고완료</dt><dd>{summary.fulfilled}</dd></div>
-          <div><dt>방문수령</dt><dd>{summary.pickup}</dd></div><div><dt>택배발송</dt><dd>{summary.shipping}</dd></div>
+          <div><dt>준비완료</dt><dd>{summary.ready}</dd></div><div><dt>판매/전달/출고완료</dt><dd>{summary.fulfilled}</dd></div>
+          <div><dt>현장판매</dt><dd>{summary.onsite}</dd></div><div><dt>방문수령</dt><dd>{summary.pickup}</dd></div><div><dt>택배발송</dt><dd>{summary.shipping}</dd></div>
           <div><dt>고객도착</dt><dd>{summary.arrived}</dd></div><div><dt>변경확인</dt><dd>{summary.changes}</dd></div>
         </dl>
       </section>
@@ -236,7 +237,7 @@ export default function SalesApp() {
         <header className="sales-table-tools"><div className="sales-filters">{filterOptions.map((option) => <button key={option.value} className={filter === option.value ? "active" : ""} onClick={() => setFilter(option.value)}>{option.label} <b>{option.count}</b></button>)}</div><span>행을 누르면 주문 상세가 열립니다. 메인표에서는 수정할 수 없습니다.</span></header>
         <OrderTable orders={activeOrders} onSelect={setSelectedOrder} />
         {!activeOrders.length && <div className="sales-empty">조건에 맞는 미완료 주문이 없습니다.</div>}
-        {completedOrders.length > 0 && <section className="sales-completed"><button onClick={() => setShowCompleted((value) => !value)}>전달/출고 완료 {completedOrders.length}건 {showCompleted ? "접기 ↑" : "펼치기 ↓"}</button>{showCompleted && <OrderTable orders={completedOrders} onSelect={setSelectedOrder} />}</section>}
+        {completedOrders.length > 0 && <section className="sales-completed"><button onClick={() => setShowCompleted((value) => !value)}>판매/전달/출고 완료 {completedOrders.length}건 {showCompleted ? "접기 ↑" : "펼치기 ↓"}</button>{showCompleted && <OrderTable orders={completedOrders} onSelect={setSelectedOrder} />}</section>}
       </section>
 
       <section className="sales-limits">
@@ -262,7 +263,7 @@ function OrderTable({ orders, onSelect, history = false }: { orders: OrderRecord
         <td><b>{order.buyerName}</b><small>{order.orderNo}</small></td>
         <td>{order.items.map((item) => item.name).join(", ") || "-"}</td>
         <td>{order.items.reduce((sum, item) => sum + item.quantity, 0)}</td>
-        <td>{order.fulfillmentId ? (order.fulfillmentType === "pickup" ? "방문" : "택배") : "기존"}</td>
+        <td>{order.fulfillmentId ? (order.fulfillmentType === "onsite" ? "현장" : order.fulfillmentType === "pickup" ? "방문" : "택배") : "기존"}</td>
         <td><span className={"sales-work-state " + order.status}>{history && order.status === "cancelled" ? "취소" : workStatusLabel(order)}</span>{progress && <small>{progress}</small>}</td>
         <td><PaymentStatus order={order} /></td>
         <td>{order.customerArrived ? <b className="arrived-label">도착</b> : "-"}</td>

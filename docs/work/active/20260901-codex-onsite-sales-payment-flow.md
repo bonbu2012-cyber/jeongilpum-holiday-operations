@@ -22,6 +22,7 @@
 - `app/components/KioskApp.tsx`
 - `app/components/types.ts`
 - `app/kiosk-flow.css`
+- `app/sales-flow.css`
 - `app/api/orders/route.ts`
 - `app/api/orders/onsite-access/route.ts`
 - `app/lib/sales-order-query.ts`
@@ -29,17 +30,17 @@
 - `app/lib/workshop-operations.ts`
 - `app/components/SalesApp.tsx`
 - `app/components/SalesOrderDetail.tsx`
-- `drizzle/0007_onsite_sales.sql`
-- `drizzle/meta/_journal.json`
-- `drizzle/meta/0007_snapshot.json`
+- `app/components/AdminApp.tsx`
 - `tests/onsite-sales.test.mjs`
+- `tests/sales-operations.test.mjs`
+- `tests/v2-spec.test.mjs`
 - `docs/ARCHITECTURE.md`
 - `docs/DATA_AND_MIGRATIONS.md`
 
 ## Shared contracts
 
 - API route/field: `POST /api/orders`, `fulfillmentType=onsite`, `paymentMethod`
-- DB table/column: `fulfillments.fulfillment_type`, trigger 허용값
+- DB table/column: `orders.fulfillment_type=onsite`, 즉시 인도 fulfillment
 - shared type/event/status: `FulfillmentType`, `onsite_sale_completed`, `payment_recorded`
 - CSS/shared navigation: kiosk fulfillment/payment 단계 스타일
 
@@ -50,7 +51,7 @@
 
 ## Plan
 
-1. 현장판매 유형·권한·마이그레이션 계약 추가
+1. 현장판매 유형·권한·기존 스키마 호환 계약 추가
 2. 마지막 결제방식 UI와 판매장 표시 구현
 3. isolated DB 및 전체 회귀검사
 
@@ -69,14 +70,14 @@
 - [ ] related tests
 - [ ] full test
 - [ ] build
-- [ ] migration test
+- [ ] existing schema compatibility test
 - [ ] manual smoke, 해당 시
 
 ## Integration notes
 
 - `docs/PAGES_AND_FEATURES.md`, `docs/API_AND_INTEGRATIONS.md`는 기존 active claim과 겹쳐 수정하지 않는다.
 - backward compatibility: 기존 pickup/shipping payload와 행은 그대로 유지한다.
-- Production 설정/migration 필요사항: 배포 전 0007 migration 적용과 백업·row count 검증이 필요하다.
+- Production 설정/migration 필요사항: 새 migration 없음. 기존 customer ledger migration 적용 상태 확인 필요.
 
 ## Completion
 

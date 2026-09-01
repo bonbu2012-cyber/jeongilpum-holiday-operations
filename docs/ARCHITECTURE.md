@@ -52,6 +52,7 @@ Cloudflare D1 (SQLite)
 Kiosk draft(sessionStorage)
 → POST /api/orders
 → validation
+→ 현장판매면 ChatGPT user + operator allowlist 확인
 → product/season/limit lookup
 → server-side total calculation
 → idempotency check
@@ -62,12 +63,18 @@ Kiosk draft(sessionStorage)
    fulfillment_items
    reservations
    customizations
+   현장판매 customer_ledger_transaction
+   현장판매 customer_ledger_event
    order_events
 → committed order response
 → success screen
 ```
 
 sessionStorage는 새로고침·뒤로가기를 위한 제출 전 초안이다. 주문 성공 후 삭제되며 운영 원본이 아니다.
+
+메인 주문 유형은 현장판매, 방문수령, 택배발송이다. 현장판매는 공개 고객이 금융 장부를 변경하지 못하도록 선택 시점과 제출 시점에 운영자 권한을 각각 확인한다. 주문은 `fulfilled`, fulfillment는 즉시 인도된 `pickup` row로 저장하되 주문의 `fulfillment_type=onsite`를 판매 유형의 기준으로 사용한다. 결제거래와 감사이력은 주문 생성과 같은 D1 batch에 포함한다.
+
+모든 주문의 마지막 UI 단계는 결제방식 선택이다. 방문수령·택배의 선택은 결제 예정 정보로 주문 이벤트에만 남고 실제 입금으로 확정하지 않는다. 현장판매의 카드·현금·계좌이체 선택만 운영자 인증 후 고객 장부 입금으로 기록한다.
 
 ## 운영 화면 동기화
 
@@ -96,6 +103,7 @@ same normalized customer name + phone
 ## 일정과 timezone
 
 - 방문수령은 `pickup_at`의 Asia/Seoul `+09:00` 의미를 사용한다.
+- 현장판매는 즉시 인도 시각을 `pickup_at`에 Asia/Seoul `+09:00`으로 기록하고 주문 유형은 `onsite`로 구분한다.
 - 택배는 `ship_date`의 `YYYY-MM-DD` 값을 사용한다.
 - 판매장과 작업장 날짜 filter는 이 두 값을 기준으로 한다.
 - `created_at` 또는 주문접수일을 운영 일정 대신 사용하지 않는다.

@@ -37,6 +37,8 @@ export type SeasonSchedule = {
 export type OrderStatus = "submitted" | "confirmed" | "in_progress" | "ready" | "fulfilled" | "cancelled";
 export type PaymentStatus = "unpaid" | "partial" | "paid" | "credit";
 export type PaymentMethod = "card" | "cash" | "bank_transfer";
+export type FulfillmentType = "onsite" | "pickup" | "shipping";
+export type OrderPaymentChoice = PaymentMethod | "later";
 export type CustomerPaymentStatus = "credit" | "partial" | "paid" | "advance";
 
 export type OrderItem = {
@@ -71,7 +73,7 @@ export type OrderRecord = {
   buyerName: string;
   buyerPhone: string;
   status: OrderStatus;
-  fulfillmentType: "pickup" | "shipping";
+  fulfillmentType: FulfillmentType;
   scheduleLabel: string;
   fulfillmentId: string | null;
   pickupAt: string | null;
@@ -117,7 +119,8 @@ export type OrderRecord = {
 export type OrderDraft = {
   cart: Record<string, number>;
   customItem: CustomOrderDraftItem | null;
-  fulfillmentType: "pickup" | "shipping" | null;
+  fulfillmentType: FulfillmentType | null;
+  paymentMethod: OrderPaymentChoice | null;
   buyerName: string;
   buyerPhone: string;
   recipientName: string;

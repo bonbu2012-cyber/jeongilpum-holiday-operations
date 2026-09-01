@@ -23,7 +23,7 @@
 - `orders`: 주문번호, buyer snapshot, 상태, 금액, idempotency, version
 - `order_items`: 주문 당시 상품명·가격 snapshot과 수량
 - `order_item_customizations`: 맞춤주문 요청사항
-- `fulfillments`: 방문/택배, pickup_at/ship_date, 수령인, 주소, 고객도착
+- `fulfillments`: 방문/택배와 현장판매 즉시 인도, pickup_at/ship_date, 수령인, 주소, 고객도착
 - `fulfillment_items`: fulfillment와 order item 수량 연결
 
 ### 결제
@@ -37,6 +37,14 @@
 - `customer_ledger_events`: 결제·정정·분리 감사이력
 
 실제 PG 승인 데이터가 아니라 운영 장부다.
+
+현장판매는 새 테이블이나 migration 없이 기존 계약을 조합한다.
+
+- `orders.fulfillment_type='onsite'`가 현장판매의 기준이다.
+- 기존 fulfillment trigger와의 호환을 위해 즉시 인도 row는 `fulfillment_type='pickup'`, `status='fulfilled'`, 판매시각 `pickup_at`으로 저장한다.
+- 주문은 생성 즉시 `order_status='fulfilled'`다.
+- 결제는 `customer_ledger_transactions`의 `payment` row이며 주문 idempotency key에서 파생한 별도 unique key를 사용한다.
+- `customer_ledger_events`와 `order_events.onsite_sale_completed`가 운영자와 결제·판매 감사이력을 보존한다.
 
 ### 작업과 패키지
 
@@ -88,6 +96,8 @@
 5. 한정상품 reservation
 6. 맞춤주문 customization
 7. `order_submitted` event
+
+현장판매에서는 같은 batch에 고객 장부 payment, customer ledger event, `onsite_sale_completed` event를 추가한다. 이 중 하나라도 실패하면 판매완료를 표시하지 않는다.
 
 일부 statement가 실패하면 주문완료를 표시하지 않는다.
 

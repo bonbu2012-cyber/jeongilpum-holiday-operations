@@ -1,6 +1,6 @@
 import type { OrderRecord } from "../components/types";
 
-export type SalesFilter = "all" | "pickup" | "shipping" | "incomplete" | "ready";
+export type SalesFilter = "all" | "onsite" | "pickup" | "shipping" | "incomplete" | "ready";
 export type AttentionFilter = "arrived" | "due-soon" | "changes" | null;
 
 export function isTerminalOrder(order: OrderRecord) {
@@ -9,6 +9,7 @@ export function isTerminalOrder(order: OrderRecord) {
 
 export function workStatusLabel(order: OrderRecord) {
   if (order.status === "cancelled") return "취소";
+  if (order.fulfillmentType === "onsite" && order.status === "fulfilled") return "판매완료";
   if (order.status === "fulfilled") return order.fulfillmentType === "shipping" ? "출고완료" : "전달완료";
   if (order.status === "ready") return "준비완료";
   if (order.status === "in_progress") return "작업중";
@@ -17,7 +18,7 @@ export function workStatusLabel(order: OrderRecord) {
 }
 
 export function scheduleDate(order: OrderRecord) {
-  if (order.fulfillmentType === "pickup") return order.pickupAt?.slice(0, 10) ?? "";
+  if (order.fulfillmentType === "pickup" || order.fulfillmentType === "onsite") return order.pickupAt?.slice(0, 10) ?? "";
   return order.shipDate ?? "";
 }
 
@@ -54,6 +55,7 @@ export function sortOperationalOrders(orders: OrderRecord[], now = new Date()) {
 export function filterOperationalOrders(orders: OrderRecord[], filter: SalesFilter, attention: AttentionFilter, now = new Date()) {
   return orders.filter((order) => {
     if (order.status === "cancelled") return false;
+    if (filter === "onsite" && order.fulfillmentType !== "onsite") return false;
     if (filter === "pickup" && order.fulfillmentType !== "pickup") return false;
     if (filter === "shipping" && order.fulfillmentType !== "shipping") return false;
     if (filter === "incomplete" && isTerminalOrder(order)) return false;
@@ -72,6 +74,7 @@ export function summarizeOperationalOrders(orders: OrderRecord[], now = new Date
     inProgress: orders.filter((order) => order.status === "in_progress").length,
     ready: orders.filter((order) => order.status === "ready").length,
     fulfilled: orders.filter((order) => order.status === "fulfilled").length,
+    onsite: orders.filter((order) => order.fulfillmentType === "onsite").length,
     pickup: orders.filter((order) => order.fulfillmentType === "pickup").length,
     shipping: orders.filter((order) => order.fulfillmentType === "shipping").length,
     arrived: orders.filter((order) => order.customerArrived && !isTerminalOrder(order)).length,
