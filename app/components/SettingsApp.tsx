@@ -10,6 +10,10 @@ type EditableProduct = {
   displayOrder:number; active:boolean; version:number; updatedAt:string|null;
 };
 type EditableAppSetting = { value:string; version:string; updatedAt:string|null };
+type EditableDailyLimit = {
+  productId:string; productCode:string; productName:string; dailyLimit:number;
+  active:boolean; version:number|null; updatedAt:string|null;
+};
 type EditableSeason = {
   id:string; name:string; holidayDate:string; salesStartDate:string; salesEndDate:string;
   active:boolean; version:number; updatedAt:string|null;
@@ -18,6 +22,7 @@ type EditableSeason = {
 export default function SettingsApp(){
   const[products,setProducts]=useState<EditableProduct[]>([]);
   const[seasons,setSeasons]=useState<EditableSeason[]>([]);
+  const[dailyLimits,setDailyLimits]=useState<EditableDailyLimit[]>([]);
   const[headline,setHeadline]=useState<EditableAppSetting>({value:"좋은 선물을 골라주세요",version:"",updatedAt:null});
   const[loading,setLoading]=useState(true);
   const[error,setError]=useState("");
@@ -27,10 +32,11 @@ export default function SettingsApp(){
   const load=async()=>{
     try{
       const response=await fetch("/api/settings",{cache:"no-store"});
-      const data=await response.json() as {products?:EditableProduct[];seasons?:EditableSeason[];appSettings?:{kioskHeadline?:EditableAppSetting};error?:string};
+      const data=await response.json() as {products?:EditableProduct[];seasons?:EditableSeason[];dailyLimits?:EditableDailyLimit[];appSettings?:{kioskHeadline?:EditableAppSetting};error?:string};
       if(!response.ok)throw new Error(data.error);
       setProducts(data.products??[]);
       setSeasons(data.seasons??[]);
+      setDailyLimits(data.dailyLimits??[]);
       if(data.appSettings?.kioskHeadline)setHeadline(data.appSettings.kioskHeadline);
       setError("");
     }catch(caught){setError(caught instanceof Error?caught.message:"설정을 불러오지 못했습니다.")}
@@ -43,6 +49,9 @@ export default function SettingsApp(){
   };
   const updateSeason=(id:string,key:keyof EditableSeason,value:string|boolean)=>{
     setSeasons(current=>current.map(item=>item.id===id?{...item,[key]:value}:item));
+  };
+  const updateDailyLimit=(productId:string,value:number)=>{
+    setDailyLimits(current=>current.map(item=>item.productId===productId?{...item,dailyLimit:value}:item));
   };
 
   const saveHeadline=async()=>{
@@ -79,6 +88,18 @@ export default function SettingsApp(){
     }catch(caught){setNotice(caught instanceof Error?caught.message:"판매 일정을 저장하지 못했습니다.")}
     finally{setSaving("")}
   };
+  const saveDailyLimit=async(item:EditableDailyLimit)=>{
+    const savingKey="daily_limit:"+item.productId;
+    setSaving(savingKey);setNotice("");
+    try{
+      const response=await fetch("/api/settings",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({type:"daily_limit",productId:item.productId,dailyLimit:item.dailyLimit,expectedVersion:item.version})});
+      const data=await response.json() as {version?:number;updatedAt?:string;dailyLimit?:number;error?:string};
+      if(!response.ok)throw new Error(data.error);
+      setDailyLimits(current=>current.map(limit=>limit.productId===item.productId?{...limit,dailyLimit:data.dailyLimit??limit.dailyLimit,active:true,version:data.version??limit.version,updatedAt:data.updatedAt??limit.updatedAt}:limit));
+      setNotice(item.productName+"의 하루 한정 판매량을 "+item.dailyLimit+"세트로 저장했습니다.");
+    }catch(caught){setNotice(caught instanceof Error?caught.message:"한정 판매량을 저장하지 못했습니다.")}
+    finally{setSaving("")}
+  };
 
   return <main className="settings-app">
     <header className="settings-header"><a href="/kiosk"><img className="settings-brand-logo" src="/jeongilpum-logo.png" alt="정일품 정육식당 로고"/><span>정일품 정육식당 설정<small>운영자 전용</small></span></a></header>
@@ -104,6 +125,17 @@ export default function SettingsApp(){
           <label className="settings-toggle"><input type="checkbox" checked={item.active} onChange={e=>updateSeason(item.id,"active",e.target.checked)}/><span>현재 시즌으로 사용</span></label>
           <button onClick={()=>saveSeason(item)} disabled={saving===item.id}>{saving===item.id?"저장 중…":"판매 일정 저장"}</button>
         </article>)}
+      </section>
+      <section className="settings-section">
+        <div className="settings-title"><div><small>PREMIUM DAILY LIMIT</small><h2>프리미엄 한정 판매량</h2></div><p>수령일 또는 발송일 기준 하루 판매 가능한 수량입니다.</p></div>
+        <div className="product-editors">{dailyLimits.map(item=>{
+          const savingKey="daily_limit:"+item.productId;
+          return <article className="product-editor" key={item.productId}>
+            <header><div><small>{item.productCode}</small><h3>{item.productName}</h3></div><span>{item.active?"한정 판매 중":"한정 판매 준비"}</span></header>
+            <div className="editor-grid"><label className="wide"><span>하루 한정 판매량</span><input type="number" min="1" step="1" value={item.dailyLimit} onChange={event=>updateDailyLimit(item.productId,Number(event.target.value))}/></label></div>
+            <button className="save-product" onClick={()=>saveDailyLimit(item)} disabled={saving===savingKey||!Number.isInteger(item.dailyLimit)||item.dailyLimit<1}>{saving===savingKey?"저장 중…":"한정 판매량 저장"}</button>
+          </article>;
+        })}</div>
       </section>
       <section className="settings-section">
         <div className="settings-title"><div><small>PRODUCTS</small><h2>상품 관리</h2></div><p>가격은 숫자로 입력하고, 사진 URL은 준비된 뒤 추가할 수 있습니다.</p></div>

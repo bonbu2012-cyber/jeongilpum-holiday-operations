@@ -105,8 +105,19 @@ test("custom order and settings workflows stay durable",async()=>{
  assert.match(custom,/idempotencyKey/);
  assert.match(customApi,/custom_order_events/);
  assert.match(settings,/제품 사진 URL/);
+ assert.match(settings,/프리미엄 한정 판매량/);
+ assert.match(settings,/type:"daily_limit"/);
+ assert.match(settings,/min="1" step="1"/);
  assert.match(settingsApi,/OPERATOR_USER_IDS/);
  assert.match(settingsApi,/configuration_events/);
+ assert.match(settingsApi,/LEFT JOIN product_daily_limits/);
+ assert.match(settingsApi,/category='프리미엄'/);
+ assert.match(settingsApi,/payload\.type==="daily_limit"/);
+ assert.match(settingsApi,/Number\.isInteger\(dailyLimit\)\|\|dailyLimit<1/);
+ assert.match(settingsApi,/UPDATE product_daily_limits SET daily_limit=\?,active=1,version=version\+1/);
+ assert.match(settingsApi,/INSERT INTO product_daily_limits\(product_id,daily_limit,schedule_basis,active,version,updated_at\)/);
+ assert.match(settingsApi,/entity_type,entity_id,before_data,after_data,actor_id,created_at/);
+ assert.match(settingsApi,/'product_daily_limit'/);
  assert.match(d1,/custom_orders_no_hard_delete/);
 });
 
