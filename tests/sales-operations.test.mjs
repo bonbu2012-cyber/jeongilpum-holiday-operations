@@ -162,13 +162,15 @@ test("customer arrival SQL is idempotent and leaves one audit event", () => {
 });
 
 test("sales API keeps cancelled history searchable and exposes work progress, customer ledger, and events", async () => {
-  const [api, queries, arrival, sales, detail, availability] = await Promise.all([
+  const [api, queries, arrival, sales, detail, availability, statusApi, ledgerApi] = await Promise.all([
     read("app/api/orders/route.ts"),
     read("app/lib/sales-order-query.ts"),
     read("app/api/orders/arrival/route.ts"),
     read("app/components/SalesApp.tsx"),
     read("app/components/SalesOrderDetail.tsx"),
     read("app/api/availability/route.ts"),
+    read("app/api/orders/status/route.ts"),
+    read("app/api/customer-ledger/route.ts"),
   ]);
   assert.match(queries, /o\.order_status!='cancelled'/);
   assert.match(api, /else if \(q\)[\s\S]*SALES_SEARCH_ORDERS_SQL/);
@@ -184,6 +186,10 @@ test("sales API keeps cancelled history searchable and exposes work progress, cu
   assert.match(sales, /useCallback\([\s\S]*\}, \[selectedDate\]\)/);
   for (const label of ["시간", "고객", "상품", "수량", "구분", "작업상태", "결제", "고객상태", "변경"]) assert.match(sales, new RegExp(label));
   for (const label of ["고객 총 주문금액", "고객 순입금", "현재 미수금", "현재 선수금", "고객 장부에서 결제 관리"]) assert.match(detail, new RegExp(label));
+  for (const label of ["테스트", "취소", "직접입력", "통계·미수금·생산 집계에서 제외"]) assert.match(detail, new RegExp(label));
+  assert.match(statusApi, /cancellationReason/);
+  assert.match(statusApi, /reason,actor_id/);
+  assert.match(ledgerApi, /COALESCE\(ch\.order_count,0\)>0 OR r\.customer_account_id IS NOT NULL/);
   assert.match(availability, /remainingQuantity/);
   assert.equal(workStatusLabel(order({ status: "fulfilled", fulfillmentType: "shipping" })), "출고완료");
 });

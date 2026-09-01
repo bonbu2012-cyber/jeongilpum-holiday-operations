@@ -136,6 +136,7 @@ async function listAccounts(query: string) {
     LEFT JOIN receipts r ON r.customer_account_id=ca.id
     LEFT JOIN consultations c ON c.customer_account_id=ca.id
     WHERE (?='' OR ca.display_name LIKE ? OR ca.display_phone LIKE ? OR ca.ledger_label LIKE ?)
+      AND (COALESCE(ch.order_count,0)>0 OR r.customer_account_id IS NOT NULL OR COALESCE(c.pending_consultations,0)>0)
     ORDER BY
       CASE WHEN COALESCE(ch.total_ordered,0)-COALESCE(r.net_received,0)>0 THEN 0 ELSE 1 END,
       ch.oldest_due_date,

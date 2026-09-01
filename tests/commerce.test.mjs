@@ -346,6 +346,9 @@ test("cancellation batch releases its limited-product reservation", async () => 
   assert.ok(row.released_at);
   assert.match(statusApi, /x\.status==="cancelled"/);
   assert.match(statusApi, /UPDATE product_daily_reservations SET status='released'/);
+  assert.match(statusApi, /cancelReasonType/);
+  assert.match(statusApi, /"test","customer_cancelled","custom"/);
+  assert.match(statusApi, /INSERT INTO order_events[\s\S]*reason/);
   database.close();
 });
 

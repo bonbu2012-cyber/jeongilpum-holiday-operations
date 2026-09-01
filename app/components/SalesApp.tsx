@@ -17,7 +17,7 @@ import {
 } from "../lib/sales-operations";
 import AppNav from "./AppNav";
 import CustomerLedgerApp from "./CustomerLedgerApp";
-import SalesOrderDetail, { type SchedulePayload } from "./SalesOrderDetail";
+import SalesOrderDetail, { type SchedulePayload, type StatusChangeOptions } from "./SalesOrderDetail";
 import "../operations-flow.css";
 import "../sales-flow.css";
 
@@ -125,16 +125,21 @@ export default function SalesApp() {
   const refreshAll = async () => {
     await Promise.all([loadDate(), refreshSearch()]);
   };
-  const updateStatus = async (order: OrderRecord, status: "confirmed" | "fulfilled" | "cancelled") => {
+  const updateStatus = async (order: OrderRecord, status: "confirmed" | "fulfilled" | "cancelled", options?: StatusChangeOptions) => {
     const response = await fetch("/api/orders/status", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ orderId: order.id, status, expectedVersion: order.version }),
+      body: JSON.stringify({ orderId: order.id, status, expectedVersion: order.version, ...options }),
     });
     const data = await response.json() as { error?: string };
-    if (!response.ok) return setNotice(data.error ?? "상태를 변경하지 못했습니다.");
+    if (!response.ok) {
+      setNotice(data.error ?? "상태를 변경하지 못했습니다.");
+      return false;
+    }
     setNotice(status === "confirmed" ? "작업장에 주문을 전달했습니다." : status === "cancelled" ? "주문을 취소하고 이력을 남겼습니다." : order.fulfillmentType === "shipping" ? "출고 완료로 기록했습니다." : "전달 완료로 기록했습니다.");
     await refreshAll();
+    if (status === "cancelled") setSelectedOrder(null);
+    return true;
   };
   const markArrival = async (order: OrderRecord) => {
     const response = await fetch("/api/orders/arrival", {

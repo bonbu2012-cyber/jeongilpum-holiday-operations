@@ -16,7 +16,7 @@
 | GET | `/api/products` | 활성 상품, 시즌, headline | 공개 |
 | POST | `/api/orders` | main kiosk 주문 원자적 생성 | 공개 |
 | GET | `/api/orders` | 날짜별 주문·검색·상세 데이터 | 운영자 |
-| PATCH | `/api/orders/status` | 주문 상태 변경·취소·reservation 해제 | 운영자 |
+| PATCH | `/api/orders/status` | 주문 상태 변경·사유가 있는 취소·reservation 해제 | 운영자 |
 | PATCH | `/api/orders/arrival` | 고객도착 등록 | 운영자 |
 | POST | `/api/orders/fulfillment` | legacy 주문 일정 지정 | 운영자 |
 | POST | `/api/orders/payments` | 폐기된 주문별 결제 API, 410 응답 | 운영자 |
@@ -49,6 +49,8 @@
 ## 고객 장부 API 계약
 
 - 고객 잔액은 취소되지 않은 주문 총액에서 고객 장부 순입금을 뺀 값이다.
+- 취소 시 `cancelReasonType`은 `test`, `customer_cancelled`, `custom` 중 하나이며 직접입력은 200자 이하 `cancelReason`을 요구한다. 사유는 `order_events.reason`에 보존한다.
+- 활성 주문·결제거래·상담이 모두 없는 취소 전용 고객은 장부 기본 목록에서 제외하지만 주문 검색과 감사이력은 유지한다.
 - 양수는 미수금, 0은 결제완료, 음수는 선수금이다.
 - 입금은 현금·카드·계좌이체이며 잔액보다 큰 금액도 선수금으로 기록할 수 있다.
 - 실제 결제자 이름·전화번호·관계·메모는 선택값이다.

@@ -12,6 +12,11 @@ export type SchedulePayload = {
   shipDate?: string;
 };
 
+export type StatusChangeOptions = {
+  cancelReasonType?: "test" | "customer_cancelled" | "custom";
+  cancelReason?: string;
+};
+
 const won = (value: number) => value.toLocaleString("ko-KR") + "원";
 const todayInSeoul = () => new Intl.DateTimeFormat("en-CA", {
   timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit",
@@ -41,12 +46,23 @@ export default function SalesOrderDetail({
   order: OrderRecord;
   onClose: () => void;
   onArrival: (order: OrderRecord) => Promise<void>;
-  onStatus: (order: OrderRecord, status: "confirmed" | "fulfilled" | "cancelled") => Promise<void>;
+  onStatus: (order: OrderRecord, status: "confirmed" | "fulfilled" | "cancelled", options?: StatusChangeOptions) => Promise<boolean>;
   onOpenLedger: (customerAccountId: string) => void;
   assignSchedule: (order: OrderRecord, payload: SchedulePayload) => Promise<boolean>;
 }) {
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [cancelEditorOpen, setCancelEditorOpen] = useState(false);
+  const [cancelReasonType, setCancelReasonType] = useState<"" | "test" | "customer_cancelled" | "custom">("");
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelling, setCancelling] = useState(false);
   const address = [order.roadAddress, order.detailAddress].filter(Boolean).join(" ");
+  const cancelOrder = async () => {
+    if (!cancelReasonType || (cancelReasonType === "custom" && !cancelReason.trim())) return;
+    setCancelling(true);
+    const changed = await onStatus(order, "cancelled", { cancelReasonType, cancelReason: cancelReason.trim() });
+    setCancelling(false);
+    if (changed) setCancelEditorOpen(false);
+  };
 
   return (
     <div className="sales-drawer-backdrop">
@@ -74,9 +90,22 @@ export default function SalesOrderDetail({
           {order.fulfillmentType === "pickup" && order.fulfillmentId && !["cancelled", "fulfilled"].includes(order.status) && <button className="arrival" onClick={() => void onArrival(order)} disabled={order.customerArrived}>{order.customerArrived ? "고객 도착 기록됨" : "고객 도착"}</button>}
           {order.status === "ready" && <button className="primary" onClick={() => void onStatus(order, "fulfilled")}>{order.fulfillmentType === "shipping" ? "출고 완료" : "전달 완료"}</button>}
           <button disabled title="안전한 주문 수정 workflow가 아직 준비되지 않았습니다.">주문 수정 · 준비중</button>
-          {!["fulfilled", "cancelled"].includes(order.status) && <button className="danger" onClick={() => { if (window.confirm("이 주문을 취소하고 감사 이력을 남길까요?")) void onStatus(order, "cancelled"); }}>주문 취소</button>}
+          {!["fulfilled", "cancelled"].includes(order.status) && <button className="danger" onClick={() => setCancelEditorOpen(true)}>주문 취소</button>}
           <button onClick={() => setHistoryOpen((value) => !value)}>이력 보기</button>
         </section>
+
+        {cancelEditorOpen && <section className="order-cancellation-editor" aria-label="주문 취소 사유 입력">
+          <h3>주문 취소</h3>
+          <p>구매 기록과 취소 사유는 남고, 이 주문은 통계·미수금·생산 집계에서 제외됩니다.</p>
+          <label><span>취소 사유</span><select value={cancelReasonType} onChange={(event) => setCancelReasonType(event.target.value as typeof cancelReasonType)}>
+            <option value="">사유를 선택해주세요</option>
+            <option value="test">테스트</option>
+            <option value="customer_cancelled">취소</option>
+            <option value="custom">직접입력</option>
+          </select></label>
+          {cancelReasonType === "custom" && <label><span>직접입력 사유</span><textarea maxLength={200} value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} placeholder="취소 사유를 입력해주세요" /></label>}
+          <div><button onClick={() => setCancelEditorOpen(false)} disabled={cancelling}>닫기</button><button className="danger" onClick={() => void cancelOrder()} disabled={cancelling || !cancelReasonType || (cancelReasonType === "custom" && !cancelReason.trim())}>{cancelling ? "취소 처리 중…" : "기록을 남기고 취소"}</button></div>
+        </section>}
 
         {historyOpen && <section className="detail-history"><h3>주문 이력</h3>{order.events.length ? <ol>{order.events.map((event) => <li key={event.id}><b>{eventLabel[event.type] || event.type}</b><span>{new Date(event.createdAt).toLocaleString("ko-KR")}</span>{event.reason && <small>{event.reason}</small>}</li>)}</ol> : <p>기록된 이력이 없습니다.</p>}</section>}
       </aside>
