@@ -25,6 +25,9 @@
 - `tests/control-room.test.mjs`
 - `docs/ARCHITECTURE.md`
 - `docs/DEVELOPMENT_AND_TESTING.md`
+- `AGENTS.md`
+- `docs/WORK_MANAGEMENT.md`
+- `docs/work/TASK_TEMPLATE.md`
 
 ## Shared contracts
 
@@ -39,6 +42,7 @@
 - `20260831-codex-customer-ledger-production-deploy.md`가 `app/api/customer-ledger/**`, `.env.example`, 고객장부 문서와 테스트를 claim 중이므로 해당 경로는 수정하지 않는다.
 - 통제실 금액 요약은 기존 장부 access/list API를 읽기 전용으로 사용한다.
 - Production migration과 배포는 실행하지 않는다.
+- 사용자 요청에 따라 GitHub 작업 완료 정책을 저장소 공통 지침과 task 템플릿에 추가하고, 기존 비-GitHub `origin`은 변경하지 않는다.
 
 ## Validation
 
