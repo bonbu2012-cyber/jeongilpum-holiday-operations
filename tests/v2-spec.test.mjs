@@ -179,6 +179,7 @@ test("kiosk brand logo and editable headline use durable audited settings",async
  ]);
  assert.match(kiosk,/정일품 정육식당/);
  assert.match(kiosk,/src="\/jeongilpum-logo\.png"/);
+ assert.match(kiosk,/className="kiosk-brand-name"/);
  assert.doesNotMatch(kiosk,/명절 선물세트|2026 추석 예약/);
  assert.match(sales,/className="operations-brand-logo" src="\/jeongilpum-logo\.png"/);
  assert.match(workshop,/className="operations-brand-logo" src="\/jeongilpum-logo\.png"/);
@@ -196,7 +197,11 @@ test("kiosk brand logo and editable headline use durable audited settings",async
  assert.match(kioskCss,/\.kiosk-app \.kiosk-title\{position:absolute;left:50%;top:50%;[^}]*translate\(-50%,-50%\)/);
  assert.match(kioskCss,/\.kiosk-app \.kiosk-title\{[^}]*background:linear-gradient[^}]*box-shadow:/);
  assert.match(kioskCss,/\.kiosk-app \.kiosk-title::after\{[^}]*background:var\(--wine\)/);
- assert.match(kioskCss,/@media\(max-width:700px\)\{\.kiosk-app \.kiosk-title\{display:none\}\}/);
+ assert.match(kioskCss,/\.kiosk-app \.kiosk-brand\{[^}]*flex-direction:column;[^}]*text-align:center/);
+ assert.match(kioskCss,/\.kiosk-app \.kiosk-brand-logo\{width:40px;height:40px\}/);
+ assert.match(kioskCss,/\.kiosk-app \.kiosk-brand-name\{[^}]*align-items:center/);
+ assert.match(kioskCss,/@media\(max-width:700px\)\{[\s\S]*?\.kiosk-app \.kiosk-brand-logo\{width:34px;height:34px\}/);
+ assert.match(kioskCss,/@media\(max-width:700px\)\{[\s\S]*?\.kiosk-app \.kiosk-title\{display:none\}\}/);
  assert.deepEqual([...logo.subarray(0,8)],[137,80,78,71,13,10,26,10]);
  assert.equal(appSettings.parseStoredSetting('{"value":" 새 문구 "}',appSettings.DEFAULT_KIOSK_HEADLINE),"새 문구");
  assert.equal(appSettings.parseStoredSetting('broken',appSettings.DEFAULT_KIOSK_HEADLINE),"소중한 분께 전할 선물을 선택하세요");
