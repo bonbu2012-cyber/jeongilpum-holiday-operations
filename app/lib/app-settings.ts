@@ -1,4 +1,4 @@
-export const DEFAULT_KIOSK_HEADLINE = "좋은 선물을 골라주세요";
+export const DEFAULT_KIOSK_HEADLINE = "소중한 분께 전할 선물을 선택하세요";
 
 export type StoredAppSetting = {
   value: string;

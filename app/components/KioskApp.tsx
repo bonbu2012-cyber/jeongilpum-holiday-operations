@@ -54,7 +54,7 @@ export default function KioskApp(){
  const reset=()=>{setDraft(emptyDraft());setCompleted(null);go("products",-1)};
  const filtered=products.filter(product=>product.category===category);
  return <div className="kiosk-app">
-  <header className="kiosk-header"><a className="kiosk-brand" href="/kiosk"><img className="kiosk-brand-logo" src="/jeongilpum-logo.png" alt="정일품 정육식당 로고"/><div><b>정일품 정육식당</b></div></a><div className="kiosk-title"><b>{headline}</b></div><button className="cart-indicator" onClick={()=>totalQty&&go("cart")} aria-label={"장바구니 "+totalQty+"개"}>장바구니 <b>{totalQty}</b></button></header>
+  <header className="kiosk-header"><a className="kiosk-brand" href="/kiosk"><img className="kiosk-brand-logo" src="/jeongilpum-logo.png" alt="정일품 정육식당 로고"/><div><b>정일품 정육식당</b></div></a><div className="kiosk-title"><b>{headline}</b><span>정일품이 정성껏 준비한 한우 선물세트</span></div><button className="cart-indicator" onClick={()=>totalQty&&go("cart")} aria-label={"장바구니 "+totalQty+"개"}>장바구니 <b>{totalQty}</b></button></header>
   <AppNav current="kiosk"/>
   <AnimatePresence mode="wait" custom={direction}>
    {step==="products"?<motion.div key="products" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} transition={transition} className="product-step">
