@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { productDisplayName } from "../lib/product-display-name";
 import AppNav from "./AppNav";
 
 type EditableProduct = {
@@ -131,7 +132,7 @@ export default function SettingsApp(){
         <div className="product-editors">{dailyLimits.map(item=>{
           const savingKey="daily_limit:"+item.productId;
           return <article className="product-editor" key={item.productId}>
-            <header><div><small>{item.productCode}</small><h3>{item.productName}</h3></div><span>{item.active?"한정 판매 중":"한정 판매 준비"}</span></header>
+            <header><div><small>{item.productCode}</small><h3>{productDisplayName({id:item.productId,name:item.productName})}</h3></div><span>{item.active?"한정 판매 중":"한정 판매 준비"}</span></header>
             <div className="editor-grid"><label className="wide"><span>하루 한정 판매량</span><input type="number" min="1" step="1" value={item.dailyLimit} onChange={event=>updateDailyLimit(item.productId,Number(event.target.value))}/></label></div>
             <button className="save-product" onClick={()=>saveDailyLimit(item)} disabled={saving===savingKey||!Number.isInteger(item.dailyLimit)||item.dailyLimit<1}>{saving===savingKey?"저장 중…":"한정 판매량 저장"}</button>
           </article>;
@@ -140,7 +141,7 @@ export default function SettingsApp(){
       <section className="settings-section">
         <div className="settings-title"><div><small>PRODUCTS</small><h2>상품 관리</h2></div><p>가격은 숫자로 입력하고, 사진 URL은 준비된 뒤 추가할 수 있습니다.</p></div>
         <div className="product-editors">{products.map(item=><article className="product-editor" key={item.id}>
-          <header><div><small>{item.code}</small><h3>{item.name}</h3></div><label className="settings-toggle"><input type="checkbox" checked={item.active} onChange={e=>updateProduct(item.id,"active",e.target.checked)}/><span>{item.active?"노출 중":"숨김"}</span></label></header>
+          <header><div><small>{item.code}</small><h3>{productDisplayName(item)}</h3></div><label className="settings-toggle"><input type="checkbox" checked={item.active} onChange={e=>updateProduct(item.id,"active",e.target.checked)}/><span>{item.active?"노출 중":"숨김"}</span></label></header>
           <div className="editor-grid">
             <label><span>상품명</span><input value={item.name} onChange={e=>updateProduct(item.id,"name",e.target.value)}/></label>
             <label><span>카테고리</span><select value={item.category} onChange={e=>updateProduct(item.id,"category",e.target.value)}>{["진공세트","프리미엄","LA갈비","뼈세트","O'meat"].map(category=><option key={category}>{category}</option>)}</select></label>

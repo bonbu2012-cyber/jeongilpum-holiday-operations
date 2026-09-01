@@ -224,3 +224,15 @@ test("kiosk brand logo and editable headline use durable audited settings",async
  assert.equal(appSettings.parseStoredSetting('{"value":" 새 문구 "}',appSettings.DEFAULT_KIOSK_HEADLINE),"새 문구");
  assert.equal(appSettings.parseStoredSetting('broken',appSettings.DEFAULT_KIOSK_HEADLINE),"소중한 분께 전할 선물을 선택하세요");
 });
+
+test("premium product names show their Hanja without changing stored names",async()=>{
+ const [kiosk,settings,display]=await Promise.all([read("app/components/KioskApp.tsx"),read("app/components/SettingsApp.tsx"),import("../app/lib/product-display-name.ts")]);
+ assert.equal(display.productDisplayName({id:"jin",name:"진"}),"진(眞)");
+ assert.equal(display.productDisplayName({id:"seon",name:"선"}),"선(善)");
+ assert.equal(display.productDisplayName({id:"mi",name:"미"}),"미(美)");
+ assert.equal(display.productDisplayName({id:"palyeong",name:"팔영세트"}),"팔영세트");
+ assert.match(kiosk,/productDisplayName\(product\)/);
+ assert.match(kiosk,/productDisplayName\(detail\)/);
+ assert.match(settings,/productDisplayName\(\{id:item\.productId,name:item\.productName\}\)/);
+ assert.match(settings,/productDisplayName\(item\)/);
+});
