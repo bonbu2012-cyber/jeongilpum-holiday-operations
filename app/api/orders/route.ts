@@ -519,8 +519,8 @@ export async function POST(request: Request) {
     idempotencyKey = clean(payload.idempotencyKey);
     const fulfillmentType = clean(payload.fulfillmentType);
     const paymentChoice = clean(payload.paymentMethod) || "later";
-    const buyer = clean(payload.buyerName);
-    const phone = normalizePhone(payload.buyerPhone ?? "");
+    const buyer = fulfillmentType === "onsite" ? "현장판매 고객" : clean(payload.buyerName);
+    const phone = fulfillmentType === "onsite" ? "" : normalizePhone(payload.buyerPhone ?? "");
     const items = (payload.items ?? []).filter(
       (item) => item.productId && Number.isInteger(item.quantity) && (item.quantity ?? 0) > 0,
     );
@@ -535,8 +535,7 @@ export async function POST(request: Request) {
     );
     if (
       !idempotencyKey
-      || !buyer
-      || phone.length < 10
+      || (fulfillmentType !== "onsite" && (!buyer || phone.length < 10))
       || !fulfillmentTypes.has(fulfillmentType)
       || (!items.length && !customValid)
     ) {
@@ -702,7 +701,7 @@ export async function POST(request: Request) {
           buyer,
           phone,
           orderStatus,
-          fulfillmentType === "onsite" ? "pickup" : fulfillmentType,
+          fulfillmentType,
           scheduleLabel,
           recipientName || null,
           recipientPhone || null,
@@ -739,7 +738,7 @@ export async function POST(request: Request) {
         .bind(
           fulfillmentId,
           orderId,
-          fulfillmentType,
+          fulfillmentType === "onsite" ? "pickup" : fulfillmentType,
           pickupAt,
           shipDate,
           recipientName || null,
