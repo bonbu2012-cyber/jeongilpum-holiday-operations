@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import AppNav from "./AppNav";
 import {
@@ -18,7 +18,7 @@ import {
   useResource,
   type DataTableColumn,
 } from "../ui";
-import { WORK_STATUS_LABELS, WORK_STATUS_OPTIONS, type WorkStatus } from "../lib/work-status";
+import { PIPELINE_WORK_STATUSES, WORK_STATUS_LABELS, WORK_STATUS_OPTIONS, type PipelineWorkStatus, type WorkStatus } from "../lib/work-status";
 import "../sales/work-table.css";
 
 type DeliveryMethod = "onsite_sale" | "onsite_reservation" | "delivery";
@@ -58,7 +58,7 @@ type WorkItem = {
   productScheduledQuantity: number;
 };
 
-type Dashboard = Record<Exclude<WorkStatus, "cancelled">, Record<DeliveryMethod, number>>;
+type Dashboard = Record<PipelineWorkStatus, Record<DeliveryMethod, number>>;
 
 type WorkResponse = {
   workItems: WorkItem[];
@@ -238,6 +238,7 @@ export default function SalesApp() {
   const today = todayInSeoul();
   const [tab, setTab] = useState<Tab>("work");
   const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [workStatus, setWorkStatus] = useState("");
   const [deliveryMethod, setDeliveryMethod] = useState("");
   const [workDateFrom, setWorkDateFrom] = useState(today);
@@ -253,6 +254,11 @@ export default function SalesApp() {
   const [expandedCustomers, setExpandedCustomers] = useState<string[]>([]);
   const [expandedOrders, setExpandedOrders] = useState<string[]>([]);
 
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQuery(query), 250);
+    return () => clearTimeout(timer);
+  }, [query]);
+
   const currentDateFrom = tab === "work" ? workDateFrom : customerDateFrom;
   const currentDateTo = tab === "work" ? workDateTo : customerDateTo;
   const workResourceUrl = workUrl({
@@ -261,7 +267,7 @@ export default function SalesApp() {
     deliveryMethod,
     dateFrom: workDateFrom,
     dateTo: workDateTo,
-    query,
+    query: debouncedQuery,
   });
   const customerResourceUrl = tab === "customers"
     ? workUrl({
@@ -270,7 +276,7 @@ export default function SalesApp() {
       deliveryMethod,
       dateFrom: customerDateFrom,
       dateTo: customerDateTo,
-      query,
+      query: debouncedQuery,
     })
     : null;
   const {
@@ -295,6 +301,13 @@ export default function SalesApp() {
     }),
     { onsite_sale: 0, onsite_reservation: 0, delivery: 0 },
   );
+  const stageTotals = PIPELINE_WORK_STATUSES.reduce((totals, status) => {
+    const channelTotals = workData?.dashboard[status];
+    totals[status] = channelTotals
+      ? channelTotals.onsite_sale + channelTotals.onsite_reservation + channelTotals.delivery
+      : 0;
+    return totals;
+  }, {} as Record<PipelineWorkStatus, number>);
 
   const reloadActive = async () => {
     await Promise.all([
@@ -567,11 +580,26 @@ export default function SalesApp() {
           <StatTiles
             ariaLabel="오늘 수령방법별 작업 수량"
             tiles={[
-              { id: "onsite_sale", label: DELIVERY_LABELS.onsite_sale, value: dashboardTotals.onsite_sale },
-              { id: "onsite_reservation", label: DELIVERY_LABELS.onsite_reservation, value: dashboardTotals.onsite_reservation },
-              { id: "delivery", label: DELIVERY_LABELS.delivery, value: dashboardTotals.delivery },
+              {
+                id: "total",
+                label: "전체",
+                value: dashboardTotals.onsite_sale + dashboardTotals.onsite_reservation + dashboardTotals.delivery,
+                subtotals: [
+                  { label: DELIVERY_LABELS.onsite_sale, value: dashboardTotals.onsite_sale },
+                  { label: DELIVERY_LABELS.onsite_reservation, value: dashboardTotals.onsite_reservation },
+                  { label: DELIVERY_LABELS.delivery, value: dashboardTotals.delivery },
+                ],
+              },
             ]}
           />
+          <ol className="sales-stage-flow" aria-label="작업 단계별 진행">
+            {PIPELINE_WORK_STATUSES.map((status) => (
+              <li key={status} className="sales-stage-flow__step">
+                <span>{WORK_STATUS_LABELS[status]}</span>
+                <b>{stageTotals[status]}</b>
+              </li>
+            ))}
+          </ol>
         </div>
 
         <Tabs

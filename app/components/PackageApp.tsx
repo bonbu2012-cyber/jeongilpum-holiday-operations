@@ -3,8 +3,8 @@
 import Image from "next/image";
 import QRCode from "qrcode";
 import { useEffect, useState } from "react";
-import { Badge, Button, useResource } from "../ui";
-import AppNav from "./AppNav";
+import { Badge, Button, SectionTitle, useResource } from "../ui";
+import OpsHeader from "./OpsHeader";
 import "../workshop-flow.css";
 
 type PackageDetail = {
@@ -95,13 +95,7 @@ export default function PackageApp({ packageCode }: { packageCode: string }) {
   if (!detail) {
     return (
       <div className="package-page">
-        <header className="workshop-header">
-          <a href="/workshop" className="workshop-brand">
-            <Image className="operations-brand-logo" src="/jeongilpum-logo.png" alt="정일품 정육식당 로고" width={46} height={46} />
-            <span>정일품 작업장<small>PACKAGE</small></span>
-          </a>
-        </header>
-        <AppNav current="workshop" />
+        <OpsHeader surface="workshop" title="정일품 작업장" />
         <main className="package-loading">{error || "패키지 정보를 불러오는 중입니다."}</main>
       </div>
     );
@@ -109,13 +103,7 @@ export default function PackageApp({ packageCode }: { packageCode: string }) {
 
   return (
     <div className="package-page">
-      <header className="workshop-header">
-        <a href="/workshop" className="workshop-brand">
-          <Image className="operations-brand-logo" src="/jeongilpum-logo.png" alt="정일품 정육식당 로고" width={46} height={46} />
-          <span>정일품 작업장<small>PACKAGE</small></span>
-        </a>
-      </header>
-      <AppNav current="workshop" />
+      <OpsHeader surface="workshop" title="정일품 작업장" />
       <main className="package-main">
         <nav className="package-breadcrumb">
           <a href="/workshop">작업장</a>
@@ -124,8 +112,7 @@ export default function PackageApp({ packageCode }: { packageCode: string }) {
         </nav>
         <section className="package-hero">
           <div>
-            <small>PACKAGE RECORD</small>
-            <h1>{detail.packageCode}</h1>
+            <SectionTitle as="h1" title={detail.packageCode} />
             <p>{detail.productName}</p>
             <p>{detail.schedule ?? "수동 패키지 · 연결된 작업 일정 없음"}</p>
             <Badge tone={detail.packageStatus === "completed" ? "success" : "neutral"}>{detail.packageStatus}</Badge>
@@ -139,13 +126,11 @@ export default function PackageApp({ packageCode }: { packageCode: string }) {
         </section>
         {error ? <div className="package-message error" role="alert">{error}</div> : null}
         <section className="package-panel">
-          <header>
-            <div>
-              <small>ASSIGNED SKIN PACKS</small>
-              <h2>연결 스킨팩</h2>
-            </div>
-            <p>패키지와 스킨팩 관계는 작업 항목 상태 변경과 독립적으로 관리합니다.</p>
-          </header>
+          <SectionTitle
+            as="h2"
+            title="연결 스킨팩"
+            description="패키지와 스킨팩 관계는 작업 항목 상태 변경과 독립적으로 관리합니다."
+          />
           <div className="package-components">
             {detail.skinPacks.map((pack) => (
               <article key={pack.id}>
@@ -159,13 +144,11 @@ export default function PackageApp({ packageCode }: { packageCode: string }) {
           </div>
         </section>
         <section className="package-panel label-foundation">
-          <header>
-            <div>
-              <small>PACKAGE QR LABEL</small>
-              <h2>패키지 라벨 미리보기</h2>
-            </div>
-            <p>미리보기는 패키지 원본 데이터를 변경하지 않습니다.</p>
-          </header>
+          <SectionTitle
+            as="h2"
+            title="패키지 라벨 미리보기"
+            description="미리보기는 패키지 원본 데이터를 변경하지 않습니다."
+          />
           <div className="label-actions">
             <Button disabled={busy || !detail.skinPacks.length} onClick={() => void previewLabel()}>
               {busy ? "준비 중" : "라벨 미리보기"}

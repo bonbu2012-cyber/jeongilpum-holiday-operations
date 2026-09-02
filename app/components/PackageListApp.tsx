@@ -1,11 +1,10 @@
 "use client";
 
 import { PackageSearch } from "lucide-react";
-import Image from "next/image";
 import { useState } from "react";
 import type { DataTableColumn } from "../ui";
-import { Badge, Button, DataTable, useResource } from "../ui";
-import AppNav from "./AppNav";
+import { Badge, Button, DataTable, SectionTitle, useResource } from "../ui";
+import OpsHeader from "./OpsHeader";
 import "../workshop-flow.css";
 
 type PackageSummary = {
@@ -60,22 +59,18 @@ export default function PackageListApp() {
 
   return (
     <div className="workshop-app">
-      <header className="workshop-header">
-        <a href="/workshop" className="workshop-brand">
-          <Image className="operations-brand-logo" src="/jeongilpum-logo.png" alt="정일품 정육식당 로고" width={46} height={46} />
-          <span>정일품 작업장<small>PACKAGE LIST</small></span>
-        </a>
-        <Button variant="ghost" size="sm" disabled={loading} onClick={() => void reload()} leadingIcon={<PackageSearch size={16} />}>
-          {loading ? "조회 중" : "새로고침"}
-        </Button>
-      </header>
-      <AppNav current="workshop" />
+      <OpsHeader
+        surface="workshop"
+        title="정일품 작업장"
+        actions={(
+          <Button variant="ghost" size="sm" disabled={loading} onClick={() => void reload()} leadingIcon={<PackageSearch size={16} />}>
+            {loading ? "조회 중" : "새로고침"}
+          </Button>
+        )}
+      />
       <main className="workshop-main">
         <section className="whiteboard-section">
-          <header>
-            <div><small>OPTIONAL OPERATIONS</small><h1>패키지</h1></div>
-            <a href="/workshop">작업장으로</a>
-          </header>
+          <SectionTitle as="h1" title="패키지" meta={<a href="/workshop">작업장으로</a>} />
           {error ? <div className="package-message error" role="alert">{error}</div> : null}
           <DataTable
             ariaLabel="패키지 목록"

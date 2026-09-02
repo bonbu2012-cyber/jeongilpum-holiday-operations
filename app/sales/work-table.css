@@ -19,10 +19,49 @@
 }
 
 .sales-work-table__dashboard {
-  min-width: 0;
-  display: grid;
-  grid-template-columns: minmax(calc(5 * 9.125rem + 2rem), 1fr);
-  overflow-x: auto;
+  display: contents;
+}
+
+.sales-stage-flow {
+  display: flex;
+  flex-wrap: wrap;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  border: 1px solid #d9d1c4;
+  border-radius: var(--radius-md);
+  background: #fff;
+}
+
+.sales-stage-flow__step {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 32px;
+  padding: 5px 12px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.sales-stage-flow__step span {
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.sales-stage-flow__step b {
+  color: var(--wine);
+  font-size: var(--text-md);
+  font-weight: var(--weight-strong);
+}
+
+.sales-stage-flow__step + .sales-stage-flow__step::before {
+  content: "›";
+  position: absolute;
+  left: 0;
+  transform: translateX(-50%);
+  color: var(--muted);
+  font-size: var(--text-sm);
 }
 
 .sales-work-table__section,

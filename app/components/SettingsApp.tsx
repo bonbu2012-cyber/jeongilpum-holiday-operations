@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { GripVertical, Save } from "lucide-react";
+import { GripVertical, ImageOff, Save } from "lucide-react";
 import { useState } from "react";
 import type { DragEvent } from "react";
 import AppNav from "./AppNav";
@@ -440,6 +440,20 @@ export default function SettingsApp() {
         </button>
       ),
       width: "56px",
+    },
+    {
+      id: "thumbnail",
+      header: "사진",
+      cell: (product) => {
+        const thumbnailUrl = product.previewImageUrl ?? product.imageUrl;
+        return <span className="settings-product-thumb">
+          {thumbnailUrl
+            ? <img src={thumbnailUrl} alt={`${product.name} 상품 사진`} />
+            : <ImageOff size={16} aria-hidden="true" />}
+        </span>;
+      },
+      width: "64px",
+      align: "center",
     },
     {
       id: "name",

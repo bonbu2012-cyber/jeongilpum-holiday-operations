@@ -80,7 +80,7 @@ export default function SalesOrderDetail({
         </section>
 
         <section className="detail-items"><h3>주문상품</h3>{order.items.map((item) => <div key={item.id}><span>{item.name}</span><b>{item.quantity}개</b><strong>{won(item.unitPrice * item.quantity)}</strong></div>)}</section>
-        {order.fulfillmentType !== "onsite" && <section className="detail-progress"><h3>작업장 진행</h3><p><b>{workStatusLabel(order)}</b>{order.packageTotal > 0 ? <span>{order.packageCompleted} / {order.packageTotal} 완료</span> : <span>package 생성 전 또는 해당 없음</span>}</p></section>}
+        {order.fulfillmentType !== "onsite" && <section className="detail-progress"><h3>작업장 진행</h3><p><b>{workStatusLabel(order)}</b>{order.packageTotal > 0 ? <span>{order.packageCompleted} / {order.packageTotal} 완료</span> : <span>완성품 생성 전 또는 해당 없음</span>}</p></section>}
         {order.customerArrived && <section className="detail-arrival"><h3>고객 도착</h3><div><p><span>예약시간</span><b>{order.pickupAt?.slice(11, 16) ?? "미지정"}</b></p><p><span>실제도착시간</span><b>{order.actualArrivedAt ? new Date(order.actualArrivedAt).toLocaleTimeString("ko-KR", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit" }) : "기록 없음"}</b></p><p><span>도착상태</span><b>{arrivalTimingLabel(order.arrivalOffsetMinutes)}</b></p><p><span>현재 준비상태</span><b>{order.status === "ready" ? "바로 전달 가능" : workStatusLabel(order)}</b></p></div>{order.substituteCandidateCount > 0 && order.status !== "ready" && <strong>대체 가능한 동일 완성품 {order.substituteCandidateCount}개 있음</strong>}</section>}
         {order.note && <section className="detail-note"><h3>요청사항</h3><p>{order.note}</p></section>}
         {!order.fulfillmentId && <ScheduleEditor order={order} assignSchedule={assignSchedule} />}
@@ -90,7 +90,7 @@ export default function SalesOrderDetail({
           {order.status === "submitted" && order.fulfillmentId && <button className="primary" onClick={() => void onStatus(order, "confirmed")}>주문 확인 · 작업장 전달</button>}
           {order.fulfillmentType === "pickup" && order.fulfillmentId && !["cancelled", "fulfilled"].includes(order.status) && <button className="arrival" onClick={() => void onArrival(order)} disabled={order.customerArrived}>{order.customerArrived ? "고객 도착 기록됨" : "고객 도착"}</button>}
           {order.status === "ready" && <button className="primary" onClick={() => void onStatus(order, "fulfilled")}>{order.fulfillmentType === "shipping" ? "출고 완료" : "전달 완료"}</button>}
-          <button disabled title="안전한 주문 수정 workflow가 아직 준비되지 않았습니다.">주문 수정 · 준비중</button>
+          <button disabled title="안전한 주문 수정 절차가 아직 준비되지 않았습니다.">주문 수정 · 준비중</button>
           {!["fulfilled", "cancelled"].includes(order.status) && <button className="danger" onClick={() => setCancelEditorOpen(true)}>주문 취소</button>}
           <button onClick={() => setHistoryOpen((value) => !value)}>이력 보기</button>
         </section>

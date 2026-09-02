@@ -8,81 +8,9 @@
   font-family: var(--font-sans);
 }
 
-.workshop-header {
-  min-height: 76px;
-  padding: 0 24px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  border-bottom: 1px solid var(--line);
-  background: #fff;
-  position: sticky;
-  top: 0;
-  z-index: 30;
-}
-
-.workshop-brand {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: inherit;
-  text-decoration: none;
-}
-
-.operations-brand-logo {
-  width: 46px;
-  height: 46px;
-  flex: none;
-  object-fit: contain;
-}
-
-.workshop-brand > span {
-  min-width: 0;
-  display: grid;
-  gap: 2px;
-  font-size: var(--text-lg);
-  font-weight: var(--weight-strong);
-  line-height: var(--leading-tight);
-}
-
-.workshop-brand small {
-  color: var(--muted);
-  font-size: var(--text-sm);
-  font-weight: var(--weight-body);
-  line-height: var(--leading-normal);
-}
-
-.workshop-sync,
-.production-link {
-  flex: none;
-  color: var(--wine);
-  text-decoration: none;
-}
-
 .workshop-main {
   min-width: 0;
   padding: 18px 24px 96px;
-}
-
-.workshop-date-toolbar {
-  min-width: 0;
-  margin-bottom: 16px;
-}
-
-.workshop-date-toolbar h1 {
-  min-width: 0;
-  flex: 1 1 12rem;
-  margin: 0;
-  font-size: var(--text-lg);
-  font-weight: var(--weight-strong);
-  line-height: var(--leading-tight);
-}
-
-.workshop-date-field {
-  min-width: 0;
-  flex: 1 1 12rem;
 }
 
 .workshop-message {
@@ -271,7 +199,6 @@
   background: #fff;
 }
 
-.whiteboard-section > header,
 .production-board > header,
 .completed-fold > header,
 .package-panel > header,
@@ -283,7 +210,6 @@
   gap: 12px;
 }
 
-.whiteboard-section header small,
 .production-board header small,
 .completed-fold header small,
 .package-panel header small,
@@ -294,8 +220,6 @@
   line-height: var(--leading-normal);
 }
 
-.whiteboard-section h1,
-.whiteboard-section h2,
 .production-board h2,
 .completed-fold h2,
 .package-panel h2,
@@ -306,7 +230,6 @@
   line-height: var(--leading-tight);
 }
 
-.whiteboard-section header p,
 .production-board header p,
 .package-panel header p,
 .batch-list header p {
@@ -416,11 +339,8 @@
   background: #fff;
 }
 
-.package-hero h1 {
-  margin: 4px 0;
-  font-size: var(--text-xl);
-  font-weight: var(--weight-strong);
-  line-height: var(--leading-tight);
+.package-hero .ui-section-title {
+  margin-bottom: 4px;
 }
 
 .package-hero p {
@@ -578,23 +498,6 @@
 
 .label-preview code {
   text-align: right;
-}
-
-.production-date {
-  min-width: 0;
-  margin-bottom: 16px;
-  padding: 10px 12px;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 15rem);
-  align-items: end;
-  gap: 12px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: #fff;
-}
-
-.production-date > div {
-  min-width: 0;
 }
 
 .production-warning {
@@ -844,26 +747,11 @@
 }
 
 @media (max-width: 760px) {
-  .workshop-header {
-    min-height: 64px;
-    padding: 0 12px;
-  }
-
-  .operations-brand-logo {
-    width: 42px;
-    height: 42px;
-  }
-
   .workshop-main,
   .package-main {
     padding: 14px 12px 92px;
   }
 
-  .production-date {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .whiteboard-section > header,
   .production-board > header,
   .completed-fold > header,
   .package-panel > header,

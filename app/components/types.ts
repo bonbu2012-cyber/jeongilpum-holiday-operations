@@ -1,5 +1,15 @@
+export type CategoryRailItem = {
+  id: string;
+  name: string;
+  railOrder: number | null;
+  railLabel: string;
+  railAssist: string | null;
+  railVariant: "default" | "single" | "omeat";
+  isCustomOrderLink: boolean;
+};
+
 export type CustomOrderDraftItem = {
-  category: "진공세트" | "프리미엄" | "O'meat" | "LA갈비" | "뼈세트";
+  category: string;
   budgetOption: string;
   budgetAmount: number;
   desiredComposition: string;

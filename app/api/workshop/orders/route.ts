@@ -50,7 +50,7 @@ export const TODAY_ONSITE_WORK_ITEMS_SQL = `
   WHERE w.delivery_method='onsite_reservation'
     AND substr(w.due_at,1,10)=?
     AND w.work_status!='cancelled'
-  ORDER BY w.due_at ASC,w.created_at ASC,w.id ASC
+  ORDER BY CASE WHEN o.payment_status='paid' THEN 1 ELSE 0 END,w.due_at ASC,w.created_at ASC,w.id ASC
   LIMIT 500
 `;
 
@@ -63,7 +63,7 @@ export const TODAY_DELIVERY_WORK_ITEMS_SQL = `
   WHERE w.delivery_method='delivery'
     AND substr(w.due_at,1,10)=?
     AND w.work_status!='cancelled'
-  ORDER BY w.due_at ASC,w.created_at ASC,w.id ASC
+  ORDER BY CASE WHEN o.payment_status='paid' THEN 1 ELSE 0 END,w.due_at ASC,w.created_at ASC,w.id ASC
   LIMIT 500
 `;
 
@@ -81,6 +81,7 @@ export const TODAY_PRODUCT_TOTALS_SQL = `
     AND w.work_status!='cancelled'
   GROUP BY w.product_id,w.product_name_snapshot
   ORDER BY pending_quantity DESC,w.product_name_snapshot COLLATE NOCASE,w.product_id
+  LIMIT 500
 `;
 
 function validDate(value: string) {

@@ -1,9 +1,27 @@
 import { sql } from "drizzle-orm";
 import { check, index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
+export const categories = sqliteTable("categories", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+  railOrder: integer("rail_order"),
+  railLabel: text("rail_label").notNull(),
+  railAssist: text("rail_assist"),
+  railVariant: text("rail_variant").notNull().default("default"),
+  isCustomOrderLink: integer("is_custom_order_link", { mode: "boolean" }).notNull().default(false),
+  active: integer("active", { mode: "boolean" }).notNull().default(true),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, (table) => [
+  uniqueIndex("idx_categories_name").on(table.name),
+  index("idx_categories_active_sort_order").on(table.active, table.sortOrder),
+  check("categories_rail_variant_valid", sql`${table.railVariant} in ('default', 'single', 'omeat')`),
+]);
+
 export const products = sqliteTable("products", {
   id: text("id").primaryKey(),
-  category: text("category").notNull(),
+  category: text("category").notNull().references(() => categories.name, { onUpdate: "cascade" }),
   code: text("code").notNull().unique(),
   name: text("name").notNull(),
   subtitle: text("subtitle").notNull().default(""),

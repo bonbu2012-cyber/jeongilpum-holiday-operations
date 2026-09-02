@@ -1,5 +1,6 @@
 import { env } from "cloudflare:workers";
 import { OPERATOR_ACTOR, requireOperatorApi } from "../../lib/operator-session";
+import { PIPELINE_WORK_STATUSES, type PipelineWorkStatus } from "../../lib/work-status";
 
 type WorkStatus = "received" | "confirmed" | "in_progress" | "ready" | "completed" | "cancelled";
 type DeliveryMethod = "onsite_sale" | "onsite_reservation" | "delivery";
@@ -91,12 +92,10 @@ type CurrentWorkItem = Pick<
   | "order_version"
 >;
 
-type DashboardWorkStatus = Exclude<WorkStatus, "cancelled">;
-type Dashboard = Record<DashboardWorkStatus, Record<DeliveryMethod, number>>;
+type Dashboard = Record<PipelineWorkStatus, Record<DeliveryMethod, number>>;
 
 const runtimeEnv = env as typeof env & { DB: D1Database };
 const WORK_STATUSES: WorkStatus[] = ["received", "confirmed", "in_progress", "ready", "completed", "cancelled"];
-const DASHBOARD_STATUSES: DashboardWorkStatus[] = ["received", "confirmed", "in_progress", "ready", "completed"];
 const DELIVERY_METHODS: DeliveryMethod[] = ["onsite_sale", "onsite_reservation", "delivery"];
 const EDITABLE_FIELDS = new Set([
   "productId",
@@ -207,7 +206,7 @@ function valueForArrival(value: unknown, now: string) {
 
 function createDashboard(rows: DashboardRow[]): Dashboard {
   const dashboard = Object.fromEntries(
-    DASHBOARD_STATUSES.map((status) => [
+    PIPELINE_WORK_STATUSES.map((status) => [
       status,
       {
         onsite_sale: 0,
@@ -386,6 +385,7 @@ function queryFilters(params: URLSearchParams) {
               WHEN w.work_status='cancelled' THEN 4
               ELSE 2
             END,
+            CASE WHEN o.payment_status='paid' THEN 1 ELSE 0 END,
             w.due_at ASC,w.created_at ASC,w.id ASC
           `,
           values: [seoulDateTime(new Date(Date.now() + 30 * 60_000))],

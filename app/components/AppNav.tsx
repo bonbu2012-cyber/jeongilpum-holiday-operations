@@ -1,4 +1,4 @@
-type AppSurface = "kiosk" | "sales" | "workshop" | "settings";
+export type AppSurface = "kiosk" | "sales" | "workshop" | "settings";
 
 const links: Array<{ key: AppSurface; href: string; label: string }> = [
   { key: "kiosk", href: "/kiosk", label: "메인 화면" },

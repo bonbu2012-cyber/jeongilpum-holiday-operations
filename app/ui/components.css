@@ -258,9 +258,17 @@
 }
 
 .ui-data-table__selection {
-  width: 42px;
-  padding-right: 0 !important;
+  min-width: 42px;
+  padding-left: 8px !important;
+  padding-right: 8px !important;
   text-align: center !important;
+  white-space: nowrap;
+}
+
+.ui-data-table__selection-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .ui-data-table__selection input {
@@ -268,6 +276,36 @@
   height: 18px;
   accent-color: var(--wine);
   vertical-align: middle;
+}
+
+.ui-data-table__drag-handle {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  cursor: grab;
+}
+
+.ui-data-table__drag-handle:hover,
+.ui-data-table__drag-handle:focus-visible {
+  background: #eee9e0;
+  color: var(--wine);
+  outline: 0;
+}
+
+.ui-data-table__drag-handle:active {
+  cursor: grabbing;
+}
+
+.ui-data-table__drag-handle:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .ui-data-table__sort {
@@ -380,15 +418,11 @@
 
 .ui-toolbar {
   --ui-toolbar-control-height: 40px;
-  min-height: 48px;
-  padding: 4px;
+  min-height: var(--ui-toolbar-control-height);
   display: flex;
   align-items: end;
   gap: 8px;
   flex-wrap: wrap;
-  border: 1px solid #d9d1c4;
-  border-radius: var(--radius-md);
-  background: #fff;
 }
 
 .ui-toolbar__search {
@@ -452,16 +486,16 @@
 
 .ui-stat-tiles {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 6px;
 }
 
 .ui-stat-tile {
-  min-height: 104px;
-  padding: 12px;
+  min-height: 52px;
+  padding: 8px 10px;
   display: grid;
   align-content: start;
-  gap: 6px;
+  gap: 3px;
   border: 1px solid #dfd7cb;
   border-radius: var(--radius-lg);
   background: #fff;
@@ -485,7 +519,7 @@
 
 .ui-stat-tile__value {
   color: var(--wine);
-  font-size: var(--text-xl);
+  font-size: var(--text-lg);
   font-weight: var(--weight-strong);
   line-height: var(--leading-tight);
 }

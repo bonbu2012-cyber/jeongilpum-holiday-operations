@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, ChevronUp, ChevronsUpDown } from "lucide-react";
+import { ChevronDown, ChevronUp, ChevronsUpDown, GripVertical } from "lucide-react";
 import { Fragment, useMemo, useState } from "react";
 import type { CSSProperties, DragEvent, KeyboardEvent, ReactNode } from "react";
 
@@ -33,6 +33,11 @@ export type DataTableProps<Row> = {
   onRowDrop?: (row: Row, event: DragEvent<HTMLTableRowElement>) => void;
   onGroupDragOver?: (group: DataTableGroup<Row>, event: DragEvent<HTMLTableRowElement>) => void;
   onGroupDrop?: (group: DataTableGroup<Row>, event: DragEvent<HTMLTableRowElement>) => void;
+  onRowDragHandleStart?: (row: Row, event: DragEvent<HTMLButtonElement>) => void;
+  onRowDragHandleEnd?: (row: Row) => void;
+  onRowDragHandleKeyDown?: (row: Row, event: KeyboardEvent<HTMLButtonElement>) => void;
+  rowDragHandleDisabled?: (row: Row) => boolean;
+  getRowDragHandleLabel?: (row: Row) => string;
   selectedIds?: string[];
   onSelectedIdsChange?: (ids: string[]) => void;
   initialSort?: { columnId: string; direction?: "asc" | "desc" };
@@ -66,6 +71,11 @@ export function DataTable<Row>({
   onRowDrop,
   onGroupDragOver,
   onGroupDrop,
+  onRowDragHandleStart,
+  onRowDragHandleEnd,
+  onRowDragHandleKeyDown,
+  rowDragHandleDisabled,
+  getRowDragHandleLabel,
   selectedIds,
   onSelectedIdsChange,
   initialSort,
@@ -148,12 +158,28 @@ export function DataTable<Row>({
         onDrop={onRowDrop ? (event) => onRowDrop(row, event) : undefined}
       >
         <td className="ui-data-table__selection" onClick={(event) => event.stopPropagation()}>
-          <input
-            type="checkbox"
-            checked={selectedIdSet.has(id)}
-            onChange={() => toggleRow(row)}
-            aria-label={`${id} 선택`}
-          />
+          <span className="ui-data-table__selection-controls">
+            <input
+              type="checkbox"
+              checked={selectedIdSet.has(id)}
+              onChange={() => toggleRow(row)}
+              aria-label={`${id} 선택`}
+            />
+            {onRowDragHandleStart ? (
+              <button
+                type="button"
+                className="ui-data-table__drag-handle"
+                draggable={!rowDragHandleDisabled?.(row)}
+                disabled={rowDragHandleDisabled?.(row)}
+                aria-label={getRowDragHandleLabel?.(row) ?? `${id} 순서 이동`}
+                onDragStart={(event) => onRowDragHandleStart(row, event)}
+                onDragEnd={() => onRowDragHandleEnd?.(row)}
+                onKeyDown={(event) => onRowDragHandleKeyDown?.(row, event)}
+              >
+                <GripVertical size={14} aria-hidden="true" />
+              </button>
+            ) : null}
+          </span>
         </td>
         {columns.map((column) => (
           <td key={column.id} style={{ textAlign: column.align ?? "left" }}>

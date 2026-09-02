@@ -1,11 +1,10 @@
 "use client";
 
-import Image from "next/image";
 import { useRef, useState } from "react";
 import type { ProductionBatch, ProductionOverview, RecentProductionTrace } from "../lib/production-types";
 import { operationalDateFromSearch } from "../lib/operational-date";
 import { Button, FieldInput, FieldSelect, useResource } from "../ui";
-import AppNav from "./AppNav";
+import OpsHeader from "./OpsHeader";
 import "../workshop-flow.css";
 
 const todayInSeoul = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
@@ -99,13 +98,25 @@ export default function ProductionApp() {
   }
 
   return <div className="workshop-app production-app">
-    <header className="workshop-header">
-      <a href="/workshop" className="workshop-brand"><Image className="operations-brand-logo" src="/jeongilpum-logo.png" alt="정일품 정육식당 로고" width={46} height={46}/><span>정일품 생산장<small>BATCH &amp; SKIN PACK</small></span></a>
-      <a className="workshop-sync production-link" href="/workshop">화이트보드</a>
-    </header>
-    <AppNav current="workshop" />
+    <OpsHeader
+      surface="workshop"
+      title="정일품 생산장"
+      subtitle="BATCH & SKIN PACK"
+      actions={(
+        <>
+          <FieldInput
+            id="production-date"
+            className="ops-header__field"
+            label="생산 기준일"
+            type="date"
+            value={date}
+            onChange={(event) => setDate(event.target.value)}
+          />
+          <a href="/workshop">화이트보드</a>
+        </>
+      )}
+    />
     <main className="workshop-main production-main">
-      <section className="workshop-date-toolbar production-date"><div><small>ORDER-DRIVEN PRODUCTION</small><h1>날짜별 부위 생산</h1><span>방문수령일·택배 발송일 주문 → BOM → 가용재고 → 추가 생산량</span></div><label><span>생산 기준일</span><input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label></section>
       {error && <div className="package-message error" role="alert">{error}</div>}{notice && <div className="package-message" role="status">{notice}</div>}
       {overview.missingProducts.length > 0 && <section className="production-warning"><b>BOM 미등록 상품</b><p>아래 상품은 임의 계산하지 않습니다. product_components 등록 후 생산량에 포함됩니다.</p><ul>{overview.missingProducts.map((item) => <li key={item.productId}>{item.productName} × {item.quantity}</li>)}</ul></section>}
       <section className="production-board requirement-board"><header><div><small>CUT REQUIREMENTS</small><h2>부위별 필요 생산량</h2></div><p>필요수량 − 가용 스킨팩 = 추가 생산량</p></header><div className="production-table-wrap"><table><thead><tr><th>부위</th><th>연결 상품</th><th>필요</th><th>가용</th><th>추가 생산</th></tr></thead><tbody>{overview.requirements.map((item) => <tr key={item.componentCode}><td><button onClick={() => { setSelectedCode(item.componentCode); setForm((current) => ({ ...current, productionTarget: String(item.additionalNeeded) })); }}>{item.componentName}</button><small>{item.componentCode}</small></td><td>{item.sourceProducts.join(", ")}</td><td>{item.requiredQuantity}</td><td>{item.availableQuantity}</td><td><b>{item.additionalNeeded}</b></td></tr>)}</tbody></table>{!overview.requirements.length && <div className="workshop-empty">선택 날짜에 BOM이 연결된 생산 수요가 없습니다.</div>}</div></section>

@@ -11,14 +11,20 @@ export type WorkStatus = (typeof WORK_STATUS_ORDER)[number];
 
 export const WORK_STATUS_LABELS: Record<WorkStatus, string> = {
   received: "주문 접수",
-  confirmed: "주문 확인",
+  confirmed: "작업 준비",
   in_progress: "작업 중",
-  ready: "준비 완료",
+  ready: "작업 완료",
   completed: "수령 완료",
   cancelled: "취소",
 };
 
 export const WORK_STATUS_OPTIONS = WORK_STATUS_ORDER;
+
+export const PIPELINE_WORK_STATUSES = WORK_STATUS_ORDER.filter(
+  (status): status is Exclude<WorkStatus, "cancelled"> => status !== "cancelled",
+);
+
+export type PipelineWorkStatus = (typeof PIPELINE_WORK_STATUSES)[number];
 
 export function workStatusLabel(status: WorkStatus) {
   return WORK_STATUS_LABELS[status];
