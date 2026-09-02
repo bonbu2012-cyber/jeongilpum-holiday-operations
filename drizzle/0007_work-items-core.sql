@@ -100,7 +100,7 @@ CREATE TABLE `products` (
   `active` integer DEFAULT true NOT NULL,
   `created_at` text NOT NULL,
   `updated_at` text NOT NULL,
-  CONSTRAINT `products_daily_limit_positive` CHECK (`daily_limit` IS NULL OR `daily_limit` > 0)
+  CONSTRAINT `products_daily_limit_positive` CHECK (`daily_limit` IS NULL OR `daily_limit` >= 0)
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `products_code_unique` ON `products` (`code`);

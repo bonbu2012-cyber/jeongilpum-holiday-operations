@@ -808,7 +808,7 @@
       "checkConstraints": {
         "products_daily_limit_positive": {
           "name": "products_daily_limit_positive",
-          "value": "\"products\".\"daily_limit\" is null or \"products\".\"daily_limit\" > 0"
+          "value": "\"products\".\"daily_limit\" is null or \"products\".\"daily_limit\" >= 0"
         }
       }
     },

@@ -20,7 +20,7 @@ export const products = sqliteTable("products", {
 }, (table) => [
   index("idx_products_active_sort_order").on(table.active, table.sortOrder),
   index("idx_products_category").on(table.category),
-  check("products_daily_limit_positive", sql`${table.dailyLimit} is null or ${table.dailyLimit} > 0`),
+  check("products_daily_limit_positive", sql`${table.dailyLimit} is null or ${table.dailyLimit} >= 0`),
 ]);
 
 export const orders = sqliteTable("orders", {
