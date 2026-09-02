@@ -282,7 +282,7 @@ export async function GET(request: Request) {
     const predicates = ["1=1"];
     const values: string[] = [];
     if (date) {
-      predicates.push("date(w.due_at)=?");
+      predicates.push("date(w.due_at)=?", "w.work_status!='cancelled'");
       values.push(date);
     }
     if (query) {
