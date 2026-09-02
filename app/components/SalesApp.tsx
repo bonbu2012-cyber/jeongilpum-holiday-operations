@@ -22,15 +22,6 @@ import SalesOrderDetail, { type SchedulePayload, type StatusChangeOptions } from
 import "../operations-flow.css";
 import "../sales-flow.css";
 
-type AvailabilityItem = {
-  productId: string;
-  productName: string;
-  dailyLimit: number;
-  reservedQuantity: number;
-  remainingQuantity: number;
-};
-type AvailabilityResponse = { products?: AvailabilityItem[]; error?: string };
-
 const todayInSeoul = () => {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit",
@@ -51,7 +42,6 @@ const dateHeading = (value: string) => {
 
 export default function SalesApp() {
   const [orders, setOrders] = useState<OrderRecord[]>([]);
-  const [availability, setAvailability] = useState<AvailabilityItem[]>([]);
   const [selectedDate, setSelectedDate] = useState(todayInSeoul);
   const [filter, setFilter] = useState<SalesFilter>("all");
   const [attention, setAttention] = useState<AttentionFilter>(null);
@@ -75,20 +65,10 @@ export default function SalesApp() {
   const loadDate = useCallback(async (options?: { silent?: boolean }) => {
     if (!options?.silent) setRefreshing(true);
     try {
-      const [nextOrders, response] = await Promise.all([
-        fetchOrders({ date: selectedDate }),
-        fetch("/api/availability?date=" + encodeURIComponent(selectedDate), { cache: "no-store" }),
-      ]);
-      const data = await response.json() as AvailabilityResponse;
+      const nextOrders = await fetchOrders({ date: selectedDate });
       setOrders(nextOrders);
       setSelectedOrder((current) => current ? nextOrders.find((order) => order.id === current.id) ?? current : null);
-      if (response.ok) {
-        setAvailability(data.products ?? []);
-        setError("");
-      } else {
-        setAvailability([]);
-        setNotice(data.error || "한정상품 현황을 불러오지 못했습니다.");
-      }
+      setError("");
       setLastSync(new Intl.DateTimeFormat("ko-KR", {
         timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit", second: "2-digit",
       }).format(new Date()));
@@ -201,7 +181,7 @@ export default function SalesApp() {
       <a href="/sales" className="ops-brand"><img className="operations-brand-logo" src="/jeongilpum-logo.png" alt="정일품 정육식당 로고"/><span>정일품 주문관리<small>판매장 운영</small></span></a>
       <div className="ops-alerts"><button onClick={() => void loadDate()} disabled={refreshing}>{refreshing ? "동기화 중…" : "지금 새로고침"}</button><a href="/signout-with-chatgpt?return_to=/">로그아웃</a></div>
     </header>
-    <AppNav current="admin" />
+    <AppNav current="sales" />
 
     <main className="ops-main sales-main">
       <section className="sales-date-toolbar" aria-label="운영 날짜 선택">
@@ -244,11 +224,6 @@ export default function SalesApp() {
         <OrderTable orders={activeOrders} onSelect={setSelectedOrder} />
         {!activeOrders.length && <div className="sales-empty">조건에 맞는 미완료 주문이 없습니다.</div>}
         {completedOrders.length > 0 && <section className="sales-completed"><button onClick={() => setShowCompleted((value) => !value)}>판매/전달/출고 완료 {completedOrders.length}건 {showCompleted ? "접기 ↑" : "펼치기 ↓"}</button>{showCompleted && <OrderTable orders={completedOrders} onSelect={setSelectedOrder} />}</section>}
-      </section>
-
-      <section className="sales-limits">
-        <header><div><small>LIMITED PRODUCTS</small><h2>한정상품 현황</h2></div><span>{selectedDate}</span></header>
-        {availability.length ? <table><thead><tr><th>상품</th><th>하루한도</th><th>예약수량</th><th>남은수량</th></tr></thead><tbody>{availability.map((item) => <tr key={item.productId}><td>{item.productName}</td><td>{item.dailyLimit}</td><td>{item.reservedQuantity}</td><td><b>{item.remainingQuantity}</b></td></tr>)}</tbody></table> : <p>설정된 한정상품이 없습니다.</p>}
       </section>
 
     </main>

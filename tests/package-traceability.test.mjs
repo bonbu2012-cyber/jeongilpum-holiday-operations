@@ -239,7 +239,7 @@ test("early arrival prioritizes available assembly and all existing operating su
   assert.ok(workshop.indexOf("가용 스킨팩으로 1세트 조립") < workshop.indexOf("대체 가능한 완성품"));
   for (const value of ["시간대별 작업 타임라인", "작업 수락", "작업 시작", "상품 준비완료", "고객도착"]) assert.match(workshop, new RegExp(value));
   assert.match(workshopApi, /WORKSHOP_DATE_ORDERS_SQL/); assert.doesNotMatch(action, /INSERT INTO packages/); assert.doesNotMatch(status, /INSERT INTO packages/);
-  assert.match(sales, /2500/); assert.match(sales, /cache: "no-store"/); assert.match(kiosk, /주문 접수/);
+  assert.match(sales, /2500/); assert.match(kiosk, /주문 접수/);
 });
 
 test("HID/manual scan validation and recent trace cache remain", async () => {

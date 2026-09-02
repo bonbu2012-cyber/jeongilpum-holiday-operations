@@ -81,15 +81,7 @@
 - 원본을 보존하는 결제 정정, 상담 메모 후 선택 주문 장부 분리
 - 일정 미지정 legacy 주문 건수 및 검색
 - legacy 주문의 fulfillment 수동 생성
-- 날짜별 한정상품 availability
 - 2.5초 polling, focus/online refetch
-
-## `/admin` 호환 판매장
-
-- 기존 운영 흐름을 위한 호환 route
-- 주문 검색과 일정 미지정 주문 관리
-- 운영자 로그인 오류 안내
-- 신규 기능은 우선 `/sales`에 구현하고 `/admin` 영향 여부를 검사한다.
 
 ## `/workshop` 디지털 화이트보드
 
@@ -158,7 +150,7 @@
 | Route | 인증 | 운영자 allowlist |
 |---|---|---|
 | `/`, `/kiosk`, `/kiosk/custom` | 불필요 | 불필요 |
-| `/sales`, `/admin` | 필요 | API에서 필요 |
+| `/sales` | 필요 | API에서 필요 |
 | `/workshop/**` | 필요 | API에서 필요 |
 | `/settings` | 필요 | API에서 필요 |
 

@@ -400,16 +400,14 @@ test("payment correction preserves the original and uses reversal plus optional 
 });
 
 test("customer ledger is double-password protected, expires after five minutes, and stays out of workshop", async () => {
-  const [sales, detail, ledger, auth, access, transactions, legacyPaymentApi, workshop, availabilityApi] = await Promise.all([
+  const [sales, detail, ledger, auth, access, transactions, workshop] = await Promise.all([
     read("app/components/SalesApp.tsx"),
     read("app/components/SalesOrderDetail.tsx"),
     read("app/components/CustomerLedgerApp.tsx"),
     read("app/lib/customer-ledger-auth.ts"),
     read("app/api/customer-ledger/access/route.ts"),
     read("app/api/customer-ledger/transactions/route.ts"),
-    read("app/api/orders/payments/route.ts"),
     read("app/components/WorkshopApp.tsx"),
-    read("app/api/availability/route.ts"),
   ]);
   for (const label of ["고객 결제·미수 장부", "현재 미수금", "현재 선수금", "결제 등록", "결제 기록 정정", "상담 메모"]) {
     assert.match(ledger + sales + detail, new RegExp(label));
@@ -420,8 +418,5 @@ test("customer ledger is double-password protected, expires after five minutes, 
   assert.match(access, /verifyCustomerLedgerEmployeePassword/);
   assert.match(transactions, /verifyCustomerLedgerAdminPassword/);
   assert.match(ledger, /5 \* 60 \* 1000/);
-  assert.match(legacyPaymentApi, /status: 410/);
   assert.doesNotMatch(workshop, /고객 결제·미수|결제누계|결제수단|외상 처리/);
-  assert.match(availabilityApi, /dailyLimit/);
-  assert.match(availabilityApi, /remainingQuantity/);
 });

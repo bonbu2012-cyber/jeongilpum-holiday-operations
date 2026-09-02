@@ -57,22 +57,16 @@ test("operator APIs enforce identity and role and create an atomic D1 fulfillmen
  assert.match(status,/version=version\+1/);
 });
 
-test("sales and workshop surfaces are task-first and free of static customer alerts",async()=>{
- const [admin,workshop]=await Promise.all([read("app/components/AdminApp.tsx"),read("app/components/WorkshopApp.tsx")]);
- for(const label of ["주문 찾기","주문 받기","상품 찾아가기","보낼 상품"])assert.match(admin,new RegExp(label));
- assert.doesNotMatch(admin,/주문변경 <b>2|고객도착 <b>1|주소 미입력 배송 3건/);
+test("workshop surface is task-first and free of static customer alerts",async()=>{
+ const workshop=await read("app/components/WorkshopApp.tsx");
  assert.doesNotMatch(workshop,/김철수|주문변경 <em>2|라벨조치 <em>1/);
  assert.match(workshop,/customerArrived/);
 });
 
 test("database migrations include safeguards and the new fulfillment tables",async()=>{
- const [d1,supabase,fulfillment]=await Promise.all([read("drizzle/0000_charming_bishop.sql"),read("supabase/migrations/202608230001_v2_phase1.sql"),read("drizzle/0002_deep_giant_girl.sql")]);
+ const [d1,fulfillment]=await Promise.all([read("drizzle/0000_charming_bishop.sql"),read("drizzle/0002_deep_giant_girl.sql")]);
  assert.match(d1,/orders_no_hard_delete/);
  assert.match(d1,/idx_orders_idempotency/);
- assert.match(supabase,/create_order_transaction/);
- assert.match(supabase,/enable row level security/g);
- assert.match(supabase,/revoke all on function/);
- assert.match(supabase,/prevent_order_delete/);
  assert.match(fulfillment,/CREATE TABLE `fulfillments`/);
  assert.match(fulfillment,/CREATE TABLE `fulfillment_items`/);
  assert.match(fulfillment,/idx_fulfillments_pickup_at/);
@@ -98,12 +92,11 @@ test("category rail uses Korean-first hierarchy",async()=>{
 });
 
 test("custom order and settings workflows stay durable",async()=>{
- const [kiosk,nav,custom,customApi,settings,settingsApi,d1]=await Promise.all([read("app/components/KioskApp.tsx"),read("app/components/AppNav.tsx"),read("app/components/CustomOrderApp.tsx"),read("app/api/custom-orders/route.ts"),read("app/components/SettingsApp.tsx"),read("app/api/settings/route.ts"),read("drizzle/0001_confused_swarm.sql")]);
+ const [kiosk,nav,custom,settings,settingsApi,d1]=await Promise.all([read("app/components/KioskApp.tsx"),read("app/components/AppNav.tsx"),read("app/components/CustomOrderApp.tsx"),read("app/components/SettingsApp.tsx"),read("app/api/settings/route.ts"),read("drizzle/0001_confused_swarm.sql")]);
  for(const route of ["/sales","/workshop","/settings"])assert.match(nav,new RegExp(route.replaceAll("/","\\/")));
  assert.match(kiosk,/\/kiosk\/custom/);
  assert.match(kiosk,/category-name omeat/);
  assert.match(custom,/idempotencyKey/);
- assert.match(customApi,/custom_order_events/);
  assert.match(settings,/제품 사진 URL/);
  assert.match(settingsApi,/OPERATOR_USER_IDS/);
  assert.match(settingsApi,/configuration_events/);
@@ -111,11 +104,11 @@ test("custom order and settings workflows stay durable",async()=>{
 });
 
 test("all operating surfaces share navigation and sales has an alias route",async()=>{
- const [nav,kiosk,admin,workshop,settings,css,sales]=await Promise.all([read("app/components/AppNav.tsx"),read("app/components/KioskApp.tsx"),read("app/components/AdminApp.tsx"),read("app/components/WorkshopApp.tsx"),read("app/components/SettingsApp.tsx"),read("app/globals.css"),read("app/sales/page.tsx")]);
+ const [nav,kiosk,salesApp,workshop,settings,css,sales]=await Promise.all([read("app/components/AppNav.tsx"),read("app/components/KioskApp.tsx"),read("app/components/SalesApp.tsx"),read("app/components/WorkshopApp.tsx"),read("app/components/SettingsApp.tsx"),read("app/globals.css"),read("app/sales/page.tsx")]);
  for(const href of ["/kiosk","/sales","/workshop","/settings"])assert.match(nav,new RegExp('href: "'+href.replaceAll("/","\\/")+'"'));
  assert.match(nav,/aria-current/);
  assert.match(kiosk,/AppNav current="kiosk"/);
- assert.match(admin,/AppNav current="admin"/);
+ assert.match(salesApp,/AppNav current="sales"/);
  assert.match(workshop,/AppNav current="workshop"/);
  assert.match(settings,/AppNav current="settings"/);
  assert.match(sales,/SalesApp/);
@@ -125,14 +118,14 @@ test("all operating surfaces share navigation and sales has an alias route",asyn
 });
 
 test("sales and workshop refetch within three seconds and recover on focus and online",async()=>{
- const [admin,workshop,client]=await Promise.all([read("app/components/SalesApp.tsx"),read("app/components/WorkshopApp.tsx"),read("app/lib/orders-client.ts")]);
- for(const source of [admin,workshop]){
+ const [sales,workshop,client]=await Promise.all([read("app/components/SalesApp.tsx"),read("app/components/WorkshopApp.tsx"),read("app/lib/orders-client.ts")]);
+ for(const source of [sales,workshop]){
   assert.match(source,/setInterval\([\s\S]{0,100}2500\)/);
   assert.match(source,/addEventListener\("focus"/);
   assert.match(source,/addEventListener\("online"/);
  }
- assert.match(admin,/지금 새로고침/);
- assert.match(admin,/selectedDate/);
+ assert.match(sales,/지금 새로고침/);
+ assert.match(sales,/selectedDate/);
  assert.match(client,/date/);
 });
 

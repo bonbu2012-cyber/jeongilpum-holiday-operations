@@ -169,13 +169,12 @@ test("customer arrival SQL is idempotent and leaves one audit event", () => {
 });
 
 test("sales API keeps cancelled history searchable and exposes work progress, customer ledger, and events", async () => {
-  const [api, queries, arrival, sales, detail, availability, statusApi, ledgerApi] = await Promise.all([
+  const [api, queries, arrival, sales, detail, statusApi, ledgerApi] = await Promise.all([
     read("app/api/orders/route.ts"),
     read("app/lib/sales-order-query.ts"),
     read("app/api/orders/arrival/route.ts"),
     read("app/components/SalesApp.tsx"),
     read("app/components/SalesOrderDetail.tsx"),
-    read("app/api/availability/route.ts"),
     read("app/api/orders/status/route.ts"),
     read("app/api/customer-ledger/route.ts"),
   ]);
@@ -197,7 +196,6 @@ test("sales API keeps cancelled history searchable and exposes work progress, cu
   assert.match(statusApi, /cancellationReason/);
   assert.match(statusApi, /reason,actor_id/);
   assert.match(ledgerApi, /COALESCE\(ch\.order_count,0\)>0 OR r\.customer_account_id IS NOT NULL/);
-  assert.match(availability, /remainingQuantity/);
   assert.equal(workStatusLabel(order({ status: "fulfilled", fulfillmentType: "shipping" })), "출고완료");
   assert.equal(workStatusLabel(order({ status: "fulfilled", fulfillmentType: "onsite" })), "판매완료");
 });

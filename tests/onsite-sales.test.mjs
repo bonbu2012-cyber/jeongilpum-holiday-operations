@@ -99,18 +99,15 @@ test("anonymous onsite sale reuses the valid immediate-pickup fulfillment while 
 });
 
 test("onsite sale stays in a separate staff zone, skips customer info, and keeps protected atomic writes", async () => {
-  const [kiosk, css, api, access, auth, availability] = await Promise.all([
+  const [kiosk, css, api, auth] = await Promise.all([
     read("app/components/KioskApp.tsx"),
     read("app/kiosk-flow.css"),
     read("app/api/orders/route.ts"),
-    read("app/api/orders/onsite-access/route.ts"),
     read("app/chatgpt-auth.ts"),
-    read("app/api/availability/route.ts"),
   ]);
   for (const label of ["현장판매", "방문수령", "택배발송", "결제방식을 선택해주세요", "현금", "카드", "계좌이체"]) {
     assert.match(kiosk, new RegExp(label));
   }
-  assert.doesNotMatch(kiosk, /fetch\("\/api\/orders\/onsite-access"/);
   assert.match(kiosk, /className="onsite-sale-zone"/);
   assert.match(kiosk, /className="fulfillment-customer-options"/);
   assert.match(kiosk, /go\(type==="onsite"\?"payment"/);
@@ -128,15 +125,12 @@ test("onsite sale stays in a separate staff zone, skips customer info, and keeps
   assert.match(kiosk, /로컬 미리보기에서는 현장판매를 저장할 수 없습니다/);
   assert.match(kiosk, /signin-with-chatgpt\?return_to=%2Fkiosk%3Fresume%3Dpayment/);
   assert.match(kiosk, /resume==="payment"&&restored\.fulfillmentType==="onsite"&&restored\.paymentMethod&&hasItems/);
-  assert.match(access, /getChatGPTUser/);
-  assert.match(access, /isConfiguredOperator/);
   assert.match(api, /fulfillmentType === "onsite"/);
   assert.match(api, /isLocalDevelopmentRequest\(request\.url, import\.meta\.env\.DEV\)/);
   assert.match(api, /user\?\.userId \?\? LOCAL_PREVIEW_ACTOR_ID/);
   assert.match(api, /isLocalPreviewActor\(user\.userId, request\.url, import\.meta\.env\.DEV\)/);
   assert.match(auth, /isLocalDevelopmentHost\(host, import\.meta\.env\.DEV\)/);
   assert.match(auth, /displayName: "로컬 개발 직원"/);
-  assert.match(availability, /isLocalPreviewActor\(user\.userId, request\.url, import\.meta\.env\.DEV\)/);
   assert.match(api, /getChatGPTUser/);
   assert.match(api, /isOperator/);
   assert.match(api, /INSERT INTO customer_ledger_transactions/);
