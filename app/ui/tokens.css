@@ -1,0 +1,11 @@
+:root {
+  --wine: #7b2422;
+  --wine-dark: #561817;
+  --ink: #25251f;
+  --paper: #f7f3ea;
+  --line: #ded7ca;
+  --muted: #7f796f;
+  --green: #277153;
+  --orange: #a75c24;
+  --shadow: 0 14px 40px rgba(60, 40, 20, 0.11);
+}
