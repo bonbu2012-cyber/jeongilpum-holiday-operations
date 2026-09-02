@@ -1,0 +1,370 @@
+.sales-work-table {
+  width: min(100%, 1480px);
+  min-height: 100vh;
+  margin: 0 auto;
+  padding-bottom: 32px;
+  background: var(--paper);
+}
+
+.sales-work-table__main {
+  display: grid;
+  gap: 16px;
+  padding: 22px 28px;
+}
+
+.sales-work-table__heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.sales-work-table__heading small {
+  color: var(--wine);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .12em;
+}
+
+.sales-work-table__heading h1,
+.sales-work-table__heading p {
+  margin: 0;
+}
+
+.sales-work-table__heading h1 {
+  margin-top: 4px;
+  font-size: 25px;
+}
+
+.sales-work-table__heading p {
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.sales-work-table__date-range {
+  display: grid;
+  grid-template-columns: 150px 150px;
+  gap: 8px;
+}
+
+.sales-work-table__date-range .ui-field {
+  gap: 4px;
+}
+
+.sales-work-table__date-range .ui-field__control {
+  min-height: 38px;
+}
+
+.sales-work-table .ui-tabs {
+  margin-top: 4px;
+}
+
+.sales-work-table .ui-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 8;
+  border: 1px solid var(--line);
+  background: #fffdfa;
+}
+
+.sales-work-table .ui-toolbar__filters select,
+.sales-work-table__bulk-actions select,
+.sales-work-table__bulk-actions input {
+  min-height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  padding: 0 8px;
+  color: var(--ink);
+  font: inherit;
+  font-size: 11px;
+}
+
+.sales-work-table__bulk-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.sales-work-table__bulk-actions input {
+  width: 154px;
+}
+
+.sales-work-table__section,
+.sales-work-table__customer-table {
+  border: 1px solid var(--line);
+  background: #fff;
+}
+
+.sales-work-table .ui-data-table {
+  min-width: 1130px;
+}
+
+.sales-work-table .ui-data-table td {
+  font-size: 11px;
+}
+
+.sales-work-table__customer {
+  display: grid;
+  gap: 2px;
+}
+
+.sales-work-table__customer small,
+.sales-work-table .ui-data-table td small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.sales-work-table__overage {
+  color: #9b312a !important;
+  font-weight: 900;
+}
+
+.sales-work-table__actions {
+  display: flex;
+  gap: 5px;
+}
+
+.sales-work-table__actions .ui-button {
+  white-space: nowrap;
+}
+
+.sales-work-table__row--arrived td {
+  box-shadow: inset 3px 0 0 #bf473a;
+}
+
+.sales-work-table__error {
+  padding: 12px 14px;
+  border: 1px solid #dda39c;
+  border-radius: 8px;
+  background: #fff1ef;
+  color: #922e27;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.sales-work-table__customer-table {
+  display: grid;
+}
+
+.sales-work-table__customer-table > article + article {
+  border-top: 1px solid var(--line);
+}
+
+.sales-work-table__customer-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) 130px 180px 60px;
+  align-items: center;
+  width: 100%;
+  min-height: 62px;
+  border: 0;
+  background: #fff;
+  padding: 11px 15px;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+}
+
+.sales-work-table__customer-row:hover {
+  background: #fff8ed;
+}
+
+.sales-work-table__customer-row span:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.sales-work-table__customer-row small {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.sales-work-table__customer-row > span:not(:first-child) {
+  color: var(--muted);
+  font-size: 11px;
+  text-align: right;
+}
+
+.sales-work-table__customer-row > strong {
+  text-align: right;
+}
+
+.sales-work-table__balance {
+  color: #9b312a;
+}
+
+.sales-work-table__customer-orders {
+  padding: 0 15px 14px;
+  background: #faf8f4;
+}
+
+.sales-work-table__customer-orders > section {
+  border: 1px solid var(--line);
+  background: #fff;
+}
+
+.sales-work-table__customer-orders > section + section {
+  margin-top: 8px;
+}
+
+.sales-work-table__customer-orders header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 10px;
+}
+
+.sales-work-table__customer-orders header > button:first-child {
+  display: grid;
+  grid-template-columns: 150px 1fr 90px;
+  flex: 1;
+  gap: 12px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+}
+
+.sales-work-table__customer-orders header > button:first-child span:last-child {
+  color: var(--muted);
+  text-align: right;
+  font-size: 10px;
+}
+
+.sales-work-table__nested-work {
+  border-top: 1px solid var(--line);
+}
+
+.sales-work-table__nested-work > button {
+  display: grid;
+  grid-template-columns: 112px minmax(180px, 1fr) 100px 100px;
+  align-items: center;
+  width: 100%;
+  min-height: 42px;
+  gap: 12px;
+  border: 0;
+  border-bottom: 1px solid #eee8df;
+  background: #fff;
+  padding: 8px 14px;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+  font-size: 11px;
+}
+
+.sales-work-table__nested-work > button:hover {
+  background: #fff8ed;
+}
+
+.sales-work-table__empty {
+  padding: 48px;
+  margin: 0;
+  color: var(--muted);
+  text-align: center;
+  font-size: 12px;
+}
+
+.sales-work-table__editor {
+  display: grid;
+  gap: 14px;
+}
+
+.sales-work-table__editor-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.sales-work-table__editor-wide {
+  grid-column: 1 / -1;
+}
+
+.sales-work-table__warning {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid #deb566;
+  border-radius: 7px;
+  background: #fff7e5;
+  color: #7b5618;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.sales-work-table__payment-editor {
+  display: grid;
+  gap: 12px;
+}
+
+.sales-work-table__payment-editor p {
+  margin: 0;
+  padding: 12px;
+  background: #f6f2eb;
+  font-size: 12px;
+}
+
+.sales-work-table__payment-editor p strong {
+  margin-left: 8px;
+  color: var(--wine);
+}
+
+.sales-work-table__nested-work .ui-badge {
+  justify-self: start;
+}
+
+.sales-work-table__editor .sales-work-table__error {
+  margin: 0;
+}
+
+@media (max-width: 900px) {
+  .sales-work-table__main {
+    padding: 16px 13px;
+  }
+
+  .sales-work-table__heading {
+    display: grid;
+  }
+
+  .sales-work-table__date-range {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .sales-work-table .ui-toolbar {
+    position: static;
+  }
+
+  .sales-work-table__bulk-actions {
+    align-items: stretch;
+  }
+
+  .sales-work-table__customer-row {
+    grid-template-columns: minmax(130px, 1fr) 1fr 52px;
+    gap: 8px;
+  }
+
+  .sales-work-table__customer-row > span:nth-child(2) {
+    display: none;
+  }
+
+  .sales-work-table__customer-row > strong {
+    grid-column: 2;
+  }
+
+  .sales-work-table__nested-work > button,
+  .sales-work-table__customer-orders header > button:first-child {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .sales-work-table__customer-orders header > button:first-child span:last-child {
+    text-align: left;
+  }
+
+  .sales-work-table__editor-grid {
+    grid-template-columns: 1fr;
+  }
+}
