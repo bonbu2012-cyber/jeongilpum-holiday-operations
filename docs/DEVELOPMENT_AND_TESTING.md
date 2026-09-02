@@ -17,6 +17,7 @@ npm run typecheck
 npm test
 npm run build
 npm run db:generate
+npm run db:local
 ```
 
 ## 디렉터리 역할
@@ -32,6 +33,7 @@ npm run db:generate
 | `tests/` | unit, migration, integration-style regression |
 | `public/` | logo와 정적 이미지 |
 | `.openai/` | Sites project binding |
+| `scripts/` | local Wrangler D1 configuration and migration runner |
 | `docs/` | as-built 문서와 작업 claim |
 
 ## 구현 규칙
@@ -95,6 +97,12 @@ npm run db:generate
 - `npm run build`
 - schema가 변했다면 `npm run db:generate`
 - clean working tree와 정확한 HEAD
+
+### Local D1 migration
+
+- `npm run db:local`은 `drizzle/meta/_journal.json`의 entries 순서대로 local D1에 migration을 적용한다.
+- 실행 중 하나라도 실패하면 이후 migration을 적용하지 않고 non-zero exit로 종료한다.
+- local D1을 초기화하거나 migration 적용 이력을 기록하는 동작은 제공하지 않는다.
 
 ## 테스트 작성 원칙
 

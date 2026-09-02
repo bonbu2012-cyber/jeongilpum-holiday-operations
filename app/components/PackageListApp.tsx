@@ -1,0 +1,88 @@
+"use client";
+
+import { PackageSearch } from "lucide-react";
+import { useState } from "react";
+import type { DataTableColumn } from "../ui";
+import { Badge, Button, DataTable, SectionTitle, useResource } from "../ui";
+import OpsHeader from "./OpsHeader";
+import "../workshop-flow.css";
+
+type PackageSummary = {
+  id: string;
+  packageCode: string;
+  productName: string;
+  packageStatus: string;
+  workItemId: string | null;
+  orderNo: string | null;
+  schedule: string;
+};
+
+export default function PackageListApp() {
+  const [packages, setPackages] = useState<PackageSummary[]>([]);
+  const [error, setError] = useState("");
+  const {
+    loading,
+    reload,
+  } = useResource<{ packages?: PackageSummary[] }>("/api/workshop/packages", 2500, {
+    onData: (data) => {
+      setPackages(data.packages ?? []);
+      setError("");
+    },
+    onError: (resourceError) => setError(resourceError.message || "패키지 목록을 불러오지 못했습니다."),
+  });
+  const columns: DataTableColumn<PackageSummary>[] = [
+    {
+      id: "code",
+      header: "패키지 코드",
+      cell: (item) => <strong>{item.packageCode}</strong>,
+      sortValue: (item) => item.packageCode,
+    },
+    {
+      id: "product",
+      header: "상품",
+      cell: (item) => item.productName,
+      sortValue: (item) => item.productName,
+    },
+    {
+      id: "schedule",
+      header: "연결 작업",
+      cell: (item) => item.schedule,
+      sortValue: (item) => item.schedule,
+    },
+    {
+      id: "status",
+      header: "상태",
+      cell: (item) => <Badge tone={item.packageStatus === "completed" ? "success" : "neutral"}>{item.packageStatus}</Badge>,
+      sortValue: (item) => item.packageStatus,
+    },
+  ];
+
+  return (
+    <div className="workshop-app">
+      <OpsHeader
+        surface="workshop"
+        title="정일품 작업장"
+        actions={(
+          <Button variant="ghost" size="sm" disabled={loading} onClick={() => void reload()} leadingIcon={<PackageSearch size={16} />}>
+            {loading ? "조회 중" : "새로고침"}
+          </Button>
+        )}
+      />
+      <main className="workshop-main">
+        <section className="whiteboard-section">
+          <SectionTitle as="h1" title="패키지" meta={<a href="/workshop">작업장으로</a>} />
+          {error ? <div className="package-message error" role="alert">{error}</div> : null}
+          <DataTable
+            ariaLabel="패키지 목록"
+            rows={packages}
+            columns={columns}
+            getRowId={(item) => item.id}
+            initialSort={{ columnId: "code", direction: "desc" }}
+            onRowClick={(item) => { window.location.href = `/workshop/packages/${encodeURIComponent(item.packageCode)}`; }}
+            emptyMessage="등록된 패키지가 없습니다."
+          />
+        </section>
+      </main>
+    </div>
+  );
+}

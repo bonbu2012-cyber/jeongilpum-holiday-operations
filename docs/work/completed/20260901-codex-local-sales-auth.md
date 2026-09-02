@@ -19,8 +19,8 @@ Sites dispatcher가 없는 로컬 Vinext에서 `/sales`가 로그인 경로 404�
 
 ## Claimed paths
 
-- `app/chatgpt-auth.ts` (인증 계약 독점 claim)
-- `app/lib/local-preview-auth.ts`
+- 이전 플랫폼 인증 모듈 (인증 계약 독점 claim)
+- 이전 로컬 개발 인증 모듈
 - `app/api/orders/route.ts` (독점 claim)
 - `app/api/availability/route.ts`
 - `tests/onsite-sales.test.mjs`
@@ -29,13 +29,13 @@ Sites dispatcher가 없는 로컬 Vinext에서 `/sales`가 로그인 경로 404�
 
 ## Shared contracts
 
-- 운영 빌드의 `getChatGPTUser()`, `/api/orders`, `/api/availability`는 기존 Sites 인증과 operator allowlist를 유지한다.
+- 운영 빌드의 `/api/orders`, `/api/availability`는 당시의 운영 인증 계약을 유지한다.
 - 로컬 직원은 development 빌드이면서 HTTP loopback host/request일 때만 생성·허용한다.
 - 로컬 직원 ID와 이메일은 PII가 아닌 고정 개발용 값이다.
 
 ## Plan
 
-1. 로컬 host에서만 `getChatGPTUser()` 개발 사용자 제공
+1. 로컬 host에서만 개발 사용자 제공
 2. 판매장 첫 화면 조회 API 두 곳에서만 로컬 개발 사용자 허용
 3. 로컬 `/sales`와 조회 API smoke, 운영 빌드 상수, 전체 검사 확인
 

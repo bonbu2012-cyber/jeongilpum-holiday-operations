@@ -4,13 +4,6 @@ import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { SALES_DATE_ORDERS_SQL } from "../app/lib/sales-order-query.ts";
 import { WORKSHOP_DATE_ORDERS_SQL } from "../app/lib/workshop-operations.ts";
-import {
-  isLocalDevelopmentHost,
-  isLocalDevelopmentRequest,
-  isLocalPreviewActor,
-  LOCAL_PREVIEW_ACTOR_EMAIL,
-  LOCAL_PREVIEW_ACTOR_ID,
-} from "../app/lib/local-preview-auth.ts";
 
 const root = new URL("../", import.meta.url);
 const read = (path) => readFile(new URL(path, root), "utf8");
@@ -44,22 +37,11 @@ async function migratedDatabase() {
   return database;
 }
 
-test("local onsite completion is limited to development HTTP loopback requests", () => {
-  assert.equal(LOCAL_PREVIEW_ACTOR_ID, "local-preview-operator");
-  assert.equal(LOCAL_PREVIEW_ACTOR_EMAIL, "local-preview@localhost.invalid");
-  assert.equal(isLocalDevelopmentRequest("http://localhost:3000/api/orders", true), true);
-  assert.equal(isLocalDevelopmentRequest("http://127.0.0.1:3000/api/orders", true), true);
-  assert.equal(isLocalDevelopmentRequest("http://[::1]:3000/api/orders", true), true);
-  assert.equal(isLocalDevelopmentRequest("http://localhost:3000/api/orders", false), false);
-  assert.equal(isLocalDevelopmentRequest("https://localhost/api/orders", true), false);
-  assert.equal(isLocalDevelopmentRequest("http://192.168.0.10:3000/api/orders", true), false);
-  assert.equal(isLocalDevelopmentRequest("not a url", true), false);
-  assert.equal(isLocalDevelopmentHost("localhost:3000", true), true);
-  assert.equal(isLocalDevelopmentHost("127.0.0.1:3000", true), true);
-  assert.equal(isLocalDevelopmentHost("example.com", true), false);
-  assert.equal(isLocalDevelopmentHost("localhost:3000", false), false);
-  assert.equal(isLocalPreviewActor(LOCAL_PREVIEW_ACTOR_ID, "http://localhost:3000/api/orders", true), true);
-  assert.equal(isLocalPreviewActor(LOCAL_PREVIEW_ACTOR_ID, "https://example.com/api/orders", true), false);
+test("kiosk order POST remains public and uses the shared operator actor for onsite sales", async () => {
+  const source = await read("app/api/orders/route.ts");
+  const post = source.slice(source.indexOf("export async function POST"));
+  assert.doesNotMatch(post, /requireOperatorApi/);
+  assert.match(post, /actor = OPERATOR_ACTOR/);
 });
 
 test("anonymous onsite sale reuses the valid immediate-pickup fulfillment while preserving an onsite order type", async () => {
@@ -98,19 +80,15 @@ test("anonymous onsite sale reuses the valid immediate-pickup fulfillment while 
   database.close();
 });
 
-test("onsite sale stays in a separate staff zone, skips customer info, and keeps protected atomic writes", async () => {
-  const [kiosk, css, api, access, auth, availability] = await Promise.all([
+test("onsite sale stays in a separate zone, skips customer info, and keeps atomic writes", async () => {
+  const [kiosk, css, api] = await Promise.all([
     read("app/components/KioskApp.tsx"),
     read("app/kiosk-flow.css"),
     read("app/api/orders/route.ts"),
-    read("app/api/orders/onsite-access/route.ts"),
-    read("app/chatgpt-auth.ts"),
-    read("app/api/availability/route.ts"),
   ]);
   for (const label of ["현장판매", "방문수령", "택배발송", "결제방식을 선택해주세요", "현금", "카드", "계좌이체"]) {
     assert.match(kiosk, new RegExp(label));
   }
-  assert.doesNotMatch(kiosk, /fetch\("\/api\/orders\/onsite-access"/);
   assert.match(kiosk, /className="onsite-sale-zone"/);
   assert.match(kiosk, /className="fulfillment-customer-options"/);
   assert.match(kiosk, /go\(type==="onsite"\?"payment"/);
@@ -123,22 +101,8 @@ test("onsite sale stays in a separate staff zone, skips customer info, and keeps
   assert.match(api, /fulfillmentType !== "onsite" && \(!buyer \|\| phone\.length < 10\)/);
   assert.match(api, /orderStatus,\s+fulfillmentType,\s+scheduleLabel/);
   assert.match(api, /fulfillmentType === "onsite" \? "pickup" : fulfillmentType,\s+pickupAt/);
-  assert.match(kiosk, /response\.status===401&&draft\.fulfillmentType==="onsite"/);
-  assert.match(kiosk, /\["localhost","127\.0\.0\.1","\[::1\]"\]\.includes\(location\.hostname\)/);
-  assert.match(kiosk, /로컬 미리보기에서는 현장판매를 저장할 수 없습니다/);
-  assert.match(kiosk, /signin-with-chatgpt\?return_to=%2Fkiosk%3Fresume%3Dpayment/);
-  assert.match(kiosk, /resume==="payment"&&restored\.fulfillmentType==="onsite"&&restored\.paymentMethod&&hasItems/);
-  assert.match(access, /getChatGPTUser/);
-  assert.match(access, /isConfiguredOperator/);
   assert.match(api, /fulfillmentType === "onsite"/);
-  assert.match(api, /isLocalDevelopmentRequest\(request\.url, import\.meta\.env\.DEV\)/);
-  assert.match(api, /user\?\.userId \?\? LOCAL_PREVIEW_ACTOR_ID/);
-  assert.match(api, /isLocalPreviewActor\(user\.userId, request\.url, import\.meta\.env\.DEV\)/);
-  assert.match(auth, /isLocalDevelopmentHost\(host, import\.meta\.env\.DEV\)/);
-  assert.match(auth, /displayName: "로컬 개발 직원"/);
-  assert.match(availability, /isLocalPreviewActor\(user\.userId, request\.url, import\.meta\.env\.DEV\)/);
-  assert.match(api, /getChatGPTUser/);
-  assert.match(api, /isOperator/);
+  assert.match(api, /actor = OPERATOR_ACTOR/);
   assert.match(api, /INSERT INTO customer_ledger_transactions/);
   assert.match(api, /onsite_sale_completed/);
   assert.match(api, /runtimeEnv\.DB\.batch\(statements\)/);

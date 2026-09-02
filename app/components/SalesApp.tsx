@@ -1,290 +1,1120 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import type { OrderRecord } from "./types";
-import { fetchOrders } from "../lib/orders-client";
-import {
-  filterOperationalOrders,
-  isTerminalOrder,
-  scheduleDate,
-  scheduleTime,
-  sortOperationalOrders,
-  summarizeOperationalOrders,
-  workStatusLabel,
-  type AttentionFilter,
-  type SalesFilter,
-} from "../lib/sales-operations";
-import { operationalDateFromSearch } from "../lib/operational-date";
+import { useEffect, useState } from "react";
+import type { FormEvent } from "react";
 import AppNav from "./AppNav";
-import CustomerLedgerApp from "./CustomerLedgerApp";
-import SalesOrderDetail, { type SchedulePayload, type StatusChangeOptions } from "./SalesOrderDetail";
-import "../operations-flow.css";
-import "../sales-flow.css";
+import {
+  Badge,
+  Button,
+  DataTable,
+  FieldInput,
+  FieldSelect,
+  FieldTextarea,
+  Modal,
+  StatTiles,
+  Tabs,
+  Toolbar,
+  useResource,
+  type DataTableColumn,
+} from "../ui";
+import { PIPELINE_WORK_STATUSES, WORK_STATUS_LABELS, WORK_STATUS_OPTIONS, type PipelineWorkStatus, type WorkStatus } from "../lib/work-status";
+import "../sales/work-table.css";
 
-type AvailabilityItem = {
+type DeliveryMethod = "onsite_sale" | "onsite_reservation" | "delivery";
+type PaymentStatus = "unpaid" | "partial" | "paid";
+type Tab = "work" | "customers";
+
+type WorkItem = {
+  id: string;
+  orderId: string;
   productId: string;
   productName: string;
-  dailyLimit: number;
-  reservedQuantity: number;
-  remainingQuantity: number;
+  unitPrice: number;
+  quantity: number;
+  lineTotal: number;
+  deliveryMethod: DeliveryMethod;
+  dueAt: string;
+  workStatus: WorkStatus;
+  recipientName: string | null;
+  recipientPhone: string | null;
+  postalCode: string | null;
+  roadAddr: string | null;
+  roadAddrReference: string | null;
+  jibunAddr: string | null;
+  detailAddr: string | null;
+  customizationJson: string | null;
+  note: string;
+  version: number;
+  orderNo: string;
+  buyerName: string;
+  buyerPhone: string;
+  paymentStatus: PaymentStatus;
+  paidAmount: number;
+  totalAmount: number;
+  customerArrivedAt: string | null;
+  orderVersion: number;
+  productDailyLimit: number | null;
+  productScheduledQuantity: number;
 };
-type AvailabilityResponse = { products?: AvailabilityItem[]; error?: string };
 
-const todayInSeoul = () => {
+type Dashboard = Record<PipelineWorkStatus, Record<DeliveryMethod, number>>;
+
+type WorkResponse = {
+  workItems: WorkItem[];
+  dashboard: Dashboard;
+};
+
+type CustomerOrder = {
+  id: string;
+  orderNo: string;
+  paymentStatus: PaymentStatus;
+  paidAmount: number;
+  totalAmount: number;
+  balance: number;
+  version: number;
+  workItems: WorkItem[];
+};
+
+type Customer = {
+  id: string;
+  buyerName: string;
+  buyerPhone: string;
+  balance: number;
+  orders: CustomerOrder[];
+};
+
+type CustomerResponse = {
+  customers: Customer[];
+};
+
+type Product = {
+  id: string;
+  name: string;
+  price: number;
+  dailyLimit: number | null;
+  reservedQuantity: number;
+};
+
+type ProductResponse = {
+  products: Product[];
+};
+
+type Selection = {
+  id: string;
+  expectedVersion: number;
+};
+
+type WorkDraft = {
+  productId: string;
+  unitPrice: string;
+  quantity: string;
+  deliveryMethod: DeliveryMethod;
+  dueAt: string;
+  recipientName: string;
+  recipientPhone: string;
+  postalCode: string;
+  roadAddr: string;
+  roadAddrReference: string;
+  jibunAddr: string;
+  detailAddr: string;
+  customizationJson: string;
+  workStatus: WorkStatus;
+  note: string;
+};
+
+const DELIVERY_LABELS: Record<DeliveryMethod, string> = {
+  onsite_sale: "현장판매",
+  onsite_reservation: "현장예약",
+  delivery: "택배예약",
+};
+
+const PAYMENT_LABELS: Record<PaymentStatus, string> = {
+  unpaid: "미수",
+  partial: "부분결제",
+  paid: "결제완료",
+};
+
+const WORK_STATUS_BACKGROUNDS: Record<WorkStatus, string> = {
+  received: "#fff8eb",
+  confirmed: "#f7f3eb",
+  in_progress: "#eef6fb",
+  ready: "#eff8f0",
+  completed: "#f1f3f1",
+  cancelled: "#f5f5f5",
+};
+
+function todayInSeoul() {
   const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit",
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
   }).formatToParts(new Date());
   const part = (type: string) => parts.find((value) => value.type === type)?.value ?? "";
-  return part("year") + "-" + part("month") + "-" + part("day");
-};
-const moveDate = (value: string, days: number) => {
-  const [year, month, day] = value.split("-").map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day + days));
-  return [date.getUTCFullYear(), String(date.getUTCMonth() + 1).padStart(2, "0"), String(date.getUTCDate()).padStart(2, "0")].join("-");
-};
-const dateHeading = (value: string) => {
-  const [year, month, day] = value.split("-").map(Number);
-  const weekday = ["일", "월", "화", "수", "목", "금", "토"][new Date(Date.UTC(year, month - 1, day)).getUTCDay()];
-  return year + "년 " + month + "월 " + day + "일 (" + weekday + ")";
-};
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
+function workUrl({
+  view,
+  workStatus,
+  deliveryMethod,
+  dateFrom,
+  dateTo,
+  query,
+}: {
+  view: Tab;
+  workStatus: string;
+  deliveryMethod: string;
+  dateFrom: string;
+  dateTo: string;
+  query: string;
+}) {
+  const params = new URLSearchParams();
+  if (view === "customers") params.set("view", "customers");
+  if (workStatus) params.set("workStatus", workStatus);
+  if (deliveryMethod) params.set("deliveryMethod", deliveryMethod);
+  if (dateFrom) params.set("dateFrom", dateFrom);
+  if (dateTo) params.set("dateTo", dateTo);
+  if (query.trim()) params.set("q", query.trim());
+  params.set("sort", "urgency");
+  return `/api/work-items?${params.toString()}`;
+}
+
+function toLocalDateTime(value: string) {
+  return value.slice(0, 16);
+}
+
+function toDueAt(value: string) {
+  return `${value}:00+09:00`;
+}
+
+function nullable(value: string) {
+  return value.trim() || null;
+}
+
+function won(value: number) {
+  return `${value.toLocaleString("ko-KR")}원`;
+}
+
+function urgentWorkItem(item: WorkItem) {
+  if (item.workStatus === "completed" || item.workStatus === "cancelled") return false;
+  if (item.customerArrivedAt) return true;
+  const dueAt = Date.parse(item.dueAt);
+  return Number.isFinite(dueAt) && dueAt <= Date.now() + 30 * 60_000;
+}
+
+function workItemBackground(item: WorkItem) {
+  return urgentWorkItem(item) ? "#fff0d9" : WORK_STATUS_BACKGROUNDS[item.workStatus];
+}
+
+function draftFor(item: WorkItem): WorkDraft {
+  return {
+    productId: item.productId,
+    unitPrice: String(item.unitPrice),
+    quantity: String(item.quantity),
+    deliveryMethod: item.deliveryMethod,
+    dueAt: toLocalDateTime(item.dueAt),
+    recipientName: item.recipientName ?? "",
+    recipientPhone: item.recipientPhone ?? "",
+    postalCode: item.postalCode ?? "",
+    roadAddr: item.roadAddr ?? "",
+    roadAddrReference: item.roadAddrReference ?? "",
+    jibunAddr: item.jibunAddr ?? "",
+    detailAddr: item.detailAddr ?? "",
+    customizationJson: item.customizationJson ?? "",
+    workStatus: item.workStatus,
+    note: item.note,
+  };
+}
+
+async function responseData(response: Response) {
+  const data = await response.json().catch(() => null) as { error?: string } | null;
+  if (!response.ok) throw new Error(data?.error ?? "요청을 처리하지 못했습니다.");
+  return data;
+}
 
 export default function SalesApp() {
-  const [orders, setOrders] = useState<OrderRecord[]>([]);
-  const [availability, setAvailability] = useState<AvailabilityItem[]>([]);
-  const [selectedDate, setSelectedDate] = useState(todayInSeoul);
-  const [filter, setFilter] = useState<SalesFilter>("all");
-  const [attention, setAttention] = useState<AttentionFilter>(null);
+  const today = todayInSeoul();
+  const [tab, setTab] = useState<Tab>("work");
   const [query, setQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<OrderRecord[] | null>(null);
-  const [selectedOrder, setSelectedOrder] = useState<OrderRecord | null>(null);
-  const [showCompleted, setShowCompleted] = useState(false);
-  const [showLegacy, setShowLegacy] = useState(false);
-  const [error, setError] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [workStatus, setWorkStatus] = useState("");
+  const [deliveryMethod, setDeliveryMethod] = useState("");
+  const [workDateFrom, setWorkDateFrom] = useState(today);
+  const [workDateTo, setWorkDateTo] = useState(today);
+  const [customerDateFrom, setCustomerDateFrom] = useState("");
+  const [customerDateTo, setCustomerDateTo] = useState("");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [selectedWorkItem, setSelectedWorkItem] = useState<WorkItem | null>(null);
+  const [newWorkOrder, setNewWorkOrder] = useState<CustomerOrder | null>(null);
+  const [paymentOrder, setPaymentOrder] = useState<CustomerOrder | null>(null);
+  const [deleteSelection, setDeleteSelection] = useState<Selection[] | null>(null);
   const [notice, setNotice] = useState("");
-  const [refreshing, setRefreshing] = useState(false);
-  const [lastSync, setLastSync] = useState("");
-  const [ledgerOpen, setLedgerOpen] = useState(false);
-  const [ledgerCustomerId, setLedgerCustomerId] = useState<string | null>(null);
+  const [expandedCustomers, setExpandedCustomers] = useState<string[]>([]);
+  const [expandedOrders, setExpandedOrders] = useState<string[]>([]);
 
   useEffect(() => {
-    const queryDate = operationalDateFromSearch(window.location.search);
-    if (queryDate) setSelectedDate(queryDate);
-  }, []);
+    const timer = setTimeout(() => setDebouncedQuery(query), 250);
+    return () => clearTimeout(timer);
+  }, [query]);
 
-  const loadDate = useCallback(async (options?: { silent?: boolean }) => {
-    if (!options?.silent) setRefreshing(true);
+  const currentDateFrom = tab === "work" ? workDateFrom : customerDateFrom;
+  const currentDateTo = tab === "work" ? workDateTo : customerDateTo;
+  const workResourceUrl = workUrl({
+    view: "work",
+    workStatus,
+    deliveryMethod,
+    dateFrom: workDateFrom,
+    dateTo: workDateTo,
+    query: debouncedQuery,
+  });
+  const customerResourceUrl = tab === "customers"
+    ? workUrl({
+      view: "customers",
+      workStatus,
+      deliveryMethod,
+      dateFrom: customerDateFrom,
+      dateTo: customerDateTo,
+      query: debouncedQuery,
+    })
+    : null;
+  const {
+    data: workData,
+    error: workError,
+    reload: reloadWork,
+  } = useResource<WorkResponse>(workResourceUrl, 3000);
+  const {
+    data: customerData,
+    error: customerError,
+    reload: reloadCustomers,
+  } = useResource<CustomerResponse>(customerResourceUrl, 3000);
+
+  const workItems = workData?.workItems ?? [];
+  const selectedWorkItems = workItems.filter((item) => selectedIds.includes(item.id));
+  const error = tab === "work" ? workError : customerError;
+  const dashboardTotals = Object.values(workData?.dashboard ?? {}).reduce<Record<DeliveryMethod, number>>(
+    (totals, statusTotals) => ({
+      onsite_sale: totals.onsite_sale + statusTotals.onsite_sale,
+      onsite_reservation: totals.onsite_reservation + statusTotals.onsite_reservation,
+      delivery: totals.delivery + statusTotals.delivery,
+    }),
+    { onsite_sale: 0, onsite_reservation: 0, delivery: 0 },
+  );
+  const stageTotals = PIPELINE_WORK_STATUSES.reduce((totals, status) => {
+    const channelTotals = workData?.dashboard[status];
+    totals[status] = channelTotals
+      ? channelTotals.onsite_sale + channelTotals.onsite_reservation + channelTotals.delivery
+      : 0;
+    return totals;
+  }, {} as Record<PipelineWorkStatus, number>);
+
+  const reloadActive = async () => {
+    await Promise.all([
+      reloadWork({ silent: true }),
+      tab === "customers" ? reloadCustomers({ silent: true }) : Promise.resolve(),
+    ]);
+  };
+
+  const saveWorkItem = async (item: WorkItem, draft: WorkDraft) => {
+    const response = await fetch("/api/work-items", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: item.id,
+        expectedVersion: item.version,
+        changes: {
+          productId: draft.productId,
+          unitPrice: Number(draft.unitPrice),
+          quantity: Number(draft.quantity),
+          deliveryMethod: draft.deliveryMethod,
+          dueAt: toDueAt(draft.dueAt),
+          recipientName: nullable(draft.recipientName),
+          recipientPhone: nullable(draft.recipientPhone),
+          postalCode: nullable(draft.postalCode),
+          roadAddr: nullable(draft.roadAddr),
+          roadAddrReference: nullable(draft.roadAddrReference),
+          jibunAddr: nullable(draft.jibunAddr),
+          detailAddr: nullable(draft.detailAddr),
+          customizationJson: nullable(draft.customizationJson),
+          workStatus: draft.workStatus,
+          note: draft.note,
+        },
+      }),
+    });
+    await responseData(response);
+    setSelectedWorkItem(null);
+    setNotice("작업 행을 저장했습니다.");
+    await reloadActive();
+  };
+
+  const updateWork = async (item: WorkItem, changes: Record<string, unknown>, noticeText: string) => {
     try {
-      const [nextOrders, response] = await Promise.all([
-        fetchOrders({ date: selectedDate }),
-        fetch("/api/availability?date=" + encodeURIComponent(selectedDate), { cache: "no-store" }),
-      ]);
-      const data = await response.json() as AvailabilityResponse;
-      setOrders(nextOrders);
-      setSelectedOrder((current) => current ? nextOrders.find((order) => order.id === current.id) ?? current : null);
-      if (response.ok) {
-        setAvailability(data.products ?? []);
-        setError("");
+      const response = await fetch("/api/work-items", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: item.id, expectedVersion: item.version, changes }),
+      });
+      await responseData(response);
+      setNotice(noticeText);
+      await reloadActive();
+    } catch (caught) {
+      setNotice(caught instanceof Error ? caught.message : "작업을 변경하지 못했습니다.");
+    }
+  };
+
+  const duplicateWork = async (item: WorkItem) => {
+    try {
+      const response = await fetch("/api/work-items", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sourceId: item.id, expectedVersion: item.version }),
+      });
+      await responseData(response);
+      setNotice("작업 행을 복제했습니다.");
+      await reloadActive();
+    } catch (caught) {
+      setNotice(caught instanceof Error ? caught.message : "작업 행을 복제하지 못했습니다.");
+    }
+  };
+
+  const runBulk = async (payload: Record<string, unknown>, noticeText: string) => {
+    try {
+      const response = await fetch("/api/work-items/bulk", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...payload, items: selectedWorkItems.map((item) => ({ id: item.id, expectedVersion: item.version })) }),
+      });
+      await responseData(response);
+      setSelectedIds([]);
+      setNotice(noticeText);
+      await reloadActive();
+    } catch (caught) {
+      setNotice(caught instanceof Error ? caught.message : "일괄 처리를 저장하지 못했습니다.");
+    }
+  };
+
+  const deleteWorkItems = async () => {
+    if (!deleteSelection?.length) return;
+    try {
+      if (deleteSelection.length === 1) {
+        const response = await fetch("/api/work-items", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(deleteSelection[0]),
+        });
+        await responseData(response);
       } else {
-        setAvailability([]);
-        setNotice(data.error || "한정상품 현황을 불러오지 못했습니다.");
+        const response = await fetch("/api/work-items/bulk", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "delete", items: deleteSelection }),
+        });
+        await responseData(response);
       }
-      setLastSync(new Intl.DateTimeFormat("ko-KR", {
-        timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit", second: "2-digit",
-      }).format(new Date()));
+      setSelectedIds([]);
+      setSelectedWorkItem(null);
+      setDeleteSelection(null);
+      setNotice(`${deleteSelection.length}개 작업 행을 삭제했습니다.`);
+      await reloadActive();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "판매장 데이터를 불러오지 못했습니다.");
-    } finally {
-      setRefreshing(false);
-    }
-  }, [selectedDate]);
-
-  useEffect(() => {
-    const frame = requestAnimationFrame(() => void loadDate());
-    const timer = setInterval(() => void loadDate({ silent: true }), 2500);
-    const sync = () => void loadDate({ silent: true });
-    window.addEventListener("focus", sync);
-    window.addEventListener("online", sync);
-    return () => {
-      cancelAnimationFrame(frame);
-      clearInterval(timer);
-      window.removeEventListener("focus", sync);
-      window.removeEventListener("online", sync);
-    };
-  }, [loadDate]);
-
-  const search = async () => {
-    if (!query.trim()) return setSearchResults(null);
-    setRefreshing(true);
-    try {
-      setSearchResults(await fetchOrders({ q: query.trim() }));
-      setError("");
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "주문을 검색하지 못했습니다.");
-    } finally {
-      setRefreshing(false);
+      setDeleteSelection(null);
+      setNotice(caught instanceof Error ? caught.message : "작업 행을 삭제하지 못했습니다.");
     }
   };
-  const refreshSearch = async () => {
-    if (searchResults !== null && query.trim()) setSearchResults(await fetchOrders({ q: query.trim() }));
-  };
-  const refreshAll = async () => {
-    await Promise.all([loadDate(), refreshSearch()]);
-  };
-  const updateStatus = async (order: OrderRecord, status: "confirmed" | "fulfilled" | "cancelled", options?: StatusChangeOptions) => {
-    const response = await fetch("/api/orders/status", {
+
+  const savePayment = async (order: CustomerOrder, paymentStatus: PaymentStatus, paidAmount: number) => {
+    const response = await fetch("/api/orders/payment", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ orderId: order.id, status, expectedVersion: order.version, ...options }),
+      body: JSON.stringify({
+        orderId: order.id,
+        expectedVersion: order.version,
+        paymentStatus,
+        paidAmount,
+      }),
     });
-    const data = await response.json() as { error?: string };
-    if (!response.ok) {
-      setNotice(data.error ?? "상태를 변경하지 못했습니다.");
-      return false;
-    }
-    setNotice(status === "confirmed" ? "작업장에 주문을 전달했습니다." : status === "cancelled" ? "주문을 취소하고 이력을 남겼습니다." : order.fulfillmentType === "shipping" ? "출고 완료로 기록했습니다." : "전달 완료로 기록했습니다.");
-    await refreshAll();
-    if (status === "cancelled") setSelectedOrder(null);
-    return true;
+    await responseData(response);
+    setPaymentOrder(null);
+    setNotice("결제 상태와 금액을 저장했습니다.");
+    await reloadActive();
   };
-  const markArrival = async (order: OrderRecord) => {
-    const response = await fetch("/api/orders/arrival", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ orderId: order.id }),
-    });
-    const data = await response.json() as { error?: string; alreadyArrived?: boolean };
-    if (!response.ok) return setNotice(data.error ?? "고객 도착을 기록하지 못했습니다.");
-    setNotice(data.alreadyArrived ? "이미 고객 도착이 기록된 주문입니다." : "고객 도착을 작업장에 알렸습니다.");
-    await refreshAll();
-  };
-  const assignSchedule = async (order: OrderRecord, payload: SchedulePayload) => {
-    const response = await fetch("/api/orders/fulfillment", {
+
+  const createWorkItem = async (order: CustomerOrder, draft: WorkDraft, idempotencyKey: string) => {
+    const response = await fetch("/api/work-items", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ orderId: order.id, ...payload }),
+      body: JSON.stringify({
+        action: "create",
+        orderId: order.id,
+        expectedOrderVersion: order.version,
+        idempotencyKey,
+        productId: draft.productId,
+        unitPrice: Number(draft.unitPrice),
+        quantity: Number(draft.quantity),
+        deliveryMethod: draft.deliveryMethod,
+        dueAt: toDueAt(draft.dueAt),
+        workStatus: draft.workStatus,
+        recipientName: nullable(draft.recipientName),
+        recipientPhone: nullable(draft.recipientPhone),
+        postalCode: nullable(draft.postalCode),
+        roadAddr: nullable(draft.roadAddr),
+        roadAddrReference: nullable(draft.roadAddrReference),
+        jibunAddr: nullable(draft.jibunAddr),
+        detailAddr: nullable(draft.detailAddr),
+        customizationJson: nullable(draft.customizationJson),
+        note: draft.note,
+      }),
     });
-    const data = await response.json() as { error?: string };
-    if (!response.ok) {
-      setNotice(data.error ?? "일정을 저장하지 못했습니다.");
-      return false;
-    }
-    setNotice("기존 주문에 수령 일정이 지정되었습니다.");
-    await refreshAll();
-    return true;
-  };
-  const openLedger = (customerAccountId?: string | null) => {
-    setLedgerCustomerId(customerAccountId ?? null);
-    setLedgerOpen(true);
+    await responseData(response);
+    setNewWorkOrder(null);
+    setNotice("새 작업 행을 추가했습니다.");
+    await reloadActive();
   };
 
-  const scheduledOrders = useMemo(() => orders.filter((order) =>
-    order.fulfillmentId && order.status !== "cancelled" && scheduleDate(order) === selectedDate),
-  [orders, selectedDate]);
-  const legacyOrders = useMemo(() => orders.filter((order) => !order.fulfillmentId && order.status !== "cancelled"), [orders]);
-  const now = new Date();
-  const summary = summarizeOperationalOrders(scheduledOrders, now);
-  const visibleOrders = sortOperationalOrders(filterOperationalOrders(scheduledOrders, filter, attention, now), now);
-  const activeOrders = visibleOrders.filter((order) => !isTerminalOrder(order));
-  const completedOrders = visibleOrders.filter((order) => isTerminalOrder(order));
-  const filterOptions: { value: SalesFilter; label: string; count: number }[] = [
-    { value: "all", label: "전체", count: summary.total },
-    { value: "onsite", label: "현장", count: summary.onsite },
-    { value: "pickup", label: "방문", count: summary.pickup },
-    { value: "shipping", label: "택배", count: summary.shipping },
-    { value: "incomplete", label: "미완료", count: summary.total - summary.fulfilled },
-    { value: "ready", label: "준비완료", count: summary.ready },
+  const toggleCustomer = (id: string) => {
+    setExpandedCustomers((current) => current.includes(id)
+      ? current.filter((value) => value !== id)
+      : [...current, id]);
+  };
+
+  const toggleOrder = (id: string) => {
+    setExpandedOrders((current) => current.includes(id)
+      ? current.filter((value) => value !== id)
+      : [...current, id]);
+  };
+
+  const columns: DataTableColumn<WorkItem>[] = [
+    {
+      id: "dueAt",
+      header: "수령일시",
+      cell: (item) => <><b>{item.dueAt.slice(0, 10)}</b><small>{item.deliveryMethod === "delivery" ? "발송 예정" : item.dueAt.slice(11, 16)}</small></>,
+      sortValue: (item) => item.dueAt,
+      width: "118px",
+    },
+    {
+      id: "customer",
+      header: "고객",
+      cell: (item) => <div className="sales-work-table__customer"><b>{item.buyerName}</b><small>{item.buyerPhone} · {item.orderNo}</small></div>,
+      sortValue: (item) => item.buyerName,
+      width: "180px",
+    },
+    {
+      id: "product",
+      header: "상품",
+      cell: (item) => <><b>{item.productName}</b>{item.productDailyLimit !== null && item.productScheduledQuantity > item.productDailyLimit ? <small className="sales-work-table__overage">일일 수량 초과 {item.productScheduledQuantity}/{item.productDailyLimit}</small> : null}</>,
+      sortValue: (item) => item.productName,
+    },
+    {
+      id: "quantity",
+      header: "수량",
+      cell: (item) => <>{item.quantity}<small>{won(item.lineTotal)}</small></>,
+      sortValue: (item) => item.quantity,
+      align: "right",
+      width: "90px",
+    },
+    {
+      id: "delivery",
+      header: "수령방법",
+      cell: (item) => <Badge tone={item.deliveryMethod === "delivery" ? "info" : "neutral"}>{DELIVERY_LABELS[item.deliveryMethod]}</Badge>,
+      sortValue: (item) => DELIVERY_LABELS[item.deliveryMethod],
+      width: "104px",
+    },
+    {
+      id: "status",
+      header: "작업상태",
+      cell: (item) => <Badge tone={item.workStatus === "ready" || item.workStatus === "completed" ? "success" : item.workStatus === "received" ? "warning" : "info"}>{WORK_STATUS_LABELS[item.workStatus]}</Badge>,
+      sortValue: (item) => item.workStatus,
+      width: "94px",
+    },
+    {
+      id: "payment",
+      header: "결제",
+      cell: (item) => <><Badge tone={item.paymentStatus === "paid" ? "success" : item.paymentStatus === "partial" ? "warning" : "danger"}>{PAYMENT_LABELS[item.paymentStatus]}</Badge><small>{won(item.paidAmount)} / {won(item.totalAmount)}</small></>,
+      width: "118px",
+    },
+    {
+      id: "actions",
+      header: "처리",
+      cell: (item) => <div className="sales-work-table__actions">
+        <Button
+          size="sm"
+          variant={item.customerArrivedAt ? "ghost" : "primary"}
+          onClick={(event) => {
+            event.stopPropagation();
+            void updateWork(item, { customerArrivedAt: item.customerArrivedAt ? null : true }, item.customerArrivedAt ? "고객 도착 기록을 취소했습니다." : "고객 도착을 기록했습니다.");
+          }}
+        >
+          {item.customerArrivedAt ? "도착 취소" : "고객 도착"}
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={(event) => {
+            event.stopPropagation();
+            void updateWork(item, { workStatus: item.workStatus === "confirmed" ? "received" : "confirmed" }, item.workStatus === "confirmed" ? "주문 확인을 취소했습니다." : "주문을 확인했습니다.");
+          }}
+        >
+          {item.workStatus === "confirmed" ? "확인 취소" : "주문 확인"}
+        </Button>
+      </div>,
+      width: "190px",
+    },
   ];
 
-  return <div className="ops-app sales-app">
-    <header className="ops-header sales-header">
-      <a href="/sales" className="ops-brand"><img className="operations-brand-logo" src="/jeongilpum-logo.png" alt="정일품 정육식당 로고"/><span>정일품 주문관리<small>판매장 운영</small></span></a>
-      <div className="ops-alerts"><button onClick={() => void loadDate()} disabled={refreshing}>{refreshing ? "동기화 중…" : "지금 새로고침"}</button><a href="/signout-with-chatgpt?return_to=/">로그아웃</a></div>
-    </header>
-    <AppNav current="admin" />
+  return (
+    <div className="sales-work-table">
+      <header className="ops-header sales-header">
+        <a href="/sales" className="ops-brand">
+          <img className="operations-brand-logo" src="/jeongilpum-logo.png" alt="정일품 정육식당 로고" />
+          <span>정일품 주문관리<small>판매장 운영</small></span>
+        </a>
+        <div className="ops-alerts">
+          <Button size="sm" variant="ghost" onClick={() => void fetch("/api/operator-session", { method: "DELETE" }).then(() => location.reload())}>로그아웃</Button>
+        </div>
+      </header>
+      <AppNav current="sales" />
 
-    <main className="ops-main sales-main">
-      <section className="sales-date-toolbar" aria-label="운영 날짜 선택">
-        <button onClick={() => setSelectedDate(moveDate(selectedDate, -1))}>← 이전날</button>
-        <div><small>{selectedDate === todayInSeoul() ? "오늘" : "선택 날짜"}</small><h1>{dateHeading(selectedDate)}</h1><span>최근 동기화 {lastSync || "준비 중"} · 약 3초 간격 자동 반영</span></div>
-        <button onClick={() => setSelectedDate(moveDate(selectedDate, 1))}>다음날 →</button>
-        <label><span>달력</span><input type="date" value={selectedDate} onChange={(event) => setSelectedDate(event.target.value)} /></label>
-      </section>
+      <main className="sales-work-table__main">
+        <div className="sales-work-table__dashboard">
+          <StatTiles
+            ariaLabel="오늘 수령방법별 작업 수량"
+            tiles={[
+              {
+                id: "total",
+                label: "전체",
+                value: dashboardTotals.onsite_sale + dashboardTotals.onsite_reservation + dashboardTotals.delivery,
+                subtotals: [
+                  { label: DELIVERY_LABELS.onsite_sale, value: dashboardTotals.onsite_sale },
+                  { label: DELIVERY_LABELS.onsite_reservation, value: dashboardTotals.onsite_reservation },
+                  { label: DELIVERY_LABELS.delivery, value: dashboardTotals.delivery },
+                ],
+              },
+            ]}
+          />
+          <ol className="sales-stage-flow" aria-label="작업 단계별 진행">
+            {PIPELINE_WORK_STATUSES.map((status) => (
+              <li key={status} className="sales-stage-flow__step">
+                <span>{WORK_STATUS_LABELS[status]}</span>
+                <b>{stageTotals[status]}</b>
+              </li>
+            ))}
+          </ol>
+        </div>
 
-      {error && <div className="access-error sales-load-error" role="alert"><b>판매장 주문을 불러오지 못했습니다</b><span>{error}</span><a href="/signin-with-chatgpt?return_to=/sales">운영자 로그인</a></div>}
+        <Tabs
+          ariaLabel="판매장 화면 선택"
+          value={tab}
+          onValueChange={(value) => {
+            setTab(value as Tab);
+            setSelectedIds([]);
+          }}
+          items={[
+            { id: "work", label: "작업", count: workItems.length },
+            { id: "customers", label: "미수·고객", count: customerData?.customers.length },
+          ]}
+        />
 
-      <section className="sales-summary" aria-label="선택 날짜 운영 요약">
-        <div className="sales-summary-total"><small>{selectedDate === todayInSeoul() ? "오늘 주문" : "선택일 주문"}</small><b>{summary.total}</b></div>
-        <dl>
-          <div><dt>미준비</dt><dd>{summary.waiting}</dd></div><div><dt>작업중</dt><dd>{summary.inProgress}</dd></div>
-          <div><dt>준비완료</dt><dd>{summary.ready}</dd></div><div><dt>판매/전달/출고완료</dt><dd>{summary.fulfilled}</dd></div>
-          <div><dt>현장판매</dt><dd>{summary.onsite}</dd></div><div><dt>방문수령</dt><dd>{summary.pickup}</dd></div><div><dt>택배발송</dt><dd>{summary.shipping}</dd></div>
-          <div><dt>고객도착</dt><dd>{summary.arrived}</dd></div><div><dt>변경확인</dt><dd>{summary.changes}</dd></div>
-        </dl>
-      </section>
+        <Toolbar
+          search={{
+            value: query,
+            onChange: setQuery,
+            placeholder: "성함 / 전화번호 / 주문번호 / 상품명 검색",
+            label: "작업 및 고객 검색",
+          }}
+          filters={<>
+            <FieldSelect id="sales-work-status-filter" label="작업 상태" value={workStatus} onChange={(event) => setWorkStatus(event.target.value)}>
+              <option value="">모든 작업 상태</option>
+              {WORK_STATUS_OPTIONS.map((status) => (
+                <option key={status} value={status}>{WORK_STATUS_LABELS[status]}</option>
+              ))}
+            </FieldSelect>
+            <FieldSelect id="sales-delivery-method-filter" label="수령방법" value={deliveryMethod} onChange={(event) => setDeliveryMethod(event.target.value)}>
+              <option value="">모든 수령방법</option>
+              {Object.entries(DELIVERY_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            </FieldSelect>
+            <FieldInput
+              id="sales-date-from"
+              label="조회 시작일"
+              type="date"
+              value={currentDateFrom}
+              onChange={(event) => tab === "work" ? setWorkDateFrom(event.target.value) : setCustomerDateFrom(event.target.value)}
+            />
+            <FieldInput
+              id="sales-date-to"
+              label="조회 종료일"
+              type="date"
+              value={currentDateTo}
+              onChange={(event) => tab === "work" ? setWorkDateTo(event.target.value) : setCustomerDateTo(event.target.value)}
+            />
+          </>}
+          selectionCount={tab === "work" ? selectedWorkItems.length : undefined}
+        >
+          {tab === "work" && selectedWorkItems.length ? (
+            <BulkActions
+              onRun={runBulk}
+              onDelete={() => setDeleteSelection(selectedWorkItems.map((item) => ({ id: item.id, expectedVersion: item.version })))}
+            />
+          ) : null}
+        </Toolbar>
 
-      <section className="sales-attention" aria-label="긴급 확인">
-        <button className={attention === "arrived" ? "active" : ""} onClick={() => setAttention(attention === "arrived" ? null : "arrived")}>고객도착 <b>{summary.arrived}</b></button>
-        <button className={attention === "due-soon" ? "active" : ""} onClick={() => setAttention(attention === "due-soon" ? null : "due-soon")}>30분 이내 수령 미완료 <b>{summary.dueSoon}</b></button>
-        <button className={attention === "changes" ? "active" : ""} onClick={() => setAttention(attention === "changes" ? null : "changes")}>주문변경 미확인 <b>{summary.changes}</b></button>
-        {attention && <button className="clear-attention" onClick={() => setAttention(null)}>주의 필터 해제</button>}
-      </section>
+        {error ? <p className="sales-work-table__error" role="alert">{error.message}</p> : null}
 
-      <section className="sales-search-panel">
-        <div className="sales-search"><input value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => event.key === "Enter" && void search()} placeholder="이름 · 전화번호 · 주문번호 · 받는분 · 기업명 검색" aria-label="전체 주문 통합 검색" /><button onClick={() => void search()}>전체 이력 검색</button></div>
-        <button className="customer-ledger-open" onClick={() => openLedger()}>고객 결제·미수 장부</button>
-        <button className="legacy-count" onClick={() => setShowLegacy((value) => !value)}>일정 미지정 주문 <b>{legacyOrders.length}</b>건</button>
-      </section>
+        {tab === "work" ? (
+          <section className="sales-work-table__section" aria-label="작업 목록">
+            <DataTable
+              ariaLabel="판매장 작업 목록"
+              rows={workItems}
+              columns={columns}
+              getRowId={(item) => item.id}
+              rowBackground={workItemBackground}
+              rowClassName={(item) => item.customerArrivedAt ? "sales-work-table__row--arrived" : undefined}
+              onRowClick={setSelectedWorkItem}
+              selectedIds={selectedIds}
+              onSelectedIdsChange={setSelectedIds}
+              emptyMessage="조건에 맞는 작업이 없습니다."
+            />
+          </section>
+        ) : (
+          <CustomerTable
+            customers={customerData?.customers ?? []}
+            expandedCustomers={expandedCustomers}
+            expandedOrders={expandedOrders}
+            onToggleCustomer={toggleCustomer}
+            onToggleOrder={toggleOrder}
+            onOpenWorkItem={setSelectedWorkItem}
+            onOpenPayment={setPaymentOrder}
+            onCreateWork={setNewWorkOrder}
+          />
+        )}
+      </main>
 
-      {searchResults !== null && <section className="sales-search-results"><header><div><small>날짜와 무관한 전체 주문 이력</small><h2>검색 결과 {searchResults.length}건</h2></div><button onClick={() => setSearchResults(null)}>검색 결과 닫기</button></header><OrderTable orders={sortOperationalOrders(searchResults)} onSelect={setSelectedOrder} history /></section>}
-      {showLegacy && <section className="sales-legacy-results"><header><div><small>LEGACY</small><h2>일정 미지정 주문 {legacyOrders.length}건</h2></div><p>기존 주문 원본 날짜는 추정하지 않습니다.</p></header><OrderTable orders={legacyOrders} onSelect={setSelectedOrder} /></section>}
-
-      <section className="sales-order-section">
-        <header className="sales-table-tools"><div className="sales-filters">{filterOptions.map((option) => <button key={option.value} className={filter === option.value ? "active" : ""} onClick={() => setFilter(option.value)}>{option.label} <b>{option.count}</b></button>)}</div><span>행을 누르면 주문 상세가 열립니다. 메인표에서는 수정할 수 없습니다.</span></header>
-        <OrderTable orders={activeOrders} onSelect={setSelectedOrder} />
-        {!activeOrders.length && <div className="sales-empty">조건에 맞는 미완료 주문이 없습니다.</div>}
-        {completedOrders.length > 0 && <section className="sales-completed"><button onClick={() => setShowCompleted((value) => !value)}>판매/전달/출고 완료 {completedOrders.length}건 {showCompleted ? "접기 ↑" : "펼치기 ↓"}</button>{showCompleted && <OrderTable orders={completedOrders} onSelect={setSelectedOrder} />}</section>}
-      </section>
-
-      <section className="sales-limits">
-        <header><div><small>LIMITED PRODUCTS</small><h2>한정상품 현황</h2></div><span>{selectedDate}</span></header>
-        {availability.length ? <table><thead><tr><th>상품</th><th>하루한도</th><th>예약수량</th><th>남은수량</th></tr></thead><tbody>{availability.map((item) => <tr key={item.productId}><td>{item.productName}</td><td>{item.dailyLimit}</td><td>{item.reservedQuantity}</td><td><b>{item.remainingQuantity}</b></td></tr>)}</tbody></table> : <p>설정된 한정상품이 없습니다.</p>}
-      </section>
-
-    </main>
-
-    {selectedOrder && <SalesOrderDetail order={selectedOrder} onClose={() => setSelectedOrder(null)} onArrival={markArrival} onStatus={updateStatus} onOpenLedger={openLedger} assignSchedule={assignSchedule} />}
-    {ledgerOpen && <CustomerLedgerApp initialCustomerId={ledgerCustomerId} onClose={() => { setLedgerOpen(false); setLedgerCustomerId(null); }} onChanged={() => void refreshAll()} />}
-    {notice && <div className="ops-toast" role="status">{notice}<button onClick={() => setNotice("")} aria-label="알림 닫기">×</button></div>}
-  </div>;
+      {selectedWorkItem ? (
+        <WorkItemEditor
+          key={`${selectedWorkItem.id}-${selectedWorkItem.version}`}
+          item={selectedWorkItem}
+          onClose={() => setSelectedWorkItem(null)}
+          onSave={saveWorkItem}
+          onDuplicate={duplicateWork}
+          onDelete={() => setDeleteSelection([{ id: selectedWorkItem.id, expectedVersion: selectedWorkItem.version }])}
+        />
+      ) : null}
+      {newWorkOrder ? (
+        <NewWorkItemEditor
+          key={`${newWorkOrder.id}-${newWorkOrder.version}`}
+          order={newWorkOrder}
+          onClose={() => setNewWorkOrder(null)}
+          onCreate={createWorkItem}
+        />
+      ) : null}
+      {paymentOrder ? (
+        <PaymentEditor
+          key={`${paymentOrder.id}-${paymentOrder.version}`}
+          order={paymentOrder}
+          onClose={() => setPaymentOrder(null)}
+          onSave={savePayment}
+        />
+      ) : null}
+      <Modal
+        open={Boolean(deleteSelection)}
+        title="작업 행을 삭제하시겠습니까?"
+        description="삭제한 작업 행은 되돌릴 수 없습니다."
+        onClose={() => setDeleteSelection(null)}
+        footer={<>
+          <Button variant="ghost" onClick={() => setDeleteSelection(null)}>취소</Button>
+          <Button variant="danger" onClick={() => void deleteWorkItems()}>삭제</Button>
+        </>}
+      >
+        <p>{deleteSelection?.length ?? 0}개 작업 행과 연결된 작업 정보를 삭제합니다.</p>
+      </Modal>
+      {notice ? <div className="ops-toast" role="status">{notice}<button type="button" onClick={() => setNotice("")} aria-label="알림 닫기">×</button></div> : null}
+    </div>
+  );
 }
 
-function OrderTable({ orders, onSelect, history = false }: { orders: OrderRecord[]; onSelect: (order: OrderRecord) => void; history?: boolean }) {
-  return <div className="sales-table-scroll"><table className="sales-order-table">
-    <thead><tr><th>시간</th><th>고객</th><th>상품</th><th>수량</th><th>구분</th><th>작업상태</th><th>결제</th><th>고객상태</th><th>변경</th></tr></thead>
-    <tbody>{orders.map((order) => {
-      const progress = order.packageTotal > 0 ? order.packageCompleted + " / " + order.packageTotal + " 완료" : null;
-      return <tr key={order.id} className={[order.customerArrived && !isTerminalOrder(order) ? "arrived" : "", order.status === "cancelled" ? "cancelled" : ""].filter(Boolean).join(" ")} tabIndex={0} onClick={() => onSelect(order)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") onSelect(order); }}>
-        <td>{order.fulfillmentId ? scheduleTime(order) : "미지정"}</td>
-        <td><b>{order.buyerName}</b><small>{order.orderNo}</small></td>
-        <td>{order.items.map((item) => item.name).join(", ") || "-"}</td>
-        <td>{order.items.reduce((sum, item) => sum + item.quantity, 0)}</td>
-        <td>{order.fulfillmentId ? (order.fulfillmentType === "onsite" ? "현장" : order.fulfillmentType === "pickup" ? "방문" : "택배") : "기존"}</td>
-        <td><span className={"sales-work-state " + order.status}>{history && order.status === "cancelled" ? "취소" : workStatusLabel(order)}</span>{progress && <small>{progress}</small>}</td>
-        <td><PaymentStatus order={order} /></td>
-        <td>{order.customerArrived ? <b className="arrived-label">도착</b> : "-"}</td>
-        <td>{order.hasUnacknowledgedChange ? <b className="change-label">미확인</b> : "-"}</td>
-      </tr>;
-    })}</tbody>
-  </table></div>;
+function BulkActions({
+  onRun,
+  onDelete,
+}: {
+  onRun: (payload: Record<string, unknown>, noticeText: string) => Promise<void>;
+  onDelete: () => void;
+}) {
+  const [nextStatus, setNextStatus] = useState<WorkStatus>("confirmed");
+  const [nextDueAt, setNextDueAt] = useState("");
+  const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>("unpaid");
+  const [paidAmount, setPaidAmount] = useState("0");
+
+  return (
+    <div className="sales-work-table__bulk-actions">
+      <FieldSelect id="sales-bulk-work-status" label="작업 상태" value={nextStatus} onChange={(event) => setNextStatus(event.target.value as WorkStatus)}>
+        {Object.entries(WORK_STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+      </FieldSelect>
+      <Button size="sm" variant="ghost" onClick={() => void onRun({ action: "status", workStatus: nextStatus }, "작업 상태를 일괄 변경했습니다.")}>상태 변경</Button>
+      <FieldInput id="sales-bulk-due-at" label="수령일시" type="datetime-local" value={nextDueAt} onChange={(event) => setNextDueAt(event.target.value)} />
+      <Button size="sm" variant="ghost" disabled={!nextDueAt} onClick={() => void onRun({ action: "due_at", dueAt: toDueAt(nextDueAt) }, "수령일시를 일괄 변경했습니다.")}>수령일시 변경</Button>
+      <FieldSelect id="sales-bulk-payment-status" label="결제 상태" value={paymentStatus} onChange={(event) => setPaymentStatus(event.target.value as PaymentStatus)}>
+        {Object.entries(PAYMENT_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+      </FieldSelect>
+      <FieldInput id="sales-bulk-paid-amount" label="결제 금액" type="number" min="0" step="1" value={paidAmount} onChange={(event) => setPaidAmount(event.target.value)} />
+      <Button size="sm" variant="ghost" disabled={!Number.isInteger(Number(paidAmount)) || Number(paidAmount) < 0} onClick={() => void onRun({ action: "payment", paymentStatus, paidAmount: Number(paidAmount) }, "결제 상태를 일괄 변경했습니다.")}>결제 변경</Button>
+      <Button size="sm" variant="ghost" onClick={() => void onRun({ action: "duplicate" }, "선택한 작업 행을 복제했습니다.")}>복제</Button>
+      <Button size="sm" variant="danger" onClick={onDelete}>삭제</Button>
+    </div>
+  );
 }
 
-function PaymentStatus({ order }: { order: OrderRecord }) {
-  const label = {
-    credit: order.customerReceivable > 0 ? "외상 " + order.customerReceivable.toLocaleString("ko-KR") + "원" : "외상",
-    partial: "부분 " + order.customerReceivable.toLocaleString("ko-KR") + "원",
-    paid: "완료",
-    advance: "선수 " + order.customerAdvance.toLocaleString("ko-KR") + "원",
-  }[order.customerPaymentStatus];
-  return <b className={"customer-payment-label " + order.customerPaymentStatus}>{label}</b>;
+function CustomerTable({
+  customers,
+  expandedCustomers,
+  expandedOrders,
+  onToggleCustomer,
+  onToggleOrder,
+  onOpenWorkItem,
+  onOpenPayment,
+  onCreateWork,
+}: {
+  customers: Customer[];
+  expandedCustomers: string[];
+  expandedOrders: string[];
+  onToggleCustomer: (id: string) => void;
+  onToggleOrder: (id: string) => void;
+  onOpenWorkItem: (item: WorkItem) => void;
+  onOpenPayment: (order: CustomerOrder) => void;
+  onCreateWork: (order: CustomerOrder) => void;
+}) {
+  if (!customers.length) return <section className="sales-work-table__customer-table"><p className="sales-work-table__empty">조건에 맞는 고객과 주문이 없습니다.</p></section>;
+
+  return (
+    <section className="sales-work-table__customer-table" aria-label="미수 및 고객 목록">
+      {customers.map((customer) => {
+        const customerOpen = expandedCustomers.includes(customer.id);
+        return (
+          <article key={customer.id}>
+            <button className="sales-work-table__customer-row" type="button" onClick={() => onToggleCustomer(customer.id)} aria-expanded={customerOpen}>
+              <span><b>{customer.buyerName}</b><small>{customer.buyerPhone}</small></span>
+              <span>주문 {customer.orders.length}건</span>
+              <strong className={customer.balance > 0 ? "sales-work-table__balance" : undefined}>{customer.balance > 0 ? `미수 ${won(customer.balance)}` : "미수 없음"}</strong>
+              <span>{customerOpen ? "접기" : "펼치기"}</span>
+            </button>
+            {customerOpen ? (
+              <div className="sales-work-table__customer-orders">
+                {customer.orders.map((order) => {
+                  const orderOpen = expandedOrders.includes(order.id);
+                  return (
+                    <section key={order.id}>
+                      <header>
+                        <button type="button" onClick={() => onToggleOrder(order.id)} aria-expanded={orderOpen}>
+                          <b>{order.orderNo}</b>
+                          <span>{PAYMENT_LABELS[order.paymentStatus]} · {won(order.paidAmount)} / {won(order.totalAmount)}</span>
+                          <span>{orderOpen ? "작업 접기" : "작업 펼치기"}</span>
+                        </button>
+                        <Button size="sm" variant="ghost" onClick={() => onCreateWork(order)}>작업 추가</Button>
+                        <Button size="sm" variant="ghost" onClick={() => onOpenPayment(order)}>결제 변경</Button>
+                      </header>
+                      {orderOpen ? order.workItems.map((item) => (
+                        <div className="sales-work-table__nested-work" key={item.id}>
+                          <button type="button" onClick={() => onOpenWorkItem(item)}>
+                            <span>{item.dueAt.slice(0, 10)} · {item.deliveryMethod === "delivery" ? "발송" : item.dueAt.slice(11, 16)}</span>
+                            <b>{item.productName} × {item.quantity}</b>
+                            <span>{DELIVERY_LABELS[item.deliveryMethod]}</span>
+                            <Badge tone={item.workStatus === "ready" || item.workStatus === "completed" ? "success" : "info"}>{WORK_STATUS_LABELS[item.workStatus]}</Badge>
+                          </button>
+                        </div>
+                      )) : null}
+                    </section>
+                  );
+                })}
+              </div>
+            ) : null}
+          </article>
+        );
+      })}
+    </section>
+  );
+}
+
+function WorkItemEditor({
+  item,
+  onClose,
+  onSave,
+  onDuplicate,
+  onDelete,
+}: {
+  item: WorkItem;
+  onClose: () => void;
+  onSave: (item: WorkItem, draft: WorkDraft) => Promise<void>;
+  onDuplicate: (item: WorkItem) => Promise<void>;
+  onDelete: () => void;
+}) {
+  const [draft, setDraft] = useState(() => draftFor(item));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const productUrl = draft.dueAt ? `/api/products?date=${encodeURIComponent(draft.dueAt.slice(0, 10))}` : null;
+  const { data: productData } = useResource<ProductResponse>(productUrl, 15000);
+  const products = productData?.products ?? [];
+  const selectedProduct = products.find((product) => product.id === draft.productId);
+  const currentReservation = selectedProduct
+    ? selectedProduct.reservedQuantity - (selectedProduct.id === item.productId && draft.dueAt.slice(0, 10) === item.dueAt.slice(0, 10) ? item.quantity : 0)
+    : 0;
+  const wouldExceedDailyLimit = Boolean(
+    selectedProduct?.dailyLimit !== null
+    && selectedProduct?.dailyLimit !== undefined
+    && currentReservation + Number(draft.quantity) > selectedProduct.dailyLimit,
+  );
+  const productOptions = products.some((product) => product.id === item.productId)
+    ? products
+    : [{ id: item.productId, name: item.productName, price: item.unitPrice, dailyLimit: item.productDailyLimit, reservedQuantity: item.productScheduledQuantity }, ...products];
+
+  const update = <Key extends keyof WorkDraft>(key: Key, value: WorkDraft[Key]) => {
+    setDraft((current) => ({ ...current, [key]: value }));
+  };
+
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!Number.isInteger(Number(draft.quantity)) || Number(draft.quantity) < 1) {
+      setError("수량은 1 이상의 정수여야 합니다.");
+      return;
+    }
+    if (!Number.isInteger(Number(draft.unitPrice)) || Number(draft.unitPrice) < 0) {
+      setError("상품 단가는 0 이상의 정수여야 합니다.");
+      return;
+    }
+    if (!draft.dueAt) {
+      setError("수령일시를 입력해주세요.");
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      await onSave(item, draft);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "작업 행을 저장하지 못했습니다.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal
+      open
+      title="작업 행 수정"
+      description={`${item.orderNo} · ${item.buyerName} · ${item.buyerPhone}`}
+      onClose={onClose}
+      footer={<>
+        <Button variant="danger" onClick={onDelete}>삭제</Button>
+        <Button variant="ghost" onClick={() => void onDuplicate(item)}>행 복제</Button>
+        <Button variant="ghost" onClick={onClose}>닫기</Button>
+        <Button disabled={saving} onClick={() => (document.getElementById("sales-work-item-editor") as HTMLFormElement | null)?.requestSubmit()}>{saving ? "저장 중" : "저장"}</Button>
+      </>}
+    >
+      <form id="sales-work-item-editor" className="sales-work-table__editor" onSubmit={submit}>
+        <div className="sales-work-table__editor-grid">
+          <FieldSelect id="work-product" label="상품" value={draft.productId} onChange={(event) => {
+            const product = productOptions.find((value) => value.id === event.target.value);
+            update("productId", event.target.value);
+            if (product) update("unitPrice", String(product.price));
+          }}>
+            {productOptions.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}
+          </FieldSelect>
+          <FieldInput id="work-unit-price" label="상품 단가" type="number" min="0" step="1" value={draft.unitPrice} onChange={(event) => update("unitPrice", event.target.value)} />
+          <FieldInput id="work-quantity" label="수량" type="number" min="1" step="1" value={draft.quantity} onChange={(event) => update("quantity", event.target.value)} />
+          <FieldSelect id="work-delivery" label="수령방법" value={draft.deliveryMethod} onChange={(event) => update("deliveryMethod", event.target.value as DeliveryMethod)}>
+            {Object.entries(DELIVERY_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          </FieldSelect>
+          <FieldInput id="work-due-at" label="수령일시" type="datetime-local" value={draft.dueAt} onChange={(event) => update("dueAt", event.target.value)} />
+          <FieldSelect id="work-status" label="작업 상태" value={draft.workStatus} onChange={(event) => update("workStatus", event.target.value as WorkStatus)}>
+            {Object.entries(WORK_STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          </FieldSelect>
+          <FieldInput id="work-recipient-name" label="수령자 성함" value={draft.recipientName} onChange={(event) => update("recipientName", event.target.value)} />
+          <FieldInput id="work-recipient-phone" label="수령자 전화번호" value={draft.recipientPhone} onChange={(event) => update("recipientPhone", event.target.value)} />
+          {draft.deliveryMethod === "delivery" ? <>
+            <FieldInput id="work-postal-code" label="우편번호" value={draft.postalCode} onChange={(event) => update("postalCode", event.target.value)} />
+            <FieldInput id="work-road-address" label="도로명 주소" value={draft.roadAddr} onChange={(event) => update("roadAddr", event.target.value)} />
+            <FieldInput id="work-road-reference" label="주소 참고" value={draft.roadAddrReference} onChange={(event) => update("roadAddrReference", event.target.value)} />
+            <FieldInput id="work-jibun-address" label="지번 주소" value={draft.jibunAddr} onChange={(event) => update("jibunAddr", event.target.value)} />
+            <FieldInput id="work-detail-address" className="sales-work-table__editor-wide" label="상세 주소" value={draft.detailAddr} onChange={(event) => update("detailAddr", event.target.value)} />
+          </> : null}
+          <FieldTextarea id="work-customization" className="sales-work-table__editor-wide" label="구성 정보" rows={2} value={draft.customizationJson} onChange={(event) => update("customizationJson", event.target.value)} />
+          <FieldTextarea id="work-note" className="sales-work-table__editor-wide" label="메모" rows={3} value={draft.note} onChange={(event) => update("note", event.target.value)} />
+        </div>
+        {wouldExceedDailyLimit && selectedProduct && selectedProduct.dailyLimit !== null ? <p className="sales-work-table__warning">선택한 수령일의 {selectedProduct.name} 수량이 {currentReservation + Number(draft.quantity)}개로 일일 기준 {selectedProduct.dailyLimit}개를 초과합니다. 운영자 저장은 제한하지 않습니다.</p> : null}
+        {error ? <p className="sales-work-table__error" role="alert">{error}</p> : null}
+      </form>
+    </Modal>
+  );
+}
+
+function NewWorkItemEditor({
+  order,
+  onClose,
+  onCreate,
+}: {
+  order: CustomerOrder;
+  onClose: () => void;
+  onCreate: (order: CustomerOrder, draft: WorkDraft, idempotencyKey: string) => Promise<void>;
+}) {
+  const [draft, setDraft] = useState<WorkDraft>(() => ({
+    productId: "",
+    unitPrice: "",
+    quantity: "1",
+    deliveryMethod: "onsite_reservation",
+    dueAt: `${todayInSeoul()}T10:00`,
+    recipientName: "",
+    recipientPhone: "",
+    postalCode: "",
+    roadAddr: "",
+    roadAddrReference: "",
+    jibunAddr: "",
+    detailAddr: "",
+    customizationJson: "",
+    workStatus: "received",
+    note: "",
+  }));
+  const [idempotencyKey] = useState(() => crypto.randomUUID());
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const productUrl = draft.dueAt ? `/api/products?date=${encodeURIComponent(draft.dueAt.slice(0, 10))}` : null;
+  const { data: productData } = useResource<ProductResponse>(productUrl, 15000);
+  const products = productData?.products ?? [];
+  const selectedProduct = products.find((product) => product.id === draft.productId);
+  const wouldExceedDailyLimit = Boolean(
+    selectedProduct
+    && selectedProduct.dailyLimit !== null
+    && selectedProduct.reservedQuantity + Number(draft.quantity) > selectedProduct.dailyLimit,
+  );
+
+  const update = <Key extends keyof WorkDraft>(key: Key, value: WorkDraft[Key]) => {
+    setDraft((current) => ({ ...current, [key]: value }));
+  };
+
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!draft.productId) {
+      setError("상품을 선택해주세요.");
+      return;
+    }
+    if (!Number.isInteger(Number(draft.quantity)) || Number(draft.quantity) < 1) {
+      setError("수량은 1 이상의 정수여야 합니다.");
+      return;
+    }
+    if (!Number.isInteger(Number(draft.unitPrice)) || Number(draft.unitPrice) < 0) {
+      setError("상품 단가는 0 이상의 정수여야 합니다.");
+      return;
+    }
+    if (!draft.dueAt) {
+      setError("수령일시를 입력해주세요.");
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      await onCreate(order, draft, idempotencyKey);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "새 작업 행을 추가하지 못했습니다.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal
+      open
+      title="새 작업 행 추가"
+      description={`${order.orderNo} · 기존 주문 금액 ${won(order.totalAmount)}`}
+      onClose={onClose}
+      footer={<>
+        <Button variant="ghost" onClick={onClose}>닫기</Button>
+        <Button disabled={saving} onClick={() => (document.getElementById("sales-new-work-editor") as HTMLFormElement | null)?.requestSubmit()}>{saving ? "저장 중" : "추가"}</Button>
+      </>}
+    >
+      <form id="sales-new-work-editor" className="sales-work-table__editor" onSubmit={submit}>
+        <div className="sales-work-table__editor-grid">
+          <FieldSelect id="new-work-product" label="상품" value={draft.productId} onChange={(event) => {
+            const product = products.find((value) => value.id === event.target.value);
+            update("productId", event.target.value);
+            if (product) update("unitPrice", String(product.price));
+          }}>
+            <option value="">상품 선택</option>
+            {products.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}
+          </FieldSelect>
+          <FieldInput id="new-work-unit-price" label="상품 단가" type="number" min="0" step="1" value={draft.unitPrice} onChange={(event) => update("unitPrice", event.target.value)} />
+          <FieldInput id="new-work-quantity" label="수량" type="number" min="1" step="1" value={draft.quantity} onChange={(event) => update("quantity", event.target.value)} />
+          <FieldSelect id="new-work-delivery" label="수령방법" value={draft.deliveryMethod} onChange={(event) => update("deliveryMethod", event.target.value as DeliveryMethod)}>
+            {Object.entries(DELIVERY_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          </FieldSelect>
+          <FieldInput id="new-work-due-at" label="수령일시" type="datetime-local" value={draft.dueAt} onChange={(event) => update("dueAt", event.target.value)} />
+          <FieldSelect id="new-work-status" label="작업 상태" value={draft.workStatus} onChange={(event) => update("workStatus", event.target.value as WorkStatus)}>
+            {Object.entries(WORK_STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          </FieldSelect>
+          <FieldInput id="new-work-recipient-name" label="수령자 성함" value={draft.recipientName} onChange={(event) => update("recipientName", event.target.value)} />
+          <FieldInput id="new-work-recipient-phone" label="수령자 전화번호" value={draft.recipientPhone} onChange={(event) => update("recipientPhone", event.target.value)} />
+          {draft.deliveryMethod === "delivery" ? <>
+            <FieldInput id="new-work-postal-code" label="우편번호" value={draft.postalCode} onChange={(event) => update("postalCode", event.target.value)} />
+            <FieldInput id="new-work-road-address" label="도로명 주소" value={draft.roadAddr} onChange={(event) => update("roadAddr", event.target.value)} />
+            <FieldInput id="new-work-road-reference" label="주소 참고" value={draft.roadAddrReference} onChange={(event) => update("roadAddrReference", event.target.value)} />
+            <FieldInput id="new-work-jibun-address" label="지번 주소" value={draft.jibunAddr} onChange={(event) => update("jibunAddr", event.target.value)} />
+            <FieldInput id="new-work-detail-address" className="sales-work-table__editor-wide" label="상세 주소" value={draft.detailAddr} onChange={(event) => update("detailAddr", event.target.value)} />
+          </> : null}
+          <FieldTextarea id="new-work-customization" className="sales-work-table__editor-wide" label="구성 정보" rows={2} value={draft.customizationJson} onChange={(event) => update("customizationJson", event.target.value)} />
+          <FieldTextarea id="new-work-note" className="sales-work-table__editor-wide" label="메모" rows={3} value={draft.note} onChange={(event) => update("note", event.target.value)} />
+        </div>
+        {wouldExceedDailyLimit && selectedProduct && selectedProduct.dailyLimit !== null ? <p className="sales-work-table__warning">선택한 수령일의 {selectedProduct.name} 수량이 {selectedProduct.reservedQuantity + Number(draft.quantity)}개로 일일 기준 {selectedProduct.dailyLimit}개를 초과합니다. 운영자 저장은 제한하지 않습니다.</p> : null}
+        {error ? <p className="sales-work-table__error" role="alert">{error}</p> : null}
+      </form>
+    </Modal>
+  );
+}
+
+function PaymentEditor({
+  order,
+  onClose,
+  onSave,
+}: {
+  order: CustomerOrder;
+  onClose: () => void;
+  onSave: (order: CustomerOrder, paymentStatus: PaymentStatus, paidAmount: number) => Promise<void>;
+}) {
+  const [paymentStatus, setPaymentStatus] = useState(order.paymentStatus);
+  const [paidAmount, setPaidAmount] = useState(String(order.paidAmount));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!Number.isInteger(Number(paidAmount)) || Number(paidAmount) < 0) {
+      setError("결제 금액은 0 이상의 정수여야 합니다.");
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      await onSave(order, paymentStatus, Number(paidAmount));
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "결제 정보를 저장하지 못했습니다.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal
+      open
+      title="결제 상태 변경"
+      description={`${order.orderNo} · 주문 금액 ${won(order.totalAmount)}`}
+      onClose={onClose}
+      footer={<>
+        <Button variant="ghost" onClick={onClose}>닫기</Button>
+        <Button disabled={saving} onClick={() => (document.getElementById("sales-payment-editor") as HTMLFormElement | null)?.requestSubmit()}>{saving ? "저장 중" : "저장"}</Button>
+      </>}
+    >
+      <form id="sales-payment-editor" className="sales-work-table__payment-editor" onSubmit={submit}>
+        <p>현재 결제 금액 <strong>{won(order.paidAmount)}</strong></p>
+        <FieldSelect id="sales-payment-status" label="결제 상태" value={paymentStatus} onChange={(event) => setPaymentStatus(event.target.value as PaymentStatus)}>
+          {Object.entries(PAYMENT_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+        </FieldSelect>
+        <FieldInput id="sales-paid-amount" label="결제 금액" type="number" min="0" step="1" value={paidAmount} onChange={(event) => setPaidAmount(event.target.value)} hint="주문 금액보다 큰 금액도 운영자가 기록할 수 있습니다." />
+        {error ? <p className="sales-work-table__error" role="alert">{error}</p> : null}
+      </form>
+    </Modal>
+  );
 }

@@ -16,7 +16,7 @@
 | 영역 | 대표 route | 책임 |
 |---|---|---|
 | 고객 키오스크 | `/`, `/kiosk`, `/kiosk/custom` | 상품선택, 방문/택배, 맞춤주문, 주문접수 |
-| 판매장 | `/sales`, `/admin` | 날짜별 주문표, 검색, 고객도착, 결제·외상, legacy 일정 지정 |
+| 판매장 | `/sales` | 날짜별 주문표, 검색, 고객도착, 결제·외상, legacy 일정 지정 |
 | 작업장 | `/workshop` | 작업수락, 작업시작, 준비완료, 긴급도, 상품별 생산량 |
 | 생산·패키지 | `/workshop/production`, `/workshop/packages/:code` | BOM, Batch, Skin Pack, QR, 라벨, 패키지 조립 |
 | 설정 | `/settings` | 상품, 판매기간, 사진 URL, kiosk headline |

@@ -1,0 +1,265 @@
+.sales-work-table {
+  width: min(100%, 1480px);
+  min-height: 100svh;
+  margin: 0 auto;
+  padding-bottom: clamp(76px, 11vw, 108px);
+  background: var(--paper);
+}
+
+.sales-work-table__main {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+  padding: 12px clamp(12px, 2vw, 28px) 24px;
+}
+
+.sales-work-table__section,
+.sales-work-table__customer-table {
+  min-width: 0;
+}
+
+.sales-work-table__dashboard {
+  display: contents;
+}
+
+.sales-stage-flow {
+  display: flex;
+  flex-wrap: wrap;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  border: 1px solid #d9d1c4;
+  border-radius: var(--radius-md);
+  background: #fff;
+}
+
+.sales-stage-flow__step {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 32px;
+  padding: 5px 12px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.sales-stage-flow__step span {
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.sales-stage-flow__step b {
+  color: var(--wine);
+  font-size: var(--text-md);
+  font-weight: var(--weight-strong);
+}
+
+.sales-stage-flow__step + .sales-stage-flow__step::before {
+  content: "›";
+  position: absolute;
+  left: 0;
+  transform: translateX(-50%);
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.sales-work-table__section,
+.sales-work-table__customer-table {
+  min-height: 80svh;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.sales-work-table__bulk-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+  align-items: end;
+  gap: 8px;
+  width: 100%;
+}
+
+.sales-work-table__bulk-actions > button {
+  align-self: end;
+}
+
+.sales-work-table__customer {
+  display: grid;
+  gap: 2px;
+}
+
+.sales-work-table__customer small,
+.sales-work-table__customer-row small,
+.sales-work-table__customer-row > span:not(:first-child),
+.sales-work-table__customer-orders header > button:first-child span:last-child,
+.sales-work-table__nested-work > button,
+.sales-work-table__empty {
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-body);
+}
+
+.sales-work-table__overage {
+  color: #9b312a;
+  font-weight: var(--weight-strong);
+}
+
+.sales-work-table__actions {
+  display: flex;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.sales-work-table__error,
+.sales-work-table__warning {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-body);
+}
+
+.sales-work-table__customer-table {
+  display: grid;
+}
+
+.sales-work-table__customer-table > article + article,
+.sales-work-table__nested-work {
+  border-top: 1px solid var(--line);
+}
+
+.sales-work-table__customer-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 62px;
+  padding: 11px 15px;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+  font-size: var(--text-md);
+  font-weight: var(--weight-body);
+}
+
+.sales-work-table__customer-row span:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.sales-work-table__customer-row > span:not(:first-child),
+.sales-work-table__customer-row > strong,
+.sales-work-table__customer-orders header > button:first-child span:last-child {
+  text-align: right;
+}
+
+.sales-work-table__balance {
+  color: #9b312a;
+  font-weight: var(--weight-strong);
+}
+
+.sales-work-table__customer-orders {
+  display: grid;
+  gap: 8px;
+  padding: 0 15px 14px;
+}
+
+.sales-work-table__customer-orders > section {
+  display: grid;
+  gap: 8px;
+}
+
+.sales-work-table__customer-orders header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 10px;
+}
+
+.sales-work-table__customer-orders header > button:first-child {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) minmax(0, 1fr);
+  flex: 1;
+  gap: 12px;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+  font-size: var(--text-md);
+  font-weight: var(--weight-body);
+}
+
+.sales-work-table__nested-work > button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 42px;
+  padding: 8px 14px;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+}
+
+.sales-work-table__editor,
+.sales-work-table__payment-editor {
+  display: grid;
+  gap: 14px;
+}
+
+.sales-work-table__editor-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.sales-work-table__editor-wide {
+  grid-column: 1 / -1;
+}
+
+.sales-work-table__payment-editor p {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: var(--weight-body);
+}
+
+.sales-work-table__payment-editor p strong {
+  color: var(--wine);
+  font-weight: var(--weight-strong);
+}
+
+@media (max-width: 900px) {
+  .sales-work-table__main {
+    padding-inline: 12px;
+  }
+
+  .sales-work-table__customer-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  }
+
+  .sales-work-table__customer-row > span:nth-child(2) {
+    display: none;
+  }
+
+  .sales-work-table__customer-row > strong {
+    grid-column: 2;
+  }
+}
+
+@media (max-width: 640px) {
+  .sales-work-table__customer-row,
+  .sales-work-table__nested-work > button,
+  .sales-work-table__customer-orders header > button:first-child,
+  .sales-work-table__editor-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sales-work-table__customer-row > strong {
+    grid-column: auto;
+    text-align: left;
+  }
+
+  .sales-work-table__customer-row > span:not(:first-child),
+  .sales-work-table__customer-orders header > button:first-child span:last-child {
+    text-align: left;
+  }
+}

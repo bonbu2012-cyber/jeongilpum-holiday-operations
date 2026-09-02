@@ -5,14 +5,13 @@
 ```text
 Browser
 ├─ public kiosk client
-└─ authenticated operator clients
+└─ passcode-gated operator clients
         ↓ same-origin HTTP
 Vinext / React routes
         ↓
 Cloudflare Worker route handlers
 ├─ input validation
-├─ ChatGPT user authentication
-├─ operator allowlist authorization
+├─ operator passcode session validation
 ├─ domain calculation
 └─ D1 prepared statements / batch
         ↓
@@ -35,8 +34,8 @@ Cloudflare D1 (SQLite)
 
 - route page는 server component로 접근 제어를 수행한다.
 - Kiosk, Sales, Workshop, Settings 등 실제 상호작용은 client component가 담당한다.
-- 운영 page는 `requireChatGPTUser()` 실행 후 client app을 렌더링한다.
-- 운영 API는 다시 operator allowlist를 검사한다. page 보호만으로 API 권한을 대신하지 않는다.
+- 운영 page는 유효한 공용 운영 암호 세션이 있을 때 client app을 렌더링한다.
+- 운영 API는 같은 HttpOnly 세션을 다시 검사한다. page 보호만으로 API 권한을 대신하지 않는다.
 
 ## 데이터 접근
 
@@ -53,7 +52,6 @@ Cloudflare D1 (SQLite)
 Kiosk draft(sessionStorage)
 → POST /api/orders
 → validation
-→ 현장판매면 ChatGPT user + operator allowlist 확인
 → product/season/limit lookup
 → server-side total calculation
 → idempotency check
@@ -73,9 +71,9 @@ Kiosk draft(sessionStorage)
 
 sessionStorage는 새로고침·뒤로가기를 위한 제출 전 초안이다. 주문 성공 후 삭제되며 운영 원본이 아니다.
 
-메인 주문 유형은 현장판매, 방문수령, 택배발송이다. 현장판매는 공개 고객이 금융 장부를 변경하지 못하도록 선택 시점과 제출 시점에 운영자 권한을 각각 확인한다. 주문은 `fulfilled`, fulfillment는 즉시 인도된 `pickup` row로 저장하되 주문의 `fulfillment_type=onsite`를 판매 유형의 기준으로 사용한다. 결제거래와 감사이력은 주문 생성과 같은 D1 batch에 포함한다.
+메인 주문 유형은 현장판매, 방문수령, 택배발송이다. 주문은 `fulfilled`, fulfillment는 즉시 인도된 `pickup` row로 저장하되 주문의 `fulfillment_type=onsite`를 판매 유형의 기준으로 사용한다. 결제거래와 감사이력은 주문 생성과 같은 D1 batch에 포함한다.
 
-모든 주문의 마지막 UI 단계는 결제방식 선택이다. 방문수령·택배의 선택은 결제 예정 정보로 주문 이벤트에만 남고 실제 입금으로 확정하지 않는다. 현장판매의 카드·현금·계좌이체 선택만 운영자 인증 후 고객 장부 입금으로 기록한다.
+모든 주문의 마지막 UI 단계는 결제방식 선택이다. 방문수령·택배의 선택은 결제 예정 정보로 주문 이벤트에만 남고 실제 입금으로 확정하지 않는다. 현장판매의 카드·현금·계좌이체 선택은 고객 장부 입금으로 기록한다.
 
 ## 운영 화면 동기화
 

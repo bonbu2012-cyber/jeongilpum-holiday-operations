@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { OrderRecord } from "./types";
 import { workStatusLabel } from "../lib/sales-operations";
 import { arrivalTimingLabel } from "../lib/workshop-operations";
+import { FieldInput, FieldSelect, FieldTextarea } from "../ui";
 
 export type SchedulePayload = {
   fulfillmentType: "pickup" | "shipping";
@@ -79,7 +80,7 @@ export default function SalesOrderDetail({
         </section>
 
         <section className="detail-items"><h3>주문상품</h3>{order.items.map((item) => <div key={item.id}><span>{item.name}</span><b>{item.quantity}개</b><strong>{won(item.unitPrice * item.quantity)}</strong></div>)}</section>
-        {order.fulfillmentType !== "onsite" && <section className="detail-progress"><h3>작업장 진행</h3><p><b>{workStatusLabel(order)}</b>{order.packageTotal > 0 ? <span>{order.packageCompleted} / {order.packageTotal} 완료</span> : <span>package 생성 전 또는 해당 없음</span>}</p></section>}
+        {order.fulfillmentType !== "onsite" && <section className="detail-progress"><h3>작업장 진행</h3><p><b>{workStatusLabel(order)}</b>{order.packageTotal > 0 ? <span>{order.packageCompleted} / {order.packageTotal} 완료</span> : <span>완성품 생성 전 또는 해당 없음</span>}</p></section>}
         {order.customerArrived && <section className="detail-arrival"><h3>고객 도착</h3><div><p><span>예약시간</span><b>{order.pickupAt?.slice(11, 16) ?? "미지정"}</b></p><p><span>실제도착시간</span><b>{order.actualArrivedAt ? new Date(order.actualArrivedAt).toLocaleTimeString("ko-KR", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit" }) : "기록 없음"}</b></p><p><span>도착상태</span><b>{arrivalTimingLabel(order.arrivalOffsetMinutes)}</b></p><p><span>현재 준비상태</span><b>{order.status === "ready" ? "바로 전달 가능" : workStatusLabel(order)}</b></p></div>{order.substituteCandidateCount > 0 && order.status !== "ready" && <strong>대체 가능한 동일 완성품 {order.substituteCandidateCount}개 있음</strong>}</section>}
         {order.note && <section className="detail-note"><h3>요청사항</h3><p>{order.note}</p></section>}
         {!order.fulfillmentId && <ScheduleEditor order={order} assignSchedule={assignSchedule} />}
@@ -89,7 +90,7 @@ export default function SalesOrderDetail({
           {order.status === "submitted" && order.fulfillmentId && <button className="primary" onClick={() => void onStatus(order, "confirmed")}>주문 확인 · 작업장 전달</button>}
           {order.fulfillmentType === "pickup" && order.fulfillmentId && !["cancelled", "fulfilled"].includes(order.status) && <button className="arrival" onClick={() => void onArrival(order)} disabled={order.customerArrived}>{order.customerArrived ? "고객 도착 기록됨" : "고객 도착"}</button>}
           {order.status === "ready" && <button className="primary" onClick={() => void onStatus(order, "fulfilled")}>{order.fulfillmentType === "shipping" ? "출고 완료" : "전달 완료"}</button>}
-          <button disabled title="안전한 주문 수정 workflow가 아직 준비되지 않았습니다.">주문 수정 · 준비중</button>
+          <button disabled title="안전한 주문 수정 절차가 아직 준비되지 않았습니다.">주문 수정 · 준비중</button>
           {!["fulfilled", "cancelled"].includes(order.status) && <button className="danger" onClick={() => setCancelEditorOpen(true)}>주문 취소</button>}
           <button onClick={() => setHistoryOpen((value) => !value)}>이력 보기</button>
         </section>
@@ -97,13 +98,13 @@ export default function SalesOrderDetail({
         {cancelEditorOpen && <section className="order-cancellation-editor" aria-label="주문 취소 사유 입력">
           <h3>주문 취소</h3>
           <p>구매 기록과 취소 사유는 남고, 이 주문은 통계·미수금·생산 집계에서 제외됩니다.</p>
-          <label><span>취소 사유</span><select value={cancelReasonType} onChange={(event) => setCancelReasonType(event.target.value as typeof cancelReasonType)}>
+          <FieldSelect id="sales-order-cancel-reason" label="취소 사유" value={cancelReasonType} onChange={(event) => setCancelReasonType(event.target.value as typeof cancelReasonType)}>
             <option value="">사유를 선택해주세요</option>
             <option value="test">테스트</option>
             <option value="customer_cancelled">취소</option>
             <option value="custom">직접입력</option>
-          </select></label>
-          {cancelReasonType === "custom" && <label><span>직접입력 사유</span><textarea maxLength={200} value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} placeholder="취소 사유를 입력해주세요" /></label>}
+          </FieldSelect>
+          {cancelReasonType === "custom" && <FieldTextarea id="sales-order-cancel-custom-reason" label="직접입력 사유" maxLength={200} value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} placeholder="취소 사유를 입력해주세요" />}
           <div><button onClick={() => setCancelEditorOpen(false)} disabled={cancelling}>닫기</button><button className="danger" onClick={() => void cancelOrder()} disabled={cancelling || !cancelReasonType || (cancelReasonType === "custom" && !cancelReason.trim())}>{cancelling ? "취소 처리 중…" : "기록을 남기고 취소"}</button></div>
         </section>}
 
@@ -165,9 +166,9 @@ function ScheduleEditor({ order, assignSchedule }: {
   if (!open) return <section className="legacy-actions"><p>기존 주문의 날짜를 추정하지 않습니다.</p><button className="task-primary" onClick={() => setOpen(true)}>수령방법·일정 지정</button></section>;
   return <section className="legacy-schedule-editor">
     <h3>기존 주문 일정 지정</h3>
-    <label><span>수령방법</span><select value={fulfillmentType} onChange={(event) => setFulfillmentType(event.target.value as "pickup" | "shipping")}><option value="pickup">방문수령</option><option value="shipping">택배발송</option></select></label>
-    <label><span>{fulfillmentType === "pickup" ? "방문 날짜" : "발송 날짜"}</span><input type="date" min={todayInSeoul()} value={date} onChange={(event) => setDate(event.target.value)} /></label>
-    {fulfillmentType === "pickup" && <label><span>방문 시간</span><select value={time} onChange={(event) => setTime(event.target.value)}>{pickupTimes.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>}
+    <FieldSelect id="sales-legacy-fulfillment-type" label="수령방법" value={fulfillmentType} onChange={(event) => setFulfillmentType(event.target.value as "pickup" | "shipping")}><option value="pickup">방문수령</option><option value="shipping">택배발송</option></FieldSelect>
+    <FieldInput id="sales-legacy-fulfillment-date" label={fulfillmentType === "pickup" ? "방문 날짜" : "발송 날짜"} type="date" min={todayInSeoul()} value={date} onChange={(event) => setDate(event.target.value)} />
+    {fulfillmentType === "pickup" && <FieldSelect id="sales-legacy-pickup-time" label="방문 시간" value={time} onChange={(event) => setTime(event.target.value)}>{pickupTimes.map((value) => <option key={value} value={value}>{value}</option>)}</FieldSelect>}
     <div className="legacy-editor-buttons"><button onClick={() => setOpen(false)} disabled={saving}>취소</button><button className="task-primary" onClick={() => void save()} disabled={saving || !date}>{saving ? "저장 중…" : "일정 저장"}</button></div>
   </section>;
 }
