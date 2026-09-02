@@ -7,13 +7,15 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const journalPath = resolve(root, "drizzle/meta/_journal.json");
 const journal = JSON.parse(await readFile(journalPath, "utf8"));
 
+const persistTo = resolve(root, ".wrangler/state");
+
 function executeMigration(tag) {
   const file = `drizzle/${tag}.sql`;
 
   return new Promise((resolveMigration, rejectMigration) => {
     const child = spawn(
       "wrangler",
-      ["d1", "execute", "DB", "--local", "-c", "scripts/wrangler.jsonc", "--file", file],
+      ["d1", "execute", "DB", "--local", "-c", "scripts/wrangler.jsonc", "--persist-to", persistTo, "--file", file],
       {
         cwd: root,
         env: {
