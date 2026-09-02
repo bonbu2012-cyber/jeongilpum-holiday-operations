@@ -108,6 +108,7 @@ export default function ProductionApp() {
             id="production-date"
             className="ops-header__field"
             label="생산 기준일"
+            aria-label="생산 기준일"
             type="date"
             value={date}
             onChange={(event) => setDate(event.target.value)}
