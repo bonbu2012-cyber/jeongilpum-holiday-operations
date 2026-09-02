@@ -14,6 +14,7 @@ type CustomItemPayload = {
 };
 
 type CreatePayload = {
+  action?: "manual-create";
   idempotencyKey?: string;
   buyerName?: string;
   buyerPhone?: string;
@@ -32,6 +33,16 @@ type CreatePayload = {
   note?: string;
   items?: { productId?: string; quantity?: number }[];
   customItem?: CustomItemPayload | null;
+};
+
+type OrderUpdatePayload = {
+  id?: string;
+  expectedVersion?: number;
+  changes?: {
+    buyerName?: unknown;
+    buyerPhone?: unknown;
+    customerNote?: unknown;
+  };
 };
 
 type ProductRow = {
@@ -91,6 +102,20 @@ type EventRow = {
   created_at: string;
 };
 
+type ManualOrderRow = {
+  id: string;
+  order_no: string;
+  version: number;
+};
+
+type CurrentOrderRow = {
+  id: string;
+  buyer_name: string;
+  buyer_phone: string;
+  customer_note: string;
+  version: number;
+};
+
 const runtimeEnv = env as typeof env & { DB: D1Database };
 const customCategories = new Set(["진공세트", "프리미엄", "O'meat", "LA갈비", "뼈세트"]);
 const fulfillmentTypes = new Set(["onsite", "pickup", "shipping"]);
@@ -103,6 +128,18 @@ function clean(value: string | undefined) {
 
 function normalizePhone(value: string) {
   return value.replace(/\D/g, "");
+}
+
+function hasOwn(value: Record<string, unknown>, key: string) {
+  return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function textValue(value: unknown) {
+  return typeof value === "string" ? value.trim() : undefined;
 }
 
 function todayInSeoul() {
@@ -244,6 +281,86 @@ async function receiptForIdempotency(idempotencyKey: string) {
   };
 }
 
+async function manualOrderForIdempotency(idempotencyKey: string) {
+  return runtimeEnv.DB.prepare(`
+    SELECT id,order_no,version
+    FROM orders
+    WHERE idempotency_key=?
+  `).bind(idempotencyKey).first<ManualOrderRow>();
+}
+
+async function createManualOrder(payload: CreatePayload) {
+  const denied = await requireOperatorApi();
+  if (denied) return denied;
+
+  const idempotencyKey = clean(payload.idempotencyKey);
+  if (!idempotencyKey) {
+    return Response.json({ error: "중복 방지 키를 확인해주세요." }, { status: 400 });
+  }
+
+  const existing = await manualOrderForIdempotency(idempotencyKey);
+  if (existing) {
+    return Response.json({
+      order: { id: existing.id, orderNo: existing.order_no, version: existing.version },
+    });
+  }
+
+  const orderId = crypto.randomUUID();
+  const orderNo = createOrderNo();
+  const buyerName = clean(payload.buyerName) || "주문자 미입력";
+  const buyerPhone = normalizePhone(payload.buyerPhone ?? "");
+  const now = new Date().toISOString();
+
+  try {
+    await runtimeEnv.DB.batch([
+      runtimeEnv.DB.prepare(`
+        INSERT INTO orders(
+          id,order_no,buyer_name,buyer_phone,payment_status,paid_amount,total_amount,
+          customer_arrived_at,customer_note,idempotency_key,version,created_at,updated_at
+        ) VALUES(?,?,?,?,?,?,?,NULL,?,?,1,?,?)
+      `).bind(
+        orderId,
+        orderNo,
+        buyerName,
+        buyerPhone,
+        "unpaid",
+        0,
+        0,
+        "",
+        idempotencyKey,
+        now,
+        now,
+      ),
+      runtimeEnv.DB.prepare(`
+        INSERT INTO work_item_events(
+          id,work_item_id,order_id,event_type,from_value,to_value,actor,created_at
+        ) VALUES(?,NULL,?,'order_created',NULL,?,?,?)
+      `).bind(
+        crypto.randomUUID(),
+        orderId,
+        JSON.stringify({ manual: true, redactedFields: ["buyerName", "buyerPhone"] }),
+        OPERATOR_ACTOR,
+        now,
+      ),
+    ]);
+  } catch (error) {
+    const concurrent = await manualOrderForIdempotency(idempotencyKey);
+    if (concurrent) {
+      return Response.json({
+        order: { id: concurrent.id, orderNo: concurrent.order_no, version: concurrent.version },
+      });
+    }
+    return Response.json(
+      { error: error instanceof Error ? error.message : "새 주문을 추가하지 못했습니다." },
+      { status: 500 },
+    );
+  }
+
+  return Response.json({
+    order: { id: orderId, orderNo, version: 1 },
+  }, { status: 201 });
+}
+
 export async function GET(request: Request) {
   const denied = await requireOperatorApi();
   if (denied) return denied;
@@ -310,6 +427,7 @@ export async function POST(request: Request) {
   let idempotencyKey = "";
   try {
     const payload = await request.json() as CreatePayload;
+    if (payload.action === "manual-create") return createManualOrder(payload);
     idempotencyKey = clean(payload.idempotencyKey);
     const fulfillmentType = clean(payload.fulfillmentType);
     const paymentChoice = clean(payload.paymentMethod) || "later";
@@ -550,6 +668,183 @@ export async function POST(request: Request) {
     }
     return Response.json(
       { error: error instanceof Error ? error.message : "주문을 접수하지 못했습니다." },
+      { status: 500 },
+    );
+  }
+}
+
+export async function PATCH(request: Request) {
+  const denied = await requireOperatorApi();
+  if (denied) return denied;
+
+  try {
+    const payload = await request.json() as OrderUpdatePayload;
+    const orderId = clean(payload.id);
+    const expectedVersion = payload.expectedVersion;
+    if (!orderId || !Number.isInteger(expectedVersion) || Number(expectedVersion) < 1 || !isRecord(payload.changes)) {
+      return Response.json({ error: "수정할 주문과 버전을 확인해주세요." }, { status: 400 });
+    }
+
+    const changes = payload.changes;
+    const editableFields = ["buyerName", "buyerPhone", "customerNote"];
+    if (Object.keys(changes).some((field) => !editableFields.includes(field))) {
+      return Response.json({ error: "수정할 수 없는 주문 정보가 포함되어 있습니다." }, { status: 400 });
+    }
+    const changedFields = editableFields.filter((field) => hasOwn(changes, field));
+    if (!changedFields.length) {
+      return Response.json({ error: "수정할 주문 정보가 없습니다." }, { status: 400 });
+    }
+
+    const buyerNameInput = hasOwn(changes, "buyerName") ? textValue(changes.buyerName) : undefined;
+    const buyerPhoneInput = hasOwn(changes, "buyerPhone") ? textValue(changes.buyerPhone) : undefined;
+    const customerNoteInput = hasOwn(changes, "customerNote") ? textValue(changes.customerNote) : undefined;
+    if (
+      (hasOwn(changes, "buyerName") && buyerNameInput === undefined)
+      || (hasOwn(changes, "buyerPhone") && buyerPhoneInput === undefined)
+      || (hasOwn(changes, "customerNote") && customerNoteInput === undefined)
+    ) {
+      return Response.json({ error: "주문 정보 형식을 확인해주세요." }, { status: 400 });
+    }
+
+    const current = await runtimeEnv.DB.prepare(`
+      SELECT id,buyer_name,buyer_phone,customer_note,version
+      FROM orders
+      WHERE id=?
+    `).bind(orderId).first<CurrentOrderRow>();
+    if (!current) return Response.json({ error: "주문을 찾을 수 없습니다." }, { status: 404 });
+    if (current.version !== expectedVersion) {
+      return Response.json({
+        error: "다른 화면에서 먼저 수정했습니다. 새로고침 후 다시 시도해주세요.",
+        latestVersion: current.version,
+      }, { status: 409 });
+    }
+
+    const buyerName = buyerNameInput === undefined ? current.buyer_name : buyerNameInput || "주문자 미입력";
+    const buyerPhone = buyerPhoneInput === undefined ? current.buyer_phone : normalizePhone(buyerPhoneInput);
+    const customerNote = customerNoteInput === undefined ? current.customer_note : customerNoteInput;
+    const now = new Date().toISOString();
+    const eventValue = JSON.stringify({ redactedFields: changedFields });
+    const results = await runtimeEnv.DB.batch([
+      runtimeEnv.DB.prepare(`
+        UPDATE orders
+        SET buyer_name=?,buyer_phone=?,customer_note=?,version=version+1,updated_at=?
+        WHERE id=? AND version=?
+      `).bind(buyerName, buyerPhone, customerNote, now, current.id, current.version),
+      runtimeEnv.DB.prepare(`
+        INSERT INTO work_item_events(
+          id,work_item_id,order_id,event_type,from_value,to_value,actor,created_at
+        )
+        SELECT ?,NULL,?,'order_updated',?,?,?,?
+        WHERE EXISTS(SELECT 1 FROM orders WHERE id=? AND version=?)
+      `).bind(
+        crypto.randomUUID(),
+        current.id,
+        eventValue,
+        eventValue,
+        OPERATOR_ACTOR,
+        now,
+        current.id,
+        current.version + 1,
+      ),
+    ]);
+    if (!results[0].meta.changes) {
+      return Response.json({ error: "다른 화면에서 먼저 수정했습니다. 새로고침 후 다시 시도해주세요." }, { status: 409 });
+    }
+
+    return Response.json({
+      order: {
+        id: current.id,
+        buyerName,
+        buyerPhone,
+        customerNote,
+        version: current.version + 1,
+      },
+    });
+  } catch (error) {
+    return Response.json(
+      { error: error instanceof Error ? error.message : "주문을 저장하지 못했습니다." },
+      { status: 500 },
+    );
+  }
+}
+
+export async function DELETE(request: Request) {
+  const denied = await requireOperatorApi();
+  if (denied) return denied;
+
+  try {
+    const payload = await request.json() as { id?: string; expectedVersion?: number };
+    const orderId = clean(payload.id);
+    const expectedVersion = payload.expectedVersion;
+    if (!orderId || !Number.isInteger(expectedVersion) || Number(expectedVersion) < 1) {
+      return Response.json({ error: "삭제할 주문과 버전을 확인해주세요." }, { status: 400 });
+    }
+
+    const current = await runtimeEnv.DB.prepare(`
+      SELECT id,buyer_name,buyer_phone,customer_note,version
+      FROM orders
+      WHERE id=?
+    `).bind(orderId).first<CurrentOrderRow>();
+    if (!current) return Response.json({ error: "삭제할 주문을 찾을 수 없습니다." }, { status: 404 });
+    if (current.version !== expectedVersion) {
+      return Response.json({
+        error: "다른 화면에서 먼저 수정했습니다. 새로고침 후 다시 시도해주세요.",
+        latestVersion: current.version,
+      }, { status: 409 });
+    }
+
+    const now = new Date().toISOString();
+    const matchesCurrent = "EXISTS(SELECT 1 FROM orders WHERE id=? AND version=?)";
+    const results = await runtimeEnv.DB.batch([
+      runtimeEnv.DB.prepare(`
+        UPDATE skin_packs
+        SET status='available',assigned_at=NULL,updated_at=?
+        WHERE status='assigned'
+          AND id IN (
+            SELECT package_skin_packs.skin_pack_id
+            FROM package_skin_packs
+            JOIN packages ON packages.id=package_skin_packs.package_id
+            JOIN work_items ON work_items.id=packages.work_item_id
+            WHERE work_items.order_id=?
+          )
+          AND ${matchesCurrent}
+      `).bind(now, current.id, current.id, current.version),
+      runtimeEnv.DB.prepare(`
+        DELETE FROM package_skin_packs
+        WHERE package_id IN (
+          SELECT packages.id
+          FROM packages
+          JOIN work_items ON work_items.id=packages.work_item_id
+          WHERE work_items.order_id=?
+        )
+          AND ${matchesCurrent}
+      `).bind(current.id, current.id, current.version),
+      runtimeEnv.DB.prepare(`
+        DELETE FROM packages
+        WHERE work_item_id IN (SELECT id FROM work_items WHERE order_id=?)
+          AND ${matchesCurrent}
+      `).bind(current.id, current.id, current.version),
+      runtimeEnv.DB.prepare(`
+        DELETE FROM work_item_events
+        WHERE order_id=? AND ${matchesCurrent}
+      `).bind(current.id, current.id, current.version),
+      runtimeEnv.DB.prepare(`
+        DELETE FROM work_items
+        WHERE order_id=? AND ${matchesCurrent}
+      `).bind(current.id, current.id, current.version),
+      runtimeEnv.DB.prepare(`
+        DELETE FROM orders
+        WHERE id=? AND version=?
+      `).bind(current.id, current.version),
+    ]);
+    if (!results[5].meta.changes) {
+      return Response.json({ error: "다른 화면에서 먼저 수정했습니다. 새로고침 후 다시 시도해주세요." }, { status: 409 });
+    }
+
+    return Response.json({ deletedId: current.id });
+  } catch (error) {
+    return Response.json(
+      { error: error instanceof Error ? error.message : "주문을 삭제하지 못했습니다." },
       { status: 500 },
     );
   }

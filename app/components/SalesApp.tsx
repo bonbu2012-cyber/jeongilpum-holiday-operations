@@ -1,9 +1,8 @@
-/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
-import AppNav from "./AppNav";
+import OpsHeader from "./OpsHeader";
 import {
   Badge,
   Button,
@@ -122,6 +121,21 @@ type WorkDraft = {
   workStatus: WorkStatus;
   note: string;
 };
+
+type OrderDraft = {
+  buyerName: string;
+  buyerPhone: string;
+};
+
+type OrderSelection = {
+  order: CustomerOrder;
+  buyerName: string;
+  buyerPhone: string;
+};
+
+type DuplicateRequest =
+  | { kind: "item"; item: WorkItem }
+  | { kind: "selection"; count: number };
 
 const DELIVERY_LABELS: Record<DeliveryMethod, string> = {
   onsite_sale: "현장판매",
@@ -249,7 +263,11 @@ export default function SalesApp() {
   const [selectedWorkItem, setSelectedWorkItem] = useState<WorkItem | null>(null);
   const [newWorkOrder, setNewWorkOrder] = useState<CustomerOrder | null>(null);
   const [paymentOrder, setPaymentOrder] = useState<CustomerOrder | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<OrderSelection | null>(null);
+  const [newOrderOpen, setNewOrderOpen] = useState(false);
   const [deleteSelection, setDeleteSelection] = useState<Selection[] | null>(null);
+  const [deleteOrder, setDeleteOrder] = useState<OrderSelection | null>(null);
+  const [duplicateRequest, setDuplicateRequest] = useState<DuplicateRequest | null>(null);
   const [notice, setNotice] = useState("");
   const [expandedCustomers, setExpandedCustomers] = useState<string[]>([]);
   const [expandedOrders, setExpandedOrders] = useState<string[]>([]);
@@ -472,6 +490,75 @@ export default function SalesApp() {
     await reloadActive();
   };
 
+  const createOrder = async (draft: OrderDraft, idempotencyKey: string) => {
+    const response = await fetch("/api/orders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "manual-create",
+        idempotencyKey,
+        buyerName: draft.buyerName,
+        buyerPhone: draft.buyerPhone,
+      }),
+    });
+    await responseData(response);
+    setNewOrderOpen(false);
+    setTab("customers");
+    setNotice("새 주문을 추가했습니다. 작업 항목을 추가해주세요.");
+  };
+
+  const saveOrder = async (selection: OrderSelection, draft: OrderDraft) => {
+    const response = await fetch("/api/orders", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: selection.order.id,
+        expectedVersion: selection.order.version,
+        changes: {
+          buyerName: draft.buyerName,
+          buyerPhone: draft.buyerPhone,
+        },
+      }),
+    });
+    await responseData(response);
+    setSelectedOrder(null);
+    setNotice("주문자 정보를 저장했습니다.");
+    await reloadActive();
+  };
+
+  const deleteOrderById = async () => {
+    if (!deleteOrder) return;
+    try {
+      const response = await fetch("/api/orders", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: deleteOrder.order.id,
+          expectedVersion: deleteOrder.order.version,
+        }),
+      });
+      await responseData(response);
+      setDeleteOrder(null);
+      setSelectedOrder(null);
+      setNotice("주문을 삭제했습니다.");
+      await reloadActive();
+    } catch (caught) {
+      setDeleteOrder(null);
+      setNotice(caught instanceof Error ? caught.message : "주문을 삭제하지 못했습니다.");
+    }
+  };
+
+  const confirmDuplicate = async () => {
+    if (!duplicateRequest) return;
+    const request = duplicateRequest;
+    setDuplicateRequest(null);
+    if (request.kind === "item") {
+      await duplicateWork(request.item);
+      return;
+    }
+    await runBulk({ action: "duplicate" }, "선택한 작업 행을 복제했습니다.");
+  };
+
   const toggleCustomer = (id: string) => {
     setExpandedCustomers((current) => current.includes(id)
       ? current.filter((value) => value !== id)
@@ -494,7 +581,7 @@ export default function SalesApp() {
     },
     {
       id: "customer",
-      header: "고객",
+      header: "주문자",
       cell: (item) => <div className="sales-work-table__customer"><b>{item.buyerName}</b><small>{item.buyerPhone} · {item.orderNo}</small></div>,
       sortValue: (item) => item.buyerName,
       width: "180px",
@@ -547,33 +634,44 @@ export default function SalesApp() {
         >
           {item.customerArrivedAt ? "도착 취소" : "고객 도착"}
         </Button>
+        {item.workStatus === "received" ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={(event) => {
+              event.stopPropagation();
+              if (window.confirm("주문을 확인 처리하시겠습니까?")) {
+                void updateWork(item, { workStatus: "confirmed" }, "주문을 확인했습니다.");
+              }
+            }}
+          >
+            주문 확인
+          </Button>
+        ) : null}
         <Button
           size="sm"
           variant="ghost"
           onClick={(event) => {
             event.stopPropagation();
-            void updateWork(item, { workStatus: item.workStatus === "confirmed" ? "received" : "confirmed" }, item.workStatus === "confirmed" ? "주문 확인을 취소했습니다." : "주문을 확인했습니다.");
+            setDuplicateRequest({ kind: "item", item });
           }}
         >
-          {item.workStatus === "confirmed" ? "확인 취소" : "주문 확인"}
+          복제
         </Button>
       </div>,
-      width: "190px",
+      width: "268px",
     },
   ];
 
   return (
     <div className="sales-work-table">
-      <header className="ops-header sales-header">
-        <a href="/sales" className="ops-brand">
-          <img className="operations-brand-logo" src="/jeongilpum-logo.png" alt="정일품 정육식당 로고" />
-          <span>정일품 주문관리<small>판매장 운영</small></span>
-        </a>
-        <div className="ops-alerts">
-          <Button size="sm" variant="ghost" onClick={() => void fetch("/api/operator-session", { method: "DELETE" }).then(() => location.reload())}>로그아웃</Button>
-        </div>
-      </header>
-      <AppNav current="sales" />
+      <OpsHeader
+        surface="sales"
+        title="정일품 주문관리"
+        subtitle="판매장 운영"
+        className="sales-header"
+        actions={<Button size="sm" variant="ghost" onClick={() => void fetch("/api/operator-session", { method: "DELETE" }).then(() => location.reload())}>로그아웃</Button>}
+      />
 
       <main className="sales-work-table__main">
         <div className="sales-work-table__dashboard">
@@ -611,7 +709,7 @@ export default function SalesApp() {
           }}
           items={[
             { id: "work", label: "작업", count: workItems.length },
-            { id: "customers", label: "미수·고객", count: customerData?.customers.length },
+            { id: "customers", label: "미수·주문", count: customerData?.customers.length },
           ]}
         />
 
@@ -620,40 +718,42 @@ export default function SalesApp() {
             value: query,
             onChange: setQuery,
             placeholder: "성함 / 전화번호 / 주문번호 / 상품명 검색",
-            label: "작업 및 고객 검색",
+            label: "작업 및 주문 검색",
           }}
           filters={<>
-            <FieldSelect id="sales-work-status-filter" label="작업 상태" value={workStatus} onChange={(event) => setWorkStatus(event.target.value)}>
+            <FieldSelect id="sales-work-status-filter" label={<span className="sr-only">작업 상태</span>} value={workStatus} onChange={(event) => setWorkStatus(event.target.value)}>
               <option value="">모든 작업 상태</option>
               {WORK_STATUS_OPTIONS.map((status) => (
                 <option key={status} value={status}>{WORK_STATUS_LABELS[status]}</option>
               ))}
             </FieldSelect>
-            <FieldSelect id="sales-delivery-method-filter" label="수령방법" value={deliveryMethod} onChange={(event) => setDeliveryMethod(event.target.value)}>
+            <FieldSelect id="sales-delivery-method-filter" label={<span className="sr-only">수령방법</span>} value={deliveryMethod} onChange={(event) => setDeliveryMethod(event.target.value)}>
               <option value="">모든 수령방법</option>
               {Object.entries(DELIVERY_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
             </FieldSelect>
             <FieldInput
               id="sales-date-from"
-              label="조회 시작일"
+              label={<span className="sr-only">조회 시작일</span>}
               type="date"
               value={currentDateFrom}
               onChange={(event) => tab === "work" ? setWorkDateFrom(event.target.value) : setCustomerDateFrom(event.target.value)}
             />
             <FieldInput
               id="sales-date-to"
-              label="조회 종료일"
+              label={<span className="sr-only">조회 종료일</span>}
               type="date"
               value={currentDateTo}
               onChange={(event) => tab === "work" ? setWorkDateTo(event.target.value) : setCustomerDateTo(event.target.value)}
             />
           </>}
+          actions={<Button size="sm" onClick={() => setNewOrderOpen(true)}>새 주문</Button>}
           selectionCount={tab === "work" ? selectedWorkItems.length : undefined}
         >
           {tab === "work" && selectedWorkItems.length ? (
             <BulkActions
               onRun={runBulk}
               onDelete={() => setDeleteSelection(selectedWorkItems.map((item) => ({ id: item.id, expectedVersion: item.version })))}
+              onDuplicate={() => setDuplicateRequest({ kind: "selection", count: selectedWorkItems.length })}
             />
           ) : null}
         </Toolbar>
@@ -685,6 +785,7 @@ export default function SalesApp() {
             onOpenWorkItem={setSelectedWorkItem}
             onOpenPayment={setPaymentOrder}
             onCreateWork={setNewWorkOrder}
+            onEditOrder={(order, buyerName, buyerPhone) => setSelectedOrder({ order, buyerName, buyerPhone })}
           />
         )}
       </main>
@@ -695,8 +796,28 @@ export default function SalesApp() {
           item={selectedWorkItem}
           onClose={() => setSelectedWorkItem(null)}
           onSave={saveWorkItem}
-          onDuplicate={duplicateWork}
           onDelete={() => setDeleteSelection([{ id: selectedWorkItem.id, expectedVersion: selectedWorkItem.version }])}
+        />
+      ) : null}
+      {selectedOrder ? (
+        <OrderEditor
+          key={`${selectedOrder.order.id}-${selectedOrder.order.version}`}
+          title="주문 수정"
+          description={selectedOrder.order.orderNo}
+          initialDraft={{
+            buyerName: selectedOrder.buyerName,
+            buyerPhone: selectedOrder.buyerPhone,
+          }}
+          submitLabel="저장"
+          onClose={() => setSelectedOrder(null)}
+          onSave={(draft) => saveOrder(selectedOrder, draft)}
+          onDelete={() => setDeleteOrder(selectedOrder)}
+        />
+      ) : null}
+      {newOrderOpen ? (
+        <NewOrderEditor
+          onClose={() => setNewOrderOpen(false)}
+          onCreate={createOrder}
         />
       ) : null}
       {newWorkOrder ? (
@@ -727,6 +848,30 @@ export default function SalesApp() {
       >
         <p>{deleteSelection?.length ?? 0}개 작업 행과 연결된 작업 정보를 삭제합니다.</p>
       </Modal>
+      <Modal
+        open={Boolean(deleteOrder)}
+        title="주문을 삭제하시겠습니까?"
+        description="연결된 작업 행과 패키지 정보도 함께 삭제되며 되돌릴 수 없습니다."
+        onClose={() => setDeleteOrder(null)}
+        footer={<>
+          <Button variant="ghost" onClick={() => setDeleteOrder(null)}>취소</Button>
+          <Button variant="danger" onClick={() => void deleteOrderById()}>삭제</Button>
+        </>}
+      >
+        <p>{deleteOrder?.order.orderNo ?? ""} 주문을 삭제합니다.</p>
+      </Modal>
+      <Modal
+        open={Boolean(duplicateRequest)}
+        title="작업 행을 복제하시겠습니까?"
+        description="동일한 작업 상태와 수령 정보를 가진 새 작업 행이 생성됩니다."
+        onClose={() => setDuplicateRequest(null)}
+        footer={<>
+          <Button variant="ghost" onClick={() => setDuplicateRequest(null)}>취소</Button>
+          <Button onClick={() => void confirmDuplicate()}>복제</Button>
+        </>}
+      >
+        <p>{duplicateRequest?.kind === "selection" ? `${duplicateRequest.count}개 작업 행을 복제합니다.` : "선택한 작업 행을 복제합니다."}</p>
+      </Modal>
       {notice ? <div className="ops-toast" role="status">{notice}<button type="button" onClick={() => setNotice("")} aria-label="알림 닫기">×</button></div> : null}
     </div>
   );
@@ -735,9 +880,11 @@ export default function SalesApp() {
 function BulkActions({
   onRun,
   onDelete,
+  onDuplicate,
 }: {
   onRun: (payload: Record<string, unknown>, noticeText: string) => Promise<void>;
   onDelete: () => void;
+  onDuplicate: () => void;
 }) {
   const [nextStatus, setNextStatus] = useState<WorkStatus>("confirmed");
   const [nextDueAt, setNextDueAt] = useState("");
@@ -757,7 +904,7 @@ function BulkActions({
       </FieldSelect>
       <FieldInput id="sales-bulk-paid-amount" label="결제 금액" type="number" min="0" step="1" value={paidAmount} onChange={(event) => setPaidAmount(event.target.value)} />
       <Button size="sm" variant="ghost" disabled={!Number.isInteger(Number(paidAmount)) || Number(paidAmount) < 0} onClick={() => void onRun({ action: "payment", paymentStatus, paidAmount: Number(paidAmount) }, "결제 상태를 일괄 변경했습니다.")}>결제 변경</Button>
-      <Button size="sm" variant="ghost" onClick={() => void onRun({ action: "duplicate" }, "선택한 작업 행을 복제했습니다.")}>복제</Button>
+      <Button size="sm" variant="ghost" onClick={onDuplicate}>복제</Button>
       <Button size="sm" variant="danger" onClick={onDelete}>삭제</Button>
     </div>
   );
@@ -772,6 +919,7 @@ function CustomerTable({
   onOpenWorkItem,
   onOpenPayment,
   onCreateWork,
+  onEditOrder,
 }: {
   customers: Customer[];
   expandedCustomers: string[];
@@ -781,11 +929,12 @@ function CustomerTable({
   onOpenWorkItem: (item: WorkItem) => void;
   onOpenPayment: (order: CustomerOrder) => void;
   onCreateWork: (order: CustomerOrder) => void;
+  onEditOrder: (order: CustomerOrder, buyerName: string, buyerPhone: string) => void;
 }) {
-  if (!customers.length) return <section className="sales-work-table__customer-table"><p className="sales-work-table__empty">조건에 맞는 고객과 주문이 없습니다.</p></section>;
+  if (!customers.length) return <section className="sales-work-table__customer-table"><p className="sales-work-table__empty">조건에 맞는 주문자와 주문이 없습니다.</p></section>;
 
   return (
-    <section className="sales-work-table__customer-table" aria-label="미수 및 고객 목록">
+    <section className="sales-work-table__customer-table" aria-label="미수 및 주문 목록">
       {customers.map((customer) => {
         const customerOpen = expandedCustomers.includes(customer.id);
         return (
@@ -808,10 +957,11 @@ function CustomerTable({
                           <span>{PAYMENT_LABELS[order.paymentStatus]} · {won(order.paidAmount)} / {won(order.totalAmount)}</span>
                           <span>{orderOpen ? "작업 접기" : "작업 펼치기"}</span>
                         </button>
+                        <Button size="sm" variant="ghost" onClick={() => onEditOrder(order, customer.buyerName, customer.buyerPhone)}>주문 수정</Button>
                         <Button size="sm" variant="ghost" onClick={() => onCreateWork(order)}>작업 추가</Button>
                         <Button size="sm" variant="ghost" onClick={() => onOpenPayment(order)}>결제 변경</Button>
                       </header>
-                      {orderOpen ? order.workItems.map((item) => (
+                      {orderOpen ? order.workItems.length ? order.workItems.map((item) => (
                         <div className="sales-work-table__nested-work" key={item.id}>
                           <button type="button" onClick={() => onOpenWorkItem(item)}>
                             <span>{item.dueAt.slice(0, 10)} · {item.deliveryMethod === "delivery" ? "발송" : item.dueAt.slice(11, 16)}</span>
@@ -820,7 +970,7 @@ function CustomerTable({
                             <Badge tone={item.workStatus === "ready" || item.workStatus === "completed" ? "success" : "info"}>{WORK_STATUS_LABELS[item.workStatus]}</Badge>
                           </button>
                         </div>
-                      )) : null}
+                      )) : <p className="sales-work-table__empty">등록된 작업 항목이 없습니다.</p> : null}
                     </section>
                   );
                 })}
@@ -837,13 +987,11 @@ function WorkItemEditor({
   item,
   onClose,
   onSave,
-  onDuplicate,
   onDelete,
 }: {
   item: WorkItem;
   onClose: () => void;
   onSave: (item: WorkItem, draft: WorkDraft) => Promise<void>;
-  onDuplicate: (item: WorkItem) => Promise<void>;
   onDelete: () => void;
 }) {
   const [draft, setDraft] = useState(() => draftFor(item));
@@ -901,8 +1049,7 @@ function WorkItemEditor({
       description={`${item.orderNo} · ${item.buyerName} · ${item.buyerPhone}`}
       onClose={onClose}
       footer={<>
-        <Button variant="danger" onClick={onDelete}>삭제</Button>
-        <Button variant="ghost" onClick={() => void onDuplicate(item)}>행 복제</Button>
+        <Button variant="ghost" style={{ marginRight: "auto", borderColor: "#a42f28", color: "#a42f28" }} onClick={onDelete}>삭제</Button>
         <Button variant="ghost" onClick={onClose}>닫기</Button>
         <Button disabled={saving} onClick={() => (document.getElementById("sales-work-item-editor") as HTMLFormElement | null)?.requestSubmit()}>{saving ? "저장 중" : "저장"}</Button>
       </>}
@@ -941,6 +1088,89 @@ function WorkItemEditor({
         {error ? <p className="sales-work-table__error" role="alert">{error}</p> : null}
       </form>
     </Modal>
+  );
+}
+
+function OrderEditor({
+  title,
+  description,
+  initialDraft,
+  submitLabel,
+  onClose,
+  onSave,
+  onDelete,
+}: {
+  title: string;
+  description: string;
+  initialDraft: OrderDraft;
+  submitLabel: string;
+  onClose: () => void;
+  onSave: (draft: OrderDraft) => Promise<void>;
+  onDelete?: () => void;
+}) {
+  const [draft, setDraft] = useState(() => initialDraft);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const formId = onDelete ? "sales-order-editor" : "sales-new-order-editor";
+
+  const update = <Key extends keyof OrderDraft>(key: Key, value: OrderDraft[Key]) => {
+    setDraft((current) => ({ ...current, [key]: value }));
+  };
+
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setSaving(true);
+    setError("");
+    try {
+      await onSave(draft);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "주문을 저장하지 못했습니다.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal
+      open
+      title={title}
+      description={description}
+      onClose={onClose}
+      footer={<>
+        {onDelete ? <Button variant="ghost" style={{ marginRight: "auto", borderColor: "#a42f28", color: "#a42f28" }} onClick={onDelete}>삭제</Button> : null}
+        <Button variant="ghost" onClick={onClose}>닫기</Button>
+        <Button disabled={saving} onClick={() => (document.getElementById(formId) as HTMLFormElement | null)?.requestSubmit()}>{saving ? "저장 중" : submitLabel}</Button>
+      </>}
+    >
+      <form id={formId} className="sales-work-table__editor" onSubmit={submit}>
+        <div className="sales-work-table__editor-grid">
+          <FieldInput id={`${formId}-buyer-name`} label="주문자 성함" value={draft.buyerName} onChange={(event) => update("buyerName", event.target.value)} />
+          <FieldInput id={`${formId}-buyer-phone`} label="주문자 전화번호" inputMode="tel" value={draft.buyerPhone} onChange={(event) => update("buyerPhone", event.target.value)} />
+        </div>
+        {error ? <p className="sales-work-table__error" role="alert">{error}</p> : null}
+      </form>
+    </Modal>
+  );
+}
+
+function NewOrderEditor({
+  onClose,
+  onCreate,
+}: {
+  onClose: () => void;
+  onCreate: (draft: OrderDraft, idempotencyKey: string) => Promise<void>;
+}) {
+  const [idempotencyKey] = useState(() => crypto.randomUUID());
+
+  return (
+    <OrderEditor
+      title="새 주문 추가"
+      description="주문을 추가한 뒤 필요한 작업 항목을 등록할 수 있습니다."
+      initialDraft={{ buyerName: "", buyerPhone: "" }}
+      submitLabel="추가"
+      onClose={onClose}
+      onSave={(draft) => onCreate(draft, idempotencyKey)}
+    />
   );
 }
 
