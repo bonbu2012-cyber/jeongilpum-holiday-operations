@@ -238,7 +238,6 @@ CREATE TABLE `production_batches` (
   CONSTRAINT `production_batches_additional_nonnegative` CHECK (`additional_needed` >= 0),
   CONSTRAINT `production_batches_target_nonnegative` CHECK (`production_target` >= 0),
   CONSTRAINT `production_batches_produced_nonnegative` CHECK (`produced_quantity` >= 0),
-  CONSTRAINT `production_batches_produced_within_target` CHECK (`produced_quantity` <= `production_target`),
   CONSTRAINT `production_batches_status_valid` CHECK (`status` IN ('planned','in_progress','completed','cancelled'))
 );
 --> statement-breakpoint
