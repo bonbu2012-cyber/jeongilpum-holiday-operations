@@ -8,4 +8,16 @@
   --green: #277153;
   --orange: #a75c24;
   --shadow: 0 14px 40px rgba(60, 40, 20, 0.11);
+  --font-sans: Pretendard, "Noto Sans KR", Arial, sans-serif;
+  --text-sm: 12px;
+  --text-md: 14px;
+  --text-lg: 18px;
+  --text-xl: 28px;
+  --weight-body: 800;
+  --weight-strong: 900;
+  --leading-tight: 1.25;
+  --leading-normal: 1.5;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
 }

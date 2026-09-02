@@ -46,7 +46,7 @@ export type FieldSelectProps = Omit<SelectHTMLAttributes<HTMLSelectElement>, "id
 export function FieldSelect({ id, label, hint, error, className, children, ...props }: FieldSelectProps) {
   return (
     <Field id={id} label={label} hint={hint} error={error} className={className}>
-      <select id={id} className="ui-field__control" aria-invalid={Boolean(error) || undefined} {...props}>
+      <select id={id} className="ui-field__control ui-field__control--select" aria-invalid={Boolean(error) || undefined} {...props}>
         {children}
       </select>
     </Field>

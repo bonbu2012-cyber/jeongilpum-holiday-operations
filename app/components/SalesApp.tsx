@@ -18,9 +18,9 @@ import {
   useResource,
   type DataTableColumn,
 } from "../ui";
+import { WORK_STATUS_LABELS, WORK_STATUS_OPTIONS, type WorkStatus } from "../lib/work-status";
 import "../sales/work-table.css";
 
-type WorkStatus = "received" | "confirmed" | "in_progress" | "ready" | "completed" | "cancelled";
 type DeliveryMethod = "onsite_sale" | "onsite_reservation" | "delivery";
 type PaymentStatus = "unpaid" | "partial" | "paid";
 type Tab = "work" | "customers";
@@ -121,15 +121,6 @@ type WorkDraft = {
   customizationJson: string;
   workStatus: WorkStatus;
   note: string;
-};
-
-const WORK_STATUS_LABELS: Record<WorkStatus, string> = {
-  received: "접수",
-  confirmed: "확인",
-  in_progress: "작업중",
-  ready: "준비완료",
-  completed: "수령완료",
-  cancelled: "취소",
 };
 
 const DELIVERY_LABELS: Record<DeliveryMethod, string> = {
@@ -285,13 +276,11 @@ export default function SalesApp() {
   const {
     data: workData,
     error: workError,
-    loading: workLoading,
     reload: reloadWork,
   } = useResource<WorkResponse>(workResourceUrl, 3000);
   const {
     data: customerData,
     error: customerError,
-    loading: customerLoading,
     reload: reloadCustomers,
   } = useResource<CustomerResponse>(customerResourceUrl, 3000);
 
@@ -560,51 +549,28 @@ export default function SalesApp() {
           <span>정일품 주문관리<small>판매장 운영</small></span>
         </a>
         <div className="ops-alerts">
-          <Button size="sm" variant="ghost" disabled={workLoading || customerLoading} onClick={() => void reloadActive()}>새로고침</Button>
           <Button size="sm" variant="ghost" onClick={() => void fetch("/api/operator-session", { method: "DELETE" }).then(() => location.reload())}>로그아웃</Button>
         </div>
       </header>
       <AppNav current="sales" />
 
       <main className="sales-work-table__main">
-        <section className="sales-work-table__heading">
-          <div>
-            <small>SALES OPERATIONS</small>
-            <h1>작업 테이블</h1>
-            <p>수령일시와 상품 단위로 관리하며, 임박하거나 고객이 도착한 작업을 먼저 표시합니다.</p>
-          </div>
-          <div className="sales-work-table__date-range">
-            <FieldInput
-              id="sales-date-from"
-              label="조회 시작일"
-              type="date"
-              value={currentDateFrom}
-              onChange={(event) => tab === "work" ? setWorkDateFrom(event.target.value) : setCustomerDateFrom(event.target.value)}
-            />
-            <FieldInput
-              id="sales-date-to"
-              label="조회 종료일"
-              type="date"
-              value={currentDateTo}
-              onChange={(event) => tab === "work" ? setWorkDateTo(event.target.value) : setCustomerDateTo(event.target.value)}
-            />
-          </div>
-        </section>
-
-        <StatTiles
-          ariaLabel="오늘 작업 현황"
-          tiles={(["received", "confirmed", "in_progress", "ready", "completed"] as const).map((status) => ({
-            id: status,
-            label: WORK_STATUS_LABELS[status],
-            value: (workData?.dashboard[status].onsite_sale ?? 0) + (workData?.dashboard[status].onsite_reservation ?? 0) + (workData?.dashboard[status].delivery ?? 0),
-            tone: status === "ready" || status === "completed" ? "success" : status === "received" ? "attention" : "default",
-            subtotals: [
-              { label: "현장판매", value: workData?.dashboard[status].onsite_sale ?? 0 },
-              { label: "현장예약", value: workData?.dashboard[status].onsite_reservation ?? 0 },
-              { label: "택배예약", value: workData?.dashboard[status].delivery ?? 0 },
-            ],
-          }))}
-        />
+        <div className="sales-work-table__dashboard">
+          <StatTiles
+            ariaLabel="오늘 작업 현황"
+            tiles={(["received", "confirmed", "in_progress", "ready", "completed"] as const).map((status) => ({
+              id: status,
+              label: WORK_STATUS_LABELS[status],
+              value: (workData?.dashboard[status].onsite_sale ?? 0) + (workData?.dashboard[status].onsite_reservation ?? 0) + (workData?.dashboard[status].delivery ?? 0),
+              tone: status === "ready" || status === "completed" ? "success" : status === "received" ? "attention" : "default",
+              subtotals: [
+                { label: "현장판매", value: workData?.dashboard[status].onsite_sale ?? 0 },
+                { label: "현장예약", value: workData?.dashboard[status].onsite_reservation ?? 0 },
+                { label: "택배예약", value: workData?.dashboard[status].delivery ?? 0 },
+              ],
+            }))}
+          />
+        </div>
 
         <Tabs
           ariaLabel="판매장 화면 선택"
@@ -623,27 +589,38 @@ export default function SalesApp() {
           search={{
             value: query,
             onChange: setQuery,
-            placeholder: "성함 · 전화번호 · 주문번호 · 상품명 검색",
+            placeholder: "성함 / 전화번호 / 주문번호 / 상품명 검색",
             label: "작업 및 고객 검색",
           }}
           filters={<>
-            <label>
-              <span className="sr-only">작업 상태</span>
-              <select value={workStatus} onChange={(event) => setWorkStatus(event.target.value)} aria-label="작업 상태">
-                <option value="">모든 작업 상태</option>
-                {Object.entries(WORK_STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-              </select>
-            </label>
-            <label>
-              <span className="sr-only">수령방법</span>
-              <select value={deliveryMethod} onChange={(event) => setDeliveryMethod(event.target.value)} aria-label="수령방법">
-                <option value="">모든 수령방법</option>
-                {Object.entries(DELIVERY_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-              </select>
-            </label>
+            <div className="sales-work-table__status-filters" role="group" aria-label="작업 상태">
+              <Button size="sm" variant={workStatus ? "ghost" : "primary"} aria-pressed={!workStatus} onClick={() => setWorkStatus("")}>전체</Button>
+              {WORK_STATUS_OPTIONS.map((status) => (
+                <Button key={status} size="sm" variant={workStatus === status ? "primary" : "ghost"} aria-pressed={workStatus === status} onClick={() => setWorkStatus(status)}>
+                  {WORK_STATUS_LABELS[status]}
+                </Button>
+              ))}
+            </div>
+            <FieldSelect id="sales-delivery-method-filter" label="수령방법" value={deliveryMethod} onChange={(event) => setDeliveryMethod(event.target.value)}>
+              <option value="">모든 수령방법</option>
+              {Object.entries(DELIVERY_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            </FieldSelect>
+            <FieldInput
+              id="sales-date-from"
+              label="조회 시작일"
+              type="date"
+              value={currentDateFrom}
+              onChange={(event) => tab === "work" ? setWorkDateFrom(event.target.value) : setCustomerDateFrom(event.target.value)}
+            />
+            <FieldInput
+              id="sales-date-to"
+              label="조회 종료일"
+              type="date"
+              value={currentDateTo}
+              onChange={(event) => tab === "work" ? setWorkDateTo(event.target.value) : setCustomerDateTo(event.target.value)}
+            />
           </>}
           selectionCount={tab === "work" ? selectedWorkItems.length : undefined}
-          actions={<Button size="sm" variant="ghost" onClick={() => void reloadActive()}>새로고침</Button>}
         >
           {tab === "work" && selectedWorkItems.length ? (
             <BulkActions
@@ -741,16 +718,16 @@ function BulkActions({
 
   return (
     <div className="sales-work-table__bulk-actions">
-      <select value={nextStatus} onChange={(event) => setNextStatus(event.target.value as WorkStatus)} aria-label="일괄 작업 상태">
+      <FieldSelect id="sales-bulk-work-status" label="작업 상태" value={nextStatus} onChange={(event) => setNextStatus(event.target.value as WorkStatus)}>
         {Object.entries(WORK_STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-      </select>
+      </FieldSelect>
       <Button size="sm" variant="ghost" onClick={() => void onRun({ action: "status", workStatus: nextStatus }, "작업 상태를 일괄 변경했습니다.")}>상태 변경</Button>
-      <input type="datetime-local" value={nextDueAt} onChange={(event) => setNextDueAt(event.target.value)} aria-label="일괄 수령일시" />
+      <FieldInput id="sales-bulk-due-at" label="수령일시" type="datetime-local" value={nextDueAt} onChange={(event) => setNextDueAt(event.target.value)} />
       <Button size="sm" variant="ghost" disabled={!nextDueAt} onClick={() => void onRun({ action: "due_at", dueAt: toDueAt(nextDueAt) }, "수령일시를 일괄 변경했습니다.")}>수령일시 변경</Button>
-      <select value={paymentStatus} onChange={(event) => setPaymentStatus(event.target.value as PaymentStatus)} aria-label="일괄 결제 상태">
+      <FieldSelect id="sales-bulk-payment-status" label="결제 상태" value={paymentStatus} onChange={(event) => setPaymentStatus(event.target.value as PaymentStatus)}>
         {Object.entries(PAYMENT_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-      </select>
-      <input type="number" min="0" step="1" value={paidAmount} onChange={(event) => setPaidAmount(event.target.value)} aria-label="일괄 결제 금액" />
+      </FieldSelect>
+      <FieldInput id="sales-bulk-paid-amount" label="결제 금액" type="number" min="0" step="1" value={paidAmount} onChange={(event) => setPaidAmount(event.target.value)} />
       <Button size="sm" variant="ghost" disabled={!Number.isInteger(Number(paidAmount)) || Number(paidAmount) < 0} onClick={() => void onRun({ action: "payment", paymentStatus, paidAmount: Number(paidAmount) }, "결제 상태를 일괄 변경했습니다.")}>결제 변경</Button>
       <Button size="sm" variant="ghost" onClick={() => void onRun({ action: "duplicate" }, "선택한 작업 행을 복제했습니다.")}>복제</Button>
       <Button size="sm" variant="danger" onClick={onDelete}>삭제</Button>

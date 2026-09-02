@@ -8,10 +8,14 @@
 @import "./ui/navigation.css";
 @import "./ui/components.css";
 
-.passcode-gate{min-height:100vh;display:grid;place-items:center;padding:24px;background:var(--paper,#f4f1ea)}
-.passcode-card{width:min(380px,100%);display:grid;gap:14px;padding:28px;border:1px solid var(--line,#d9d1c4);border-radius:12px;background:#fff;box-shadow:0 20px 50px #27180c1c}
-.passcode-card small{color:var(--wine,#6a1d28);font-size:11px;font-weight:800;letter-spacing:.08em}
-.passcode-card h1,.passcode-card p{margin:0}.passcode-card h1{font-size:24px}.passcode-card p{color:var(--muted,#625d53);font-size:13px;line-height:1.6}
-.passcode-card label{display:grid;gap:6px;color:var(--muted,#625d53);font-size:11px;font-weight:800}.passcode-card input{min-height:44px;border:1px solid var(--line,#d9d1c4);border-radius:7px;padding:8px 10px;font:inherit}
-.passcode-card button{min-height:44px;border:0;border-radius:7px;background:var(--wine,#6a1d28);color:#fff;font:inherit;font-weight:800}.passcode-card button:disabled{opacity:.55}
-.passcode-error{min-height:20px;color:#a11d2d!important}
+.passcode-gate { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: var(--paper, #f4f1ea); }
+.passcode-card { width: min(380px, 100%); display: grid; gap: 14px; padding: 28px; border: 1px solid var(--line, #d9d1c4); border-radius: var(--radius-lg); background: #fff; box-shadow: 0 20px 50px #27180c1c; }
+.passcode-card small { color: var(--wine, #6a1d28); font-size: var(--text-sm); font-weight: var(--weight-body); letter-spacing: .08em; }
+.passcode-card h1, .passcode-card p { margin: 0; }
+.passcode-card h1 { font-size: var(--text-lg); font-weight: var(--weight-strong); line-height: var(--leading-tight); }
+.passcode-card p { color: var(--muted, #625d53); font-size: var(--text-md); line-height: var(--leading-normal); }
+.passcode-card label { display: grid; gap: 6px; color: var(--muted, #625d53); font-size: var(--text-sm); font-weight: var(--weight-body); }
+.passcode-card input { min-height: 44px; border: 1px solid var(--line, #d9d1c4); border-radius: var(--radius-md); padding: 8px 10px; font: inherit; }
+.passcode-card button { min-height: 44px; border: 0; border-radius: var(--radius-md); background: var(--wine, #6a1d28); color: #fff; font: inherit; font-weight: var(--weight-body); }
+.passcode-card button:disabled { opacity: .55; }
+.passcode-error { min-height: 20px; color: #a11d2d !important; }

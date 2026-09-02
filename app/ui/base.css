@@ -6,7 +6,13 @@ html, body {
   min-height: 100%;
   background: var(--paper);
   color: var(--ink);
-  font-family: Pretendard, "Noto Sans KR", Arial, sans-serif;
+  font-family: "Noto Sans KR", Arial, sans-serif;
+}
+.ops-shell {
+  font-family: var(--font-sans);
+  font-size: var(--text-md);
+  font-weight: var(--weight-body);
+  line-height: var(--leading-normal);
 }
 button, input, select {
   font: inherit;

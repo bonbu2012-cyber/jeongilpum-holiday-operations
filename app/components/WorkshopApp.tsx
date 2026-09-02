@@ -4,14 +4,13 @@ import {
   ClipboardList,
   Factory,
   Package,
-  RefreshCw,
   Route,
   ScanLine,
 } from "lucide-react";
-import { useState } from "react";
 import Image from "next/image";
+import { useState } from "react";
 import type { ReactNode } from "react";
-import type { DataTableColumn } from "../ui";
+import type { DataTableColumn, StatTile } from "../ui";
 import {
   Badge,
   Button,
@@ -19,13 +18,19 @@ import {
   FieldInput,
   FieldSelect,
   Modal,
+  StatTiles,
   Tabs,
+  Toolbar,
   useResource,
 } from "../ui";
+import {
+  WORK_STATUS_OPTIONS,
+  workStatusLabel,
+  type WorkStatus,
+} from "../lib/work-status";
 import AppNav from "./AppNav";
 import "../workshop-flow.css";
 
-type WorkStatus = "received" | "confirmed" | "in_progress" | "ready" | "completed" | "cancelled";
 type WorkItem = {
   id: string;
   orderId: string;
@@ -47,6 +52,7 @@ type WorkItem = {
     createdAt: string;
   }>;
 };
+
 type ProductTotal = {
   productId: string;
   productName: string;
@@ -55,21 +61,14 @@ type ProductTotal = {
   pendingQuantity: number;
   dailyLimit: number | null;
 };
+
 type WorkshopResponse = {
   onsite?: WorkItem[];
   delivery?: WorkItem[];
   products?: ProductTotal[];
 };
-type WorkshopTab = "onsite" | "delivery" | "products" | "tools";
 
-const statuses: Array<{ value: WorkStatus; label: string }> = [
-  { value: "received", label: "접수" },
-  { value: "confirmed", label: "확인" },
-  { value: "in_progress", label: "작업중" },
-  { value: "ready", label: "준비완료" },
-  { value: "completed", label: "수령완료" },
-  { value: "cancelled", label: "취소" },
-];
+type WorkshopTab = "onsite" | "delivery";
 
 function todayInSeoul() {
   const parts = new Intl.DateTimeFormat("en-US", {
@@ -95,10 +94,6 @@ function formatDate(value: string) {
   }).format(new Date(`${value}T12:00:00+09:00`));
 }
 
-function statusLabel(status: WorkStatus) {
-  return statuses.find((item) => item.value === status)?.label ?? status;
-}
-
 function statusTone(status: WorkStatus) {
   if (status === "ready" || status === "completed") return "success" as const;
   if (status === "in_progress") return "info" as const;
@@ -113,6 +108,22 @@ function historyLabel(type: string) {
   return type;
 }
 
+function productTiles(products: ProductTotal[]): StatTile[] {
+  return products.map((product) => ({
+    id: product.productId,
+    label: product.productName,
+    value: `${product.pendingQuantity.toLocaleString()}개`,
+    detail: product.dailyLimit !== null && product.totalQuantity > product.dailyLimit
+      ? `일일 한도 ${product.dailyLimit.toLocaleString()}개 초과`
+      : "남은 작업",
+    subtotals: [
+      { label: "전체", value: `${product.totalQuantity.toLocaleString()}개` },
+      { label: "완료", value: `${product.completedQuantity.toLocaleString()}개` },
+    ],
+    tone: product.dailyLimit !== null && product.totalQuantity > product.dailyLimit ? "attention" : undefined,
+  }));
+}
+
 export default function WorkshopApp() {
   const [date, setDate] = useState(todayInSeoul);
   const [tab, setTab] = useState<WorkshopTab>("onsite");
@@ -124,10 +135,7 @@ export default function WorkshopApp() {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
-  const {
-    loading,
-    reload,
-  } = useResource<WorkshopResponse>(
+  const { reload } = useResource<WorkshopResponse>(
     `/api/workshop/orders?date=${encodeURIComponent(date)}`,
     2500,
     {
@@ -204,7 +212,7 @@ export default function WorkshopApp() {
     {
       id: "status",
       header: "작업 상태",
-      cell: (item) => <Badge tone={statusTone(item.workStatus)}>{statusLabel(item.workStatus)}</Badge>,
+      cell: (item) => <Badge tone={statusTone(item.workStatus)}>{workStatusLabel(item.workStatus)}</Badge>,
       sortValue: (item) => item.workStatus,
       width: "132px",
     },
@@ -234,177 +242,83 @@ export default function WorkshopApp() {
     {
       id: "status",
       header: "작업 상태",
-      cell: (item) => <Badge tone={statusTone(item.workStatus)}>{statusLabel(item.workStatus)}</Badge>,
+      cell: (item) => <Badge tone={statusTone(item.workStatus)}>{workStatusLabel(item.workStatus)}</Badge>,
       sortValue: (item) => item.workStatus,
       width: "132px",
     },
   ];
 
-  const productColumns: DataTableColumn<ProductTotal>[] = [
-    {
-      id: "product",
-      header: "상품",
-      cell: (item) => (
-        <span>
-          {item.productName}
-          {item.dailyLimit !== null && item.totalQuantity > item.dailyLimit
-            ? <Badge tone="warning">일일 한도 초과</Badge>
-            : null}
-        </span>
-      ),
-      sortValue: (item) => item.productName,
-    },
-    {
-      id: "total",
-      header: "총 수량",
-      cell: (item) => <strong>{item.totalQuantity.toLocaleString()}개</strong>,
-      sortValue: (item) => item.totalQuantity,
-      align: "right",
-      width: "112px",
-    },
-    {
-      id: "completed",
-      header: "완료",
-      cell: (item) => `${item.completedQuantity.toLocaleString()}개`,
-      sortValue: (item) => item.completedQuantity,
-      align: "right",
-      width: "96px",
-    },
-    {
-      id: "pending",
-      header: "남은 작업",
-      cell: (item) => <strong>{item.pendingQuantity.toLocaleString()}개</strong>,
-      sortValue: (item) => item.pendingQuantity,
-      align: "right",
-      width: "112px",
-    },
+  const tabItems = [
+    { id: "onsite", label: "현장", count: onsite.length },
+    { id: "delivery", label: "택배", count: delivery.length },
   ];
 
-  const tabItems = [
-    { id: "onsite", label: "오늘 현장", count: onsite.length },
-    { id: "delivery", label: "택배", count: delivery.length },
-    { id: "products", label: "상품별", count: products.length },
-    { id: "tools", label: "부가 기능" },
-  ];
+  const activeRows = tab === "onsite" ? onsite : delivery;
+  const activeColumns = tab === "onsite" ? onsiteColumns : deliveryColumns;
 
   return (
     <div className="workshop-app">
       <header className="workshop-header">
         <a href="/workshop" className="workshop-brand">
           <Image className="operations-brand-logo" src="/jeongilpum-logo.png" alt="정일품 정육식당 로고" width={46} height={46} />
-          <span>정일품 작업장<small>WORK ITEM BOARD</small></span>
+          <span>정일품 작업장</span>
         </a>
-        <Button variant="ghost" size="sm" onClick={() => void reload()} disabled={loading} leadingIcon={<RefreshCw size={16} />}>
-          {loading ? "동기화 중" : "새로고침"}
-        </Button>
       </header>
       <AppNav current="workshop" />
 
       <main className="workshop-main">
         <section className="workshop-date-toolbar" aria-label="작업 기준일 선택">
-          <div>
-            <small>WORK ITEM SCHEDULE</small>
+          <Toolbar>
             <h1>{formatDate(date)} 작업</h1>
-            <span>현장 예약과 택배 작업은 독립된 패널에서 관리합니다.</span>
-          </div>
-          <FieldInput
-            id="workshop-date"
-            label="작업일"
-            type="date"
-            value={date}
-            onChange={(event) => setDate(event.target.value)}
+            <FieldInput
+              id="workshop-date"
+              className="workshop-date-field"
+              label="작업일"
+              type="date"
+              value={date}
+              onChange={(event) => setDate(event.target.value)}
+            />
+          </Toolbar>
+        </section>
+
+        {error ? <section className="workshop-message workshop-message--error" role="alert">{error}</section> : null}
+        {notice ? <section className="workshop-message" role="status">{notice}</section> : null}
+
+        <section className="workshop-product-summary" aria-labelledby="workshop-product-summary-title">
+          <h2 id="workshop-product-summary-title">상품별 작업량</h2>
+          {products.length ? (
+            <StatTiles ariaLabel="상품별 작업 수량" tiles={productTiles(products)} />
+          ) : <p className="workshop-empty">집계할 상품 작업이 없습니다.</p>}
+        </section>
+
+        <div className="workshop-tab-bar">
+          <Tabs
+            ariaLabel="작업장 보기"
+            items={tabItems}
+            value={tab}
+            onValueChange={(value) => setTab(value as WorkshopTab)}
+          />
+        </div>
+
+        <section className="workshop-work-list">
+          <DataTable
+            key={tab}
+            ariaLabel={tab === "onsite" ? "현장 작업" : "택배 작업"}
+            rows={activeRows}
+            columns={activeColumns}
+            getRowId={(item) => item.id}
+            onRowClick={openDetail}
+            initialSort={tab === "onsite" ? { columnId: "time" } : { columnId: "product" }}
+            emptyMessage={tab === "onsite" ? "현장 작업이 없습니다." : "택배 작업이 없습니다."}
           />
         </section>
 
-        {error ? <section className="package-message error" role="alert">{error}</section> : null}
-        {notice ? <section className="package-message" role="status">{notice}</section> : null}
-
-        <Tabs
-          ariaLabel="작업장 탭"
-          items={tabItems}
-          value={tab}
-          onValueChange={(value) => setTab(value as WorkshopTab)}
-        />
-
-        {tab === "onsite" ? (
-          <section className="whiteboard-section">
-            <header>
-              <div>
-                <small>ONSITE RESERVATION</small>
-                <h2>오늘 현장 예약</h2>
-              </div>
-              <Badge tone="info">예약 시각 오름차순</Badge>
-            </header>
-            <DataTable
-              ariaLabel="오늘 현장 예약 작업"
-              rows={onsite}
-              columns={onsiteColumns}
-              getRowId={(item) => item.id}
-              onRowClick={openDetail}
-              initialSort={{ columnId: "time" }}
-              emptyMessage="오늘 현장 예약 작업이 없습니다."
-            />
-          </section>
-        ) : null}
-
-        {tab === "delivery" ? (
-          <section className="whiteboard-section workshop-delivery-panel">
-            <header>
-              <div>
-                <small>DELIVERY</small>
-                <h2>오늘 택배</h2>
-              </div>
-              <Badge tone="warning">현장 예약과 별도 관리</Badge>
-            </header>
-            <DataTable
-              ariaLabel="오늘 택배 작업"
-              rows={delivery}
-              columns={deliveryColumns}
-              getRowId={(item) => item.id}
-              onRowClick={openDetail}
-              initialSort={{ columnId: "product" }}
-              emptyMessage="오늘 택배 작업이 없습니다."
-            />
-          </section>
-        ) : null}
-
-        {tab === "products" ? (
-          <section className="whiteboard-section">
-            <header>
-              <div>
-                <small>PRODUCT TOTALS</small>
-                <h2>상품별 작업 수량</h2>
-              </div>
-              <span>일일 한도 초과는 경고로만 표시하며 작업자 수정을 차단하지 않습니다.</span>
-            </header>
-            <DataTable
-              ariaLabel="상품별 작업 수량"
-              rows={products}
-              columns={productColumns}
-              getRowId={(item) => item.productId}
-              initialSort={{ columnId: "pending", direction: "desc" }}
-              emptyMessage="오늘 집계할 상품 작업이 없습니다."
-            />
-          </section>
-        ) : null}
-
-        {tab === "tools" ? (
-          <section className="whiteboard-section workshop-tools-panel">
-            <header>
-              <div>
-                <small>OPTIONAL OPERATIONS</small>
-                <h2>부가 기능</h2>
-              </div>
-              <span>생산·스킨팩·이력추적·패키지는 작업 항목 조회와 독립적으로 운영합니다.</span>
-            </header>
-            <div className="workshop-tools-grid">
-              <ToolLink href="/workshop/production" icon={<Factory size={22} />} title="생산관리" detail="작업 수요와 생산 batch를 확인합니다." />
-              <ToolLink href="/workshop/production#skin-packs" icon={<Package size={22} />} title="스킨팩" detail="생산 batch에서 스킨팩을 등록합니다." />
-              <ToolLink href="/workshop/production#traceability" icon={<ScanLine size={22} />} title="이력추적" detail="이력번호와 생산 정보를 관리합니다." />
-              <ToolLink href="/workshop/packages" icon={<Route size={22} />} title="패키지" detail="작업 항목에 연결된 패키지를 조회합니다." />
-            </div>
-          </section>
-        ) : null}
+        <nav className="workshop-utility-links" aria-label="작업장 부가 기능">
+          <UtilityLink href="/workshop/production" icon={<Factory size={18} />} label="생산관리" />
+          <UtilityLink href="/workshop/production#skin-packs" icon={<Package size={18} />} label="스킨팩" />
+          <UtilityLink href="/workshop/production#traceability" icon={<ScanLine size={18} />} label="이력추적" />
+          <UtilityLink href="/workshop/packages" icon={<Route size={18} />} label="패키지" />
+        </nav>
       </main>
 
       <Modal
@@ -424,18 +338,20 @@ export default function WorkshopApp() {
         {selected ? (
           <div className="workshop-detail-content">
             <div className="workshop-detail-grid">
-              <p><span>수령방법</span><b>{selected.deliveryMethod === "delivery" ? "택배" : "현장 예약"}</b></p>
-              <p><span>작업 시각</span><b>{selected.deliveryMethod === "delivery" ? selected.dueAt.slice(0, 10) : `${selected.dueAt.slice(0, 10)} ${formatTime(selected.dueAt)}`}</b></p>
-              {selected.deliveryMethod === "delivery" ? <p><span>배송지</span><b>{selected.address || "주소 미입력"}</b></p> : null}
+              <p><span>수령방법</span><strong>{selected.deliveryMethod === "delivery" ? "택배" : "현장 예약"}</strong></p>
+              <p><span>작업 시각</span><strong>{selected.deliveryMethod === "delivery" ? selected.dueAt.slice(0, 10) : `${selected.dueAt.slice(0, 10)} ${formatTime(selected.dueAt)}`}</strong></p>
+              {selected.deliveryMethod === "delivery" ? <p><span>배송지</span><strong>{selected.address || "주소 미입력"}</strong></p> : null}
             </div>
             <FieldSelect
               id={`work-status-${selected.id}`}
+              className="workshop-status-field"
               label="작업 상태"
               value={selectedStatus}
               onChange={(event) => setSelectedStatus(event.target.value as WorkStatus)}
-              hint="모든 상태값을 선택할 수 있으며 완료 상태도 다시 변경할 수 있습니다."
             >
-              {statuses.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+              {WORK_STATUS_OPTIONS.map((status) => (
+                <option key={status} value={status}>{workStatusLabel(status)}</option>
+              ))}
             </FieldSelect>
             {selected.note ? <section className="workshop-detail-note"><h3>작업 요청사항</h3><p>{selected.note}</p></section> : null}
             <section className="workshop-detail-history">
@@ -444,7 +360,7 @@ export default function WorkshopApp() {
                 <ol>
                   {selected.events.map((event) => (
                     <li key={event.id}>
-                      <b>{historyLabel(event.type)}</b>
+                      <strong>{historyLabel(event.type)}</strong>
                       <time>{new Date(event.createdAt).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })}</time>
                     </li>
                   ))}
@@ -458,12 +374,11 @@ export default function WorkshopApp() {
   );
 }
 
-function ToolLink({ href, icon, title, detail }: { href: string; icon: ReactNode; title: string; detail: string }) {
+function UtilityLink({ href, icon, label }: { href: string; icon: ReactNode; label: string }) {
   return (
-    <a className="workshop-tool-link" href={href}>
+    <a href={href}>
       <span aria-hidden="true">{icon}</span>
-      <strong>{title}</strong>
-      <small>{detail}</small>
+      <span>{label}</span>
     </a>
   );
 }

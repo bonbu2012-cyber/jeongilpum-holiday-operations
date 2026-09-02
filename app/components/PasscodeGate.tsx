@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import "../ui/operator-fonts.css";
 
 export default function PasscodeGate() {
   const [passcode, setPasscode] = useState("");
@@ -26,7 +27,7 @@ export default function PasscodeGate() {
     }
   };
 
-  return <main className="passcode-gate">
+  return <main className="ops-shell passcode-gate">
     <form className="passcode-card" onSubmit={(event) => { event.preventDefault(); void submit(); }}>
       <small>JEONGILPUM OPERATOR</small>
       <h1>운영 화면 암호</h1>

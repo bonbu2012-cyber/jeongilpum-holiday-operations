@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { OrderRecord } from "./types";
 import { workStatusLabel } from "../lib/sales-operations";
 import { arrivalTimingLabel } from "../lib/workshop-operations";
+import { FieldInput, FieldSelect, FieldTextarea } from "../ui";
 
 export type SchedulePayload = {
   fulfillmentType: "pickup" | "shipping";
@@ -97,13 +98,13 @@ export default function SalesOrderDetail({
         {cancelEditorOpen && <section className="order-cancellation-editor" aria-label="주문 취소 사유 입력">
           <h3>주문 취소</h3>
           <p>구매 기록과 취소 사유는 남고, 이 주문은 통계·미수금·생산 집계에서 제외됩니다.</p>
-          <label><span>취소 사유</span><select value={cancelReasonType} onChange={(event) => setCancelReasonType(event.target.value as typeof cancelReasonType)}>
+          <FieldSelect id="sales-order-cancel-reason" label="취소 사유" value={cancelReasonType} onChange={(event) => setCancelReasonType(event.target.value as typeof cancelReasonType)}>
             <option value="">사유를 선택해주세요</option>
             <option value="test">테스트</option>
             <option value="customer_cancelled">취소</option>
             <option value="custom">직접입력</option>
-          </select></label>
-          {cancelReasonType === "custom" && <label><span>직접입력 사유</span><textarea maxLength={200} value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} placeholder="취소 사유를 입력해주세요" /></label>}
+          </FieldSelect>
+          {cancelReasonType === "custom" && <FieldTextarea id="sales-order-cancel-custom-reason" label="직접입력 사유" maxLength={200} value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} placeholder="취소 사유를 입력해주세요" />}
           <div><button onClick={() => setCancelEditorOpen(false)} disabled={cancelling}>닫기</button><button className="danger" onClick={() => void cancelOrder()} disabled={cancelling || !cancelReasonType || (cancelReasonType === "custom" && !cancelReason.trim())}>{cancelling ? "취소 처리 중…" : "기록을 남기고 취소"}</button></div>
         </section>}
 
@@ -165,9 +166,9 @@ function ScheduleEditor({ order, assignSchedule }: {
   if (!open) return <section className="legacy-actions"><p>기존 주문의 날짜를 추정하지 않습니다.</p><button className="task-primary" onClick={() => setOpen(true)}>수령방법·일정 지정</button></section>;
   return <section className="legacy-schedule-editor">
     <h3>기존 주문 일정 지정</h3>
-    <label><span>수령방법</span><select value={fulfillmentType} onChange={(event) => setFulfillmentType(event.target.value as "pickup" | "shipping")}><option value="pickup">방문수령</option><option value="shipping">택배발송</option></select></label>
-    <label><span>{fulfillmentType === "pickup" ? "방문 날짜" : "발송 날짜"}</span><input type="date" min={todayInSeoul()} value={date} onChange={(event) => setDate(event.target.value)} /></label>
-    {fulfillmentType === "pickup" && <label><span>방문 시간</span><select value={time} onChange={(event) => setTime(event.target.value)}>{pickupTimes.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>}
+    <FieldSelect id="sales-legacy-fulfillment-type" label="수령방법" value={fulfillmentType} onChange={(event) => setFulfillmentType(event.target.value as "pickup" | "shipping")}><option value="pickup">방문수령</option><option value="shipping">택배발송</option></FieldSelect>
+    <FieldInput id="sales-legacy-fulfillment-date" label={fulfillmentType === "pickup" ? "방문 날짜" : "발송 날짜"} type="date" min={todayInSeoul()} value={date} onChange={(event) => setDate(event.target.value)} />
+    {fulfillmentType === "pickup" && <FieldSelect id="sales-legacy-pickup-time" label="방문 시간" value={time} onChange={(event) => setTime(event.target.value)}>{pickupTimes.map((value) => <option key={value} value={value}>{value}</option>)}</FieldSelect>}
     <div className="legacy-editor-buttons"><button onClick={() => setOpen(false)} disabled={saving}>취소</button><button className="task-primary" onClick={() => void save()} disabled={saving || !date}>{saving ? "저장 중…" : "일정 저장"}</button></div>
   </section>;
 }
