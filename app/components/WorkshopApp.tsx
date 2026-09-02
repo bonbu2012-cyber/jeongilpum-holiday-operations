@@ -7,10 +7,9 @@ import {
   Route,
   ScanLine,
 } from "lucide-react";
-import Image from "next/image";
 import { useState } from "react";
 import type { ReactNode } from "react";
-import type { DataTableColumn, StatTile } from "../ui";
+import type { DataTableColumn } from "../ui";
 import {
   Badge,
   Button,
@@ -18,17 +17,17 @@ import {
   FieldInput,
   FieldSelect,
   Modal,
-  StatTiles,
   Tabs,
   Toolbar,
   useResource,
 } from "../ui";
 import {
+  PIPELINE_WORK_STATUSES,
   WORK_STATUS_OPTIONS,
   workStatusLabel,
   type WorkStatus,
 } from "../lib/work-status";
-import AppNav from "./AppNav";
+import OpsHeader from "./OpsHeader";
 import "../workshop-flow.css";
 
 type WorkItem = {
@@ -108,20 +107,54 @@ function historyLabel(type: string) {
   return type;
 }
 
-function productTiles(products: ProductTotal[]): StatTile[] {
-  return products.map((product) => ({
-    id: product.productId,
-    label: product.productName,
-    value: `${product.pendingQuantity.toLocaleString()}개`,
-    detail: product.dailyLimit !== null && product.totalQuantity > product.dailyLimit
-      ? `일일 한도 ${product.dailyLimit.toLocaleString()}개 초과`
-      : "남은 작업",
-    subtotals: [
-      { label: "전체", value: `${product.totalQuantity.toLocaleString()}개` },
-      { label: "완료", value: `${product.completedQuantity.toLocaleString()}개` },
-    ],
-    tone: product.dailyLimit !== null && product.totalQuantity > product.dailyLimit ? "attention" : undefined,
+function nextWorkAction(status: WorkStatus) {
+  const currentIndex = PIPELINE_WORK_STATUSES.findIndex((value) => value === status);
+  const nextStatus = PIPELINE_WORK_STATUSES[currentIndex + 1];
+  if (currentIndex < 0 || !nextStatus) return null;
+
+  if (nextStatus === "confirmed") return { status: nextStatus, label: "작업 준비", notice: "작업 준비 상태로 변경했습니다." };
+  if (nextStatus === "in_progress") return { status: nextStatus, label: "작업 시작", notice: "작업을 시작했습니다." };
+  if (nextStatus === "ready") return { status: nextStatus, label: "작업 완료", notice: "작업을 완료했습니다." };
+  return { status: nextStatus, label: "수령 완료", notice: "수령 완료 상태로 변경했습니다." };
+}
+
+function workItemGroups(items: WorkItem[], orderByTime: boolean) {
+  const byProduct = new Map<string, WorkItem[]>();
+  for (const item of items) {
+    const rows = byProduct.get(item.productName) ?? [];
+    rows.push(item);
+    byProduct.set(item.productName, rows);
+  }
+
+  const grouped = [...byProduct.entries()].map(([productName, rows]) => {
+    const sortedRows = [...rows].sort((left, right) => left.dueAt.localeCompare(right.dueAt) || left.id.localeCompare(right.id));
+    return { productName, rows: sortedRows };
+  });
+
+  grouped.sort((left, right) => {
+    if (orderByTime) {
+      return (left.rows[0]?.dueAt ?? "").localeCompare(right.rows[0]?.dueAt ?? "");
+    }
+    return left.productName.localeCompare(right.productName, "ko-KR", { numeric: true });
+  });
+
+  return grouped.map(({ productName, rows }) => ({
+    id: productName,
+    header: `${productName} · ${rows.reduce((total, item) => total + item.quantity, 0).toLocaleString()}개 · ${rows.length}건`,
+    rows,
   }));
+}
+
+async function settleInBatches<T>(
+  values: T[],
+  operation: (value: T) => Promise<void>,
+  batchSize = 4,
+) {
+  const results: PromiseSettledResult<void>[] = [];
+  for (let start = 0; start < values.length; start += batchSize) {
+    results.push(...await Promise.allSettled(values.slice(start, start + batchSize).map(operation)));
+  }
+  return results;
 }
 
 export default function WorkshopApp() {
@@ -132,7 +165,8 @@ export default function WorkshopApp() {
   const [products, setProducts] = useState<ProductTotal[]>([]);
   const [selected, setSelected] = useState<WorkItem | null>(null);
   const [selectedStatus, setSelectedStatus] = useState<WorkStatus>("received");
-  const [busy, setBusy] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [busyIds, setBusyIds] = useState<string[]>([]);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const { reload } = useResource<WorkshopResponse>(
@@ -142,12 +176,14 @@ export default function WorkshopApp() {
       onData: (data) => {
         const nextOnsite = data.onsite ?? [];
         const nextDelivery = data.delivery ?? [];
+        const nextItems = [...nextOnsite, ...nextDelivery];
         setOnsite(nextOnsite);
         setDelivery(nextDelivery);
         setProducts(data.products ?? []);
+        setSelectedIds((current) => current.filter((id) => nextItems.some((item) => item.id === id)));
         setSelected((current) => {
           if (!current) return null;
-          return [...nextOnsite, ...nextDelivery].find((item) => item.id === current.id) ?? null;
+          return nextItems.find((item) => item.id === current.id) ?? null;
         });
         setError("");
       },
@@ -160,31 +196,90 @@ export default function WorkshopApp() {
     setSelectedStatus(item.workStatus);
   };
 
-  const updateStatus = async () => {
-    if (!selected) return;
-    setBusy(true);
+  const updateWorkStatuses = async (
+    items: WorkItem[],
+    status: WorkStatus,
+    successMessage: string,
+  ) => {
+    const targets = items.filter((item) => item.workStatus !== status && !busyIds.includes(item.id));
+    if (!targets.length) {
+      setNotice("변경할 작업이 없습니다.");
+      return;
+    }
+
+    setBusyIds((current) => [...new Set([...current, ...targets.map((item) => item.id)])]);
     setError("");
-    try {
+    setNotice("");
+
+    const results = await settleInBatches(targets, async (item) => {
       const response = await fetch("/api/workshop/actions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          workItemId: selected.id,
-          status: selectedStatus,
-          expectedVersion: selected.version,
+          workItemId: item.id,
+          status,
+          expectedVersion: item.version,
           idempotencyKey: crypto.randomUUID(),
         }),
       });
-      const data = await response.json() as { error?: string; alreadyApplied?: boolean };
-      if (!response.ok) throw new Error(data.error || "작업 상태를 변경하지 못했습니다.");
-      setNotice(data.alreadyApplied ? "같은 변경 요청이 이미 반영되었습니다." : "작업 상태를 저장했습니다.");
-      await reload();
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "작업 상태를 변경하지 못했습니다.");
+      const data = await response.json().catch(() => null) as { error?: string };
+      if (!response.ok) throw new Error(data?.error || "작업 상태를 변경하지 못했습니다.");
+    });
+
+    const completedIds = targets.filter((_, index) => results[index]?.status === "fulfilled").map((item) => item.id);
+    const failed = results.filter((result): result is PromiseRejectedResult => result.status === "rejected");
+
+    try {
       await reload({ silent: true });
     } finally {
-      setBusy(false);
+      setBusyIds((current) => current.filter((id) => !targets.some((item) => item.id === id)));
     }
+
+    if (completedIds.length) {
+      setSelectedIds((current) => current.filter((id) => !completedIds.includes(id)));
+      setNotice(completedIds.length === 1 ? successMessage : `${completedIds.length}개 작업 상태를 ${workStatusLabel(status)}으로 변경했습니다.`);
+    }
+    if (failed.length) {
+      const firstFailure = failed[0]?.reason;
+      const message = firstFailure instanceof Error ? firstFailure.message : "작업 상태를 변경하지 못했습니다.";
+      setError(`${failed.length}개 작업 상태를 변경하지 못했습니다. ${message}`);
+    }
+  };
+
+  const updateStatus = async () => {
+    if (!selected) return;
+    await updateWorkStatuses([selected], selectedStatus, "작업 상태를 저장했습니다.");
+  };
+
+  const statusColumn: DataTableColumn<WorkItem> = {
+    id: "status",
+    header: "작업 상태",
+    cell: (item) => <Badge tone={statusTone(item.workStatus)}>{workStatusLabel(item.workStatus)}</Badge>,
+    sortValue: (item) => item.workStatus,
+    width: "132px",
+  };
+
+  const actionColumn: DataTableColumn<WorkItem> = {
+    id: "action",
+    header: "처리",
+    cell: (item) => {
+      const action = nextWorkAction(item.workStatus);
+      if (!action) return <span>처리 완료</span>;
+      return (
+        <Button
+          size="sm"
+          variant={action.status === "in_progress" || action.status === "ready" ? "primary" : "ghost"}
+          disabled={busyIds.includes(item.id)}
+          onClick={(event) => {
+            event.stopPropagation();
+            void updateWorkStatuses([item], action.status, action.notice);
+          }}
+        >
+          {busyIds.includes(item.id) ? "처리 중" : action.label}
+        </Button>
+      );
+    },
+    width: "132px",
   };
 
   const onsiteColumns: DataTableColumn<WorkItem>[] = [
@@ -209,13 +304,8 @@ export default function WorkshopApp() {
       align: "right",
       width: "96px",
     },
-    {
-      id: "status",
-      header: "작업 상태",
-      cell: (item) => <Badge tone={statusTone(item.workStatus)}>{workStatusLabel(item.workStatus)}</Badge>,
-      sortValue: (item) => item.workStatus,
-      width: "132px",
-    },
+    statusColumn,
+    actionColumn,
   ];
 
   const deliveryColumns: DataTableColumn<WorkItem>[] = [
@@ -239,13 +329,8 @@ export default function WorkshopApp() {
       cell: (item) => item.address || "주소 미입력",
       sortValue: (item) => item.address,
     },
-    {
-      id: "status",
-      header: "작업 상태",
-      cell: (item) => <Badge tone={statusTone(item.workStatus)}>{workStatusLabel(item.workStatus)}</Badge>,
-      sortValue: (item) => item.workStatus,
-      width: "132px",
-    },
+    statusColumn,
+    actionColumn,
   ];
 
   const tabItems = [
@@ -255,39 +340,55 @@ export default function WorkshopApp() {
 
   const activeRows = tab === "onsite" ? onsite : delivery;
   const activeColumns = tab === "onsite" ? onsiteColumns : deliveryColumns;
+  const selectedWorkItems = activeRows.filter((item) => selectedIds.includes(item.id));
+  const selectedBusy = selectedWorkItems.some((item) => busyIds.includes(item.id));
+  const selectedForStatus = (status: WorkStatus) => selectedWorkItems.filter(
+    (item) => nextWorkAction(item.workStatus)?.status === status,
+  );
+  const preparingItems = selectedForStatus("confirmed");
+  const startingItems = selectedForStatus("in_progress");
+  const completingItems = selectedForStatus("ready");
+  const receivingItems = selectedForStatus("completed");
 
   return (
     <div className="workshop-app">
-      <header className="workshop-header">
-        <a href="/workshop" className="workshop-brand">
-          <Image className="operations-brand-logo" src="/jeongilpum-logo.png" alt="정일품 정육식당 로고" width={46} height={46} />
-          <span>정일품 작업장</span>
-        </a>
-      </header>
-      <AppNav current="workshop" />
+      <OpsHeader surface="workshop" title="정일품 작업장" subtitle={formatDate(date)} />
 
       <main className="workshop-main">
         <section className="workshop-date-toolbar" aria-label="작업 기준일 선택">
-          <Toolbar>
-            <h1>{formatDate(date)} 작업</h1>
-            <FieldInput
-              id="workshop-date"
-              className="workshop-date-field"
-              label="작업일"
-              type="date"
-              value={date}
-              onChange={(event) => setDate(event.target.value)}
-            />
-          </Toolbar>
+          <Toolbar
+            filters={
+              <FieldInput
+                id="workshop-date"
+                className="workshop-date-field"
+                label={<span className="sr-only">작업일</span>}
+                aria-label="작업일"
+                type="date"
+                value={date}
+                onChange={(event) => {
+                  setDate(event.target.value);
+                  setSelectedIds([]);
+                }}
+              />
+            }
+            selectionCount={selectedWorkItems.length || undefined}
+            actions={selectedWorkItems.length ? (
+              <>
+                <Button size="sm" variant="ghost" disabled={selectedBusy || !preparingItems.length} onClick={() => void updateWorkStatuses(preparingItems, "confirmed", "작업 준비 상태로 변경했습니다.")}>작업 준비</Button>
+                <Button size="sm" disabled={selectedBusy || !startingItems.length} onClick={() => void updateWorkStatuses(startingItems, "in_progress", "작업을 시작했습니다.")}>작업 시작</Button>
+                <Button size="sm" disabled={selectedBusy || !completingItems.length} onClick={() => void updateWorkStatuses(completingItems, "ready", "작업을 완료했습니다.")}>작업 완료</Button>
+                <Button size="sm" variant="ghost" disabled={selectedBusy || !receivingItems.length} onClick={() => void updateWorkStatuses(receivingItems, "completed", "수령 완료 상태로 변경했습니다.")}>수령 완료</Button>
+              </>
+            ) : null}
+          />
         </section>
 
         {error ? <section className="workshop-message workshop-message--error" role="alert">{error}</section> : null}
         {notice ? <section className="workshop-message" role="status">{notice}</section> : null}
 
-        <section className="workshop-product-summary" aria-labelledby="workshop-product-summary-title">
-          <h2 id="workshop-product-summary-title">상품별 작업량</h2>
+        <section className="workshop-product-summary" aria-label="상품별 작업량">
           {products.length ? (
-            <StatTiles ariaLabel="상품별 작업 수량" tiles={productTiles(products)} />
+            <ProductTotalsTable products={products} />
           ) : <p className="workshop-empty">집계할 상품 작업이 없습니다.</p>}
         </section>
 
@@ -296,7 +397,10 @@ export default function WorkshopApp() {
             ariaLabel="작업장 보기"
             items={tabItems}
             value={tab}
-            onValueChange={(value) => setTab(value as WorkshopTab)}
+            onValueChange={(value) => {
+              setTab(value as WorkshopTab);
+              setSelectedIds([]);
+            }}
           />
         </div>
 
@@ -308,7 +412,9 @@ export default function WorkshopApp() {
             columns={activeColumns}
             getRowId={(item) => item.id}
             onRowClick={openDetail}
-            initialSort={tab === "onsite" ? { columnId: "time" } : { columnId: "product" }}
+            groups={workItemGroups(activeRows, tab === "onsite")}
+            selectedIds={selectedIds}
+            onSelectedIdsChange={setSelectedIds}
             emptyMessage={tab === "onsite" ? "현장 작업이 없습니다." : "택배 작업이 없습니다."}
           />
         </section>
@@ -329,8 +435,8 @@ export default function WorkshopApp() {
         footer={(
           <>
             <Button variant="ghost" onClick={() => setSelected(null)}>닫기</Button>
-            <Button disabled={busy || !selected} onClick={() => void updateStatus()} leadingIcon={<ClipboardList size={16} />}>
-              {busy ? "저장 중" : "작업 상태 저장"}
+            <Button disabled={busyIds.includes(selected?.id ?? "") || !selected} onClick={() => void updateStatus()} leadingIcon={<ClipboardList size={16} />}>
+              {busyIds.includes(selected?.id ?? "") ? "저장 중" : "작업 상태 저장"}
             </Button>
           </>
         )}
@@ -370,6 +476,40 @@ export default function WorkshopApp() {
           </div>
         ) : null}
       </Modal>
+    </div>
+  );
+}
+
+function ProductTotalsTable({ products }: { products: ProductTotal[] }) {
+  return (
+    <div className="ui-data-table__scroll">
+      <table className="ui-data-table" aria-label="상품별 작업 수량">
+        <caption className="sr-only">상품별 작업량</caption>
+        <thead>
+          <tr>
+            <th scope="col">상품</th>
+            <th scope="col">전체</th>
+            <th scope="col">완료</th>
+            <th scope="col">남은 작업</th>
+            <th scope="col">일일 한도</th>
+          </tr>
+        </thead>
+        <tbody>
+          {products.map((product) => (
+            <tr key={product.productId}>
+              <th scope="row">{product.productName}</th>
+              <td>{product.totalQuantity.toLocaleString()}개</td>
+              <td>{product.completedQuantity.toLocaleString()}개</td>
+              <td>{product.pendingQuantity.toLocaleString()}개</td>
+              <td>
+                {product.dailyLimit === null
+                  ? "미설정"
+                  : `${product.dailyLimit.toLocaleString()}개${product.totalQuantity > product.dailyLimit ? " 초과" : ""}`}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
