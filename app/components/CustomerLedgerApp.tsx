@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PaymentMethod } from "./types";
+import { useResource } from "../ui/use-resource";
 
 type CustomerSummary = {
   id: string;
@@ -66,6 +67,8 @@ type CustomerDetail = {
   consultations: Consultation[];
 };
 
+type LedgerResource = CustomerDetail | { customers?: CustomerSummary[] };
+
 const won = (value: number) => value.toLocaleString("ko-KR") + "원";
 const methodLabel: Record<PaymentMethod, string> = { card: "카드", cash: "현금", bank_transfer: "계좌이체" };
 const stateLabel = { credit: "외상", partial: "부분결제", paid: "결제 완료", advance: "선수금 보유" } as const;
@@ -83,6 +86,7 @@ const dueStatus = (date: string | null, receivable: number) => {
   if (date === today) return { label: "오늘 · " + date, className: "today" };
   return { label: "예정 · " + date, className: "planned" };
 };
+const isCustomerDetail = (value: LedgerResource): value is CustomerDetail => "account" in value;
 
 export default function CustomerLedgerApp({
   initialCustomerId,
@@ -96,13 +100,43 @@ export default function CustomerLedgerApp({
   const [unlocked, setUnlocked] = useState(false);
   const [password, setPassword] = useState("");
   const [query, setQuery] = useState("");
+  const [submittedQuery, setSubmittedQuery] = useState("");
   const [customers, setCustomers] = useState<CustomerSummary[]>([]);
   const [selectedId, setSelectedId] = useState(initialCustomerId ?? "");
   const [detail, setDetail] = useState<CustomerDetail | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [accessLoading, setAccessLoading] = useState(true);
   const [error, setError] = useState("");
   const lastServerTouch = useRef(0);
   const lockTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const resourceUrl = unlocked
+    ? selectedId
+      ? "/api/customer-ledger?customerId=" + encodeURIComponent(selectedId)
+      : "/api/customer-ledger?q=" + encodeURIComponent(submittedQuery)
+    : null;
+  const {
+    loading: resourceLoading,
+    reload,
+  } = useResource<LedgerResource>(resourceUrl, 2500, {
+    onData: (ledgerData) => {
+      if (isCustomerDetail(ledgerData)) {
+        setDetail(ledgerData);
+        setSelectedId(ledgerData.account.id);
+      } else {
+        setCustomers(ledgerData.customers ?? []);
+      }
+      setError("");
+    },
+    onError: (resourceError) => {
+      if (resourceError.status === 401) {
+        setUnlocked(false);
+        setDetail(null);
+        setError("5분 동안 사용하지 않아 고객 장부가 잠겼습니다.");
+        return;
+      }
+      setError(resourceError.message || "고객 장부를 불러오지 못했습니다.");
+    },
+  });
+  const loading = accessLoading || resourceLoading;
 
   const lock = useCallback(async () => {
     setUnlocked(false);
@@ -128,7 +162,7 @@ export default function CustomerLedgerApp({
     const check = async () => {
       const response = await fetch("/api/customer-ledger/access", { cache: "no-store" });
       setUnlocked(response.ok);
-      setLoading(false);
+      setAccessLoading(false);
     };
     void check();
   }, []);
@@ -148,58 +182,8 @@ export default function CustomerLedgerApp({
     };
   }, [resetIdle, unlocked]);
 
-  const handleLocked = useCallback((response: Response) => {
-    if (response.status !== 401) return false;
-    setUnlocked(false);
-    setDetail(null);
-    setError("5분 동안 사용하지 않아 고객 장부가 잠겼습니다.");
-    return true;
-  }, []);
-
-  const loadCustomers = useCallback(async (search = "") => {
-    setLoading(true);
-    try {
-      const response = await fetch("/api/customer-ledger?q=" + encodeURIComponent(search), { cache: "no-store" });
-      if (handleLocked(response)) return;
-      const data = await response.json() as { customers?: CustomerSummary[]; error?: string };
-      if (!response.ok) throw new Error(data.error || "고객 장부를 불러오지 못했습니다.");
-      setCustomers(data.customers ?? []);
-      setError("");
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "고객 장부를 불러오지 못했습니다.");
-    } finally {
-      setLoading(false);
-    }
-  }, [handleLocked]);
-
-  const loadDetail = useCallback(async (customerId: string) => {
-    setLoading(true);
-    try {
-      const response = await fetch("/api/customer-ledger?customerId=" + encodeURIComponent(customerId), { cache: "no-store" });
-      if (handleLocked(response)) return;
-      const data = await response.json() as CustomerDetail & { error?: string };
-      if (!response.ok) throw new Error(data.error || "고객 원장을 불러오지 못했습니다.");
-      setDetail(data);
-      setSelectedId(customerId);
-      setError("");
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "고객 원장을 불러오지 못했습니다.");
-    } finally {
-      setLoading(false);
-    }
-  }, [handleLocked]);
-
-  useEffect(() => {
-    if (!unlocked) return;
-    const frame = requestAnimationFrame(() => {
-      if (selectedId) void loadDetail(selectedId);
-      else void loadCustomers();
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [loadCustomers, loadDetail, selectedId, unlocked]);
-
   const unlock = async () => {
-    setLoading(true);
+    setAccessLoading(true);
     setError("");
     try {
       const response = await fetch("/api/customer-ledger/access", {
@@ -215,12 +199,12 @@ export default function CustomerLedgerApp({
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "고객 장부를 열지 못했습니다.");
     } finally {
-      setLoading(false);
+      setAccessLoading(false);
     }
   };
 
   const refresh = async () => {
-    await Promise.all([loadCustomers(query), selectedId ? loadDetail(selectedId) : Promise.resolve()]);
+    await reload();
     onChanged();
   };
 
@@ -239,7 +223,7 @@ export default function CustomerLedgerApp({
         <button className="task-primary" disabled={loading || !password}>{loading ? "확인 중…" : "고객 장부 열기"}</button>
       </form> : <>
         <div className="ledger-toolbar">
-          {detail ? <button onClick={() => { setDetail(null); setSelectedId(""); }}>← 고객 목록</button> : <form onSubmit={(event) => { event.preventDefault(); void loadCustomers(query); }}><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="고객명·전화번호 검색" /><button>검색</button></form>}
+          {detail ? <button onClick={() => { setDetail(null); setSelectedId(""); }}>← 고객 목록</button> : <form onSubmit={(event) => { event.preventDefault(); if (query === submittedQuery) void reload(); else setSubmittedQuery(query); }}><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="고객명·전화번호 검색" /><button>검색</button></form>}
           <span>5분 비활동 시 자동 잠금</span>
         </div>
         {error && <p className="ledger-error" role="alert">{error}</p>}

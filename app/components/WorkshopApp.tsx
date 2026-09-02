@@ -1,9 +1,9 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import AppNav from "./AppNav";
-import { assemblePackage, fetchWorkshopOrders, reassignCompletedPackage, runWorkshopAction } from "../lib/workshop-client";
+import { assemblePackage, reassignCompletedPackage, runWorkshopAction } from "../lib/workshop-client";
 import {
   aggregateWorkshopProducts,
   arrivalTimingLabel,
@@ -20,6 +20,7 @@ import {
 } from "../lib/workshop-operations";
 import type { SubstituteCandidate, WorkshopOrder } from "../lib/workshop-types";
 import { operationalDateFromSearch } from "../lib/operational-date";
+import { useResource } from "../ui/use-resource";
 import "../workshop-flow.css";
 
 const todayInSeoul = () => {
@@ -39,6 +40,9 @@ const dateHeading = (value: string) => {
 };
 const nextDueLabel = (value: string | null) => !value ? "완료" : value.includes("T") ? value.slice(11, 16) : `[택배] ${value}`;
 const shortDateTime = (value: string) => new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(value));
+const initialWorkshopDate = () => typeof window === "undefined"
+  ? todayInSeoul()
+  : operationalDateFromSearch(window.location.search) ?? todayInSeoul();
 const eventLabel: Record<string, string> = {
   order_submitted: "주문 접수",
   status_changed: "주문 상태 변경",
@@ -58,7 +62,7 @@ const eventLabel: Record<string, string> = {
 
 export default function WorkshopApp() {
   const [orders, setOrders] = useState<WorkshopOrder[]>([]);
-  const [selectedDate, setSelectedDate] = useState(todayInSeoul);
+  const [selectedDate, setSelectedDate] = useState(initialWorkshopDate);
   const [tab, setTab] = useState<WorkshopTab>("timeline");
   const [selectedOrder, setSelectedOrder] = useState<WorkshopOrder | null>(null);
   const [productFilterId, setProductFilterId] = useState<string | null>(null);
@@ -66,58 +70,37 @@ export default function WorkshopApp() {
   const [showAllTimeline, setShowAllTimeline] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [refreshing, setRefreshing] = useState(false);
   const [busyOrderId, setBusyOrderId] = useState("");
   const [busyPackageId, setBusyPackageId] = useState("");
   const [busyAssemblyId, setBusyAssemblyId] = useState("");
   const [lastSync, setLastSync] = useState("");
-  const requestSequence = useRef(0);
-
-  useEffect(() => {
-    const queryDate = operationalDateFromSearch(window.location.search);
-    if (queryDate) setSelectedDate(queryDate);
-  }, []);
-
-  const load = useCallback(async (silent = false) => {
-    const requestId = ++requestSequence.current;
-    if (!silent) setRefreshing(true);
-    try {
-      const result = await fetchWorkshopOrders(selectedDate);
-      if (requestId !== requestSequence.current) return;
-      setOrders(result);
-      setSelectedOrder((current) => current ? result.find((order) => order.id === current.id) ?? current : null);
-      setError("");
-      setLastSync(new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(new Date()));
-    } catch (caught) {
-      if (requestId === requestSequence.current) setError(caught instanceof Error ? caught.message : "작업 목록을 불러오지 못했습니다.");
-    } finally {
-      if (requestId === requestSequence.current) setRefreshing(false);
-    }
-  }, [selectedDate]);
-
-  useEffect(() => {
-    const frame = requestAnimationFrame(() => void load());
-    const timer = setInterval(() => void load(true), 2500);
-    const sync = () => void load(true);
-    window.addEventListener("focus", sync);
-    window.addEventListener("online", sync);
-    return () => {
-      cancelAnimationFrame(frame);
-      clearInterval(timer);
-      window.removeEventListener("focus", sync);
-      window.removeEventListener("online", sync);
-    };
-  }, [load]);
+  const {
+    loading: refreshing,
+    reload,
+  } = useResource<{ orders?: WorkshopOrder[] }>(
+    `/api/workshop/orders?date=${encodeURIComponent(selectedDate)}`,
+    2500,
+    {
+      onData: (workshopResponse) => {
+        const result = workshopResponse.orders ?? [];
+        setOrders(result);
+        setSelectedOrder((current) => current ? result.find((order) => order.id === current.id) ?? current : null);
+        setError("");
+        setLastSync(new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(new Date()));
+      },
+      onError: (resourceError) => setError(resourceError.message || "작업 목록을 불러오지 못했습니다."),
+    },
+  );
 
   const perform = async (order: WorkshopOrder, action: WorkshopAction) => {
     setBusyOrderId(order.id);
     try {
       const result = await runWorkshopAction(order, action);
       setNotice(result.alreadyApplied ? "이미 처리된 작업입니다. 최신 상태를 불러왔습니다." : action === "accept" ? "작업을 수락했습니다." : action === "start" ? "작업을 시작했습니다." : "상품 준비완료로 표시했습니다.");
-      await load();
+      await reload();
     } catch (caught) {
       setNotice(caught instanceof Error ? caught.message : "작업 상태를 변경하지 못했습니다.");
-      await load(true);
+      await reload({ silent: true });
     } finally {
       setBusyOrderId("");
     }
@@ -128,10 +111,10 @@ export default function WorkshopApp() {
     try {
       const result = await reassignCompletedPackage(order, candidate);
       setNotice(result.alreadyApplied ? "이미 적용된 재배정입니다. 최신 상태를 불러왔습니다." : "대체 완성품을 적용했습니다. 두 주문의 생산 현황을 다시 계산했습니다.");
-      await load();
+      await reload();
     } catch (caught) {
       setNotice(caught instanceof Error ? caught.message : "대체 완성품을 적용하지 못했습니다.");
-      await load(true);
+      await reload({ silent: true });
     } finally {
       setBusyPackageId("");
     }
@@ -142,10 +125,10 @@ export default function WorkshopApp() {
     try {
       const result = await assemblePackage(order.id, productId, `${order.id}:${itemId}:${nextSequence}`);
       setNotice(result.alreadyApplied ? "이미 조립된 선물세트입니다." : `${result.packageCode ?? "선물세트"} 조립을 완료했습니다.`);
-      await load();
+      await reload();
     } catch (caught) {
       setNotice(caught instanceof Error ? caught.message : "선물세트를 조립하지 못했습니다.");
-      await load(true);
+      await reload({ silent: true });
     } finally { setBusyAssemblyId(""); }
   };
   const now = new Date();
@@ -167,7 +150,7 @@ export default function WorkshopApp() {
   return <div className="workshop-app">
     <header className="workshop-header">
       <a href="/workshop" className="workshop-brand"><img className="operations-brand-logo" src="/jeongilpum-logo.png" alt="정일품 정육식당 로고"/><span>정일품 작업장<small>DIGITAL WORK WHITEBOARD</small></span></a>
-      <button className="workshop-sync" onClick={() => void load()} disabled={refreshing}>{refreshing ? "동기화 중…" : "지금 새로고침"}</button>
+      <button className="workshop-sync" onClick={() => void reload()} disabled={refreshing}>{refreshing ? "동기화 중…" : "지금 새로고침"}</button>
     </header>
     <AppNav current="workshop" />
 

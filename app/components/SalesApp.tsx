@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import type { OrderRecord } from "./types";
 import { fetchOrders } from "../lib/orders-client";
 import {
@@ -19,6 +19,7 @@ import { operationalDateFromSearch } from "../lib/operational-date";
 import AppNav from "./AppNav";
 import CustomerLedgerApp from "./CustomerLedgerApp";
 import SalesOrderDetail, { type SchedulePayload, type StatusChangeOptions } from "./SalesOrderDetail";
+import { useResource } from "../ui/use-resource";
 import "../operations-flow.css";
 import "../sales-flow.css";
 
@@ -39,10 +40,13 @@ const dateHeading = (value: string) => {
   const weekday = ["일", "월", "화", "수", "목", "금", "토"][new Date(Date.UTC(year, month - 1, day)).getUTCDay()];
   return year + "년 " + month + "월 " + day + "일 (" + weekday + ")";
 };
+const initialSalesDate = () => typeof window === "undefined"
+  ? todayInSeoul()
+  : operationalDateFromSearch(window.location.search) ?? todayInSeoul();
 
 export default function SalesApp() {
   const [orders, setOrders] = useState<OrderRecord[]>([]);
-  const [selectedDate, setSelectedDate] = useState(todayInSeoul);
+  const [selectedDate, setSelectedDate] = useState(initialSalesDate);
   const [filter, setFilter] = useState<SalesFilter>("all");
   const [attention, setAttention] = useState<AttentionFilter>(null);
   const [query, setQuery] = useState("");
@@ -52,57 +56,41 @@ export default function SalesApp() {
   const [showLegacy, setShowLegacy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [refreshing, setRefreshing] = useState(false);
+  const [searching, setSearching] = useState(false);
   const [lastSync, setLastSync] = useState("");
   const [ledgerOpen, setLedgerOpen] = useState(false);
   const [ledgerCustomerId, setLedgerCustomerId] = useState<string | null>(null);
-
-  useEffect(() => {
-    const queryDate = operationalDateFromSearch(window.location.search);
-    if (queryDate) setSelectedDate(queryDate);
-  }, []);
-
-  const loadDate = useCallback(async (options?: { silent?: boolean }) => {
-    if (!options?.silent) setRefreshing(true);
-    try {
-      const nextOrders = await fetchOrders({ date: selectedDate });
-      setOrders(nextOrders);
-      setSelectedOrder((current) => current ? nextOrders.find((order) => order.id === current.id) ?? current : null);
-      setError("");
-      setLastSync(new Intl.DateTimeFormat("ko-KR", {
-        timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit", second: "2-digit",
-      }).format(new Date()));
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "판매장 데이터를 불러오지 못했습니다.");
-    } finally {
-      setRefreshing(false);
-    }
-  }, [selectedDate]);
-
-  useEffect(() => {
-    const frame = requestAnimationFrame(() => void loadDate());
-    const timer = setInterval(() => void loadDate({ silent: true }), 2500);
-    const sync = () => void loadDate({ silent: true });
-    window.addEventListener("focus", sync);
-    window.addEventListener("online", sync);
-    return () => {
-      cancelAnimationFrame(frame);
-      clearInterval(timer);
-      window.removeEventListener("focus", sync);
-      window.removeEventListener("online", sync);
-    };
-  }, [loadDate]);
+  const {
+    loading,
+    reload: loadDate,
+  } = useResource<{ orders?: OrderRecord[] }>(
+    `/api/orders?date=${encodeURIComponent(selectedDate)}`,
+    2500,
+    {
+      onData: (orderResponse) => {
+        const nextOrders = orderResponse.orders ?? [];
+        setOrders(nextOrders);
+        setSelectedOrder((current) => current ? nextOrders.find((order) => order.id === current.id) ?? current : null);
+        setError("");
+        setLastSync(new Intl.DateTimeFormat("ko-KR", {
+          timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit", second: "2-digit",
+        }).format(new Date()));
+      },
+      onError: (resourceError) => setError(resourceError.message || "판매장 데이터를 불러오지 못했습니다."),
+    },
+  );
+  const refreshing = loading || searching;
 
   const search = async () => {
     if (!query.trim()) return setSearchResults(null);
-    setRefreshing(true);
+    setSearching(true);
     try {
       setSearchResults(await fetchOrders({ q: query.trim() }));
       setError("");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "주문을 검색하지 못했습니다.");
     } finally {
-      setRefreshing(false);
+      setSearching(false);
     }
   };
   const refreshSearch = async () => {

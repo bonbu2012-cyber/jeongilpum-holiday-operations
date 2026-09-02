@@ -1,18 +1,22 @@
 "use client";
 
 import Image from "next/image";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import type { ProductionBatch, ProductionOverview, RecentProductionTrace } from "../lib/production-types";
 import { operationalDateFromSearch } from "../lib/operational-date";
+import { useResource } from "../ui/use-resource";
 import AppNav from "./AppNav";
 import "../workshop-flow.css";
 
 const todayInSeoul = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+const initialProductionDate = () => typeof window === "undefined"
+  ? todayInSeoul()
+  : operationalDateFromSearch(window.location.search) ?? todayInSeoul();
 type TraceForm = { rawScan: string; origin: string; slaughterhouse: string; cattleType: string; grade: string; productionTarget: string; storageMethod: string; expiryText: string; packagingMaterial: string; foodType: string };
 const emptyTrace = (): TraceForm => ({ rawScan: "", origin: "", slaughterhouse: "", cattleType: "", grade: "", productionTarget: "", storageMethod: "", expiryText: "", packagingMaterial: "", foodType: "" });
 
 export default function ProductionApp() {
-  const [date, setDate] = useState(todayInSeoul);
+  const [date, setDate] = useState(initialProductionDate);
   const [overview, setOverview] = useState<ProductionOverview>({ requirements: [], missingProducts: [], batches: [], recentTraceability: [] });
   const [selectedCode, setSelectedCode] = useState("");
   const [form, setForm] = useState<TraceForm>(emptyTrace);
@@ -23,23 +27,21 @@ export default function ProductionApp() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const weightRefs = useRef<Record<string, HTMLInputElement | null>>({});
-
-  useEffect(() => {
-    const queryDate = operationalDateFromSearch(window.location.search);
-    if (queryDate) setDate(queryDate);
-  }, []);
-
-  const load = useCallback(async () => {
-    const response = await fetch(`/api/workshop/production?date=${encodeURIComponent(date)}`, { cache: "no-store" });
-    const data = await response.json() as ProductionOverview & { error?: string };
-    if (!response.ok) throw new Error(data.error || "생산 현황을 불러오지 못했습니다.");
-    setOverview(data);
-    setTargets(Object.fromEntries(data.batches.map((batch) => [batch.id, String(batch.productionTarget)])));
-    setSelectedCode((current) => data.requirements.some((item) => item.componentCode === current) ? current : data.requirements[0]?.componentCode ?? "");
-    setError("");
-  }, [date]);
-
-  useEffect(() => { const frame = requestAnimationFrame(() => void load().catch((caught) => setError(caught instanceof Error ? caught.message : "생산 현황을 불러오지 못했습니다."))); return () => cancelAnimationFrame(frame); }, [load]);
+  const {
+    reload: load,
+  } = useResource<ProductionOverview>(
+    `/api/workshop/production?date=${encodeURIComponent(date)}`,
+    2500,
+    {
+      onData: (loadedOverview) => {
+        setOverview(loadedOverview);
+        setTargets(Object.fromEntries(loadedOverview.batches.map((batch) => [batch.id, String(batch.productionTarget)])));
+        setSelectedCode((current) => loadedOverview.requirements.some((item) => item.componentCode === current) ? current : loadedOverview.requirements[0]?.componentCode ?? "");
+        setError("");
+      },
+      onError: (resourceError) => setError(resourceError.message || "생산 현황을 불러오지 못했습니다."),
+    },
+  );
 
   async function post(body: object, key: string, success: string) {
     setBusy(key); setError(""); setNotice("");
