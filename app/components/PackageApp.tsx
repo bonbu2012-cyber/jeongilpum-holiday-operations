@@ -103,7 +103,7 @@ export default function PackageApp({ packageCode }: { packageCode: string }) {
 
   return (
     <div className="package-page">
-      <OpsHeader surface="workshop" title="정일품 작업장" />
+      <OpsHeader surface="workshop" title="정일품 작업장" subtitle={detail.packageCode} />
       <main className="package-main">
         <nav className="package-breadcrumb">
           <a href="/workshop">작업장</a>
@@ -112,7 +112,6 @@ export default function PackageApp({ packageCode }: { packageCode: string }) {
         </nav>
         <section className="package-hero">
           <div>
-            <SectionTitle as="h1" title={detail.packageCode} />
             <p>{detail.productName}</p>
             <p>{detail.schedule ?? "수동 패키지 · 연결된 작업 일정 없음"}</p>
             <Badge tone={detail.packageStatus === "completed" ? "success" : "neutral"}>{detail.packageStatus}</Badge>

@@ -3,7 +3,7 @@
 import { PackageSearch } from "lucide-react";
 import { useState } from "react";
 import type { DataTableColumn } from "../ui";
-import { Badge, Button, DataTable, SectionTitle, useResource } from "../ui";
+import { Badge, Button, DataTable, useResource } from "../ui";
 import OpsHeader from "./OpsHeader";
 import "../workshop-flow.css";
 
@@ -62,15 +62,18 @@ export default function PackageListApp() {
       <OpsHeader
         surface="workshop"
         title="정일품 작업장"
+        subtitle="패키지"
         actions={(
-          <Button variant="ghost" size="sm" disabled={loading} onClick={() => void reload()} leadingIcon={<PackageSearch size={16} />}>
-            {loading ? "조회 중" : "새로고침"}
-          </Button>
+          <>
+            <a href="/workshop">작업장으로</a>
+            <Button variant="ghost" size="sm" disabled={loading} onClick={() => void reload()} leadingIcon={<PackageSearch size={16} />}>
+              {loading ? "조회 중" : "새로고침"}
+            </Button>
+          </>
         )}
       />
       <main className="workshop-main">
         <section className="whiteboard-section">
-          <SectionTitle as="h1" title="패키지" meta={<a href="/workshop">작업장으로</a>} />
           {error ? <div className="package-message error" role="alert">{error}</div> : null}
           <DataTable
             ariaLabel="패키지 목록"
