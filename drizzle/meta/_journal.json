@@ -50,6 +50,13 @@
       "when": 1788145638576,
       "tag": "0006_hot_hercules",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1788329134914,
+      "tag": "0007_work-items-core",
+      "breakpoints": true
     }
   ]
 }

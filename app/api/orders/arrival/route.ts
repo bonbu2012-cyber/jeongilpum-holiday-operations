@@ -1,13 +1,11 @@
 import { env } from "cloudflare:workers";
 import { getChatGPTUser } from "../../../chatgpt-auth";
 
-type ArrivalPayload = { orderId?: string };
-type ArrivalOrder = {
+type ArrivalPayload = { workItemId?: string; orderId?: string };
+type WorkItemRow = {
   id: string;
-  order_status: string;
-  fulfillment_id: string | null;
-  fulfillment_type: string | null;
-  customer_arrived: number | null;
+  order_id: string;
+  customer_arrived_at: string | null;
 };
 
 const runtimeEnv = env as typeof env & {
@@ -19,9 +17,12 @@ const runtimeEnv = env as typeof env & {
 function configured(value: string | undefined) {
   return (value ?? "").split(",").map((item) => item.trim()).filter(Boolean);
 }
+
 function isOperator(user: { userId: string; email: string }) {
   return configured(runtimeEnv.OPERATOR_USER_IDS).includes(user.userId)
-    || configured(runtimeEnv.OPERATOR_EMAILS).map((value) => value.toLowerCase()).includes(user.email.toLowerCase());
+    || configured(runtimeEnv.OPERATOR_EMAILS)
+      .map((value) => value.toLowerCase())
+      .includes(user.email.toLowerCase());
 }
 
 export async function PATCH(request: Request) {
@@ -31,28 +32,58 @@ export async function PATCH(request: Request) {
 
   try {
     const payload = await request.json() as ArrivalPayload;
-    if (!payload.orderId) return Response.json({ error: "주문 ID가 필요합니다." }, { status: 400 });
-    const current = await runtimeEnv.DB.prepare(
-      "SELECT o.id,o.order_status,f.id AS fulfillment_id,f.fulfillment_type,f.customer_arrived FROM orders o LEFT JOIN fulfillments f ON f.order_id=o.id WHERE o.id=?",
-    ).bind(payload.orderId).first<ArrivalOrder>();
-    if (!current) return Response.json({ error: "주문을 찾을 수 없습니다." }, { status: 404 });
-    if (!current.fulfillment_id) return Response.json({ error: "먼저 수령 일정을 지정해주세요." }, { status: 409 });
-    if (current.fulfillment_type !== "pickup") return Response.json({ error: "방문수령 주문만 고객 도착을 기록할 수 있습니다." }, { status: 409 });
-    if (["cancelled", "fulfilled"].includes(current.order_status)) return Response.json({ error: "완료되거나 취소된 주문에는 고객 도착을 기록할 수 없습니다." }, { status: 409 });
-    if (current.customer_arrived) return Response.json({ ok: true, alreadyArrived: true });
+    const workItemId = payload.workItemId?.trim() ?? "";
+    const orderId = payload.orderId?.trim() ?? "";
+    if (!workItemId && !orderId) {
+      return Response.json({ error: "작업 또는 주문 ID가 필요합니다." }, { status: 400 });
+    }
+    const current = workItemId
+      ? await runtimeEnv.DB.prepare(`
+        SELECT w.id,w.order_id,o.customer_arrived_at
+        FROM work_items w
+        JOIN orders o ON o.id=w.order_id
+        WHERE w.id=? AND w.delivery_method='onsite_reservation' AND w.work_status!='cancelled'
+      `).bind(workItemId).all<WorkItemRow>()
+      : await runtimeEnv.DB.prepare(`
+        SELECT w.id,w.order_id,o.customer_arrived_at
+        FROM work_items w
+        JOIN orders o ON o.id=w.order_id
+        WHERE w.order_id=? AND w.delivery_method='onsite_reservation' AND w.work_status!='cancelled'
+      `).bind(orderId).all<WorkItemRow>();
+    if (!current.results.length) {
+      return Response.json({ error: "방문수령 작업을 찾을 수 없습니다." }, { status: 404 });
+    }
+    if (current.results[0].customer_arrived_at) {
+      return Response.json({ ok: true, alreadyArrived: true });
+    }
 
     const now = new Date().toISOString();
-    const results = await runtimeEnv.DB.batch([
-      runtimeEnv.DB.prepare(
-        "INSERT INTO order_events(id,order_id,event_type,after_data,actor_id,created_at) SELECT ?,?,'CUSTOMER_ARRIVED',?,?,? WHERE EXISTS(SELECT 1 FROM fulfillments WHERE order_id=? AND fulfillment_type='pickup' AND customer_arrived=0) AND NOT EXISTS(SELECT 1 FROM order_events WHERE order_id=? AND event_type='CUSTOMER_ARRIVED')",
-      ).bind(crypto.randomUUID(), payload.orderId, JSON.stringify({ customerArrived: true, actualArrivedAt: now }), user.userId, now, payload.orderId, payload.orderId),
-      runtimeEnv.DB.prepare(
-        "UPDATE fulfillments SET customer_arrived=1,updated_at=? WHERE order_id=? AND fulfillment_type='pickup' AND customer_arrived=0",
-      ).bind(now, payload.orderId),
+    const targetOrderId = current.results[0].order_id;
+    await runtimeEnv.DB.batch([
+      runtimeEnv.DB.prepare(`
+        UPDATE orders
+        SET customer_arrived_at=?,version=version+1,updated_at=?
+        WHERE id=? AND customer_arrived_at IS NULL
+      `).bind(now, now, targetOrderId),
+      ...current.results.map((item) =>
+        runtimeEnv.DB.prepare(`
+          INSERT INTO work_item_events(
+            id,work_item_id,order_id,event_type,from_value,to_value,actor,created_at
+          ) VALUES(?,?,?,'customer_arrived',NULL,?,?,?)
+        `).bind(
+          crypto.randomUUID(),
+          item.id,
+          item.order_id,
+          JSON.stringify({ customerArrivedAt: now }),
+          user.userId,
+          now,
+        )),
     ]);
-    const changed = Number(results[1].meta.changes ?? 0) > 0;
-    return Response.json({ ok: true, alreadyArrived: !changed });
+    return Response.json({ ok: true, alreadyArrived: false });
   } catch (error) {
-    return Response.json({ error: error instanceof Error ? error.message : "고객 도착을 기록하지 못했습니다." }, { status: 500 });
+    return Response.json(
+      { error: error instanceof Error ? error.message : "고객 도착을 기록하지 못했습니다." },
+      { status: 500 },
+    );
   }
 }

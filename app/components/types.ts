@@ -27,93 +27,63 @@ export type Product = {
 };
 
 export type SeasonSchedule = {
-  id: string;
-  name: string;
-  holidayDate: string;
   salesStartDate: string;
   salesEndDate: string;
 };
 
-export type OrderStatus = "submitted" | "confirmed" | "in_progress" | "ready" | "fulfilled" | "cancelled";
-export type PaymentStatus = "unpaid" | "partial" | "paid" | "credit";
+export type PaymentStatus = "unpaid" | "partial" | "paid";
 export type PaymentMethod = "card" | "cash" | "bank_transfer";
 export type FulfillmentType = "onsite" | "pickup" | "shipping";
 export type OrderPaymentChoice = PaymentMethod | "later";
-export type CustomerPaymentStatus = "credit" | "partial" | "paid" | "advance";
+export type DeliveryMethod = "onsite_sale" | "onsite_reservation" | "delivery";
+export type WorkStatus = "received" | "confirmed" | "in_progress" | "ready" | "completed" | "cancelled";
 
-export type OrderItem = {
-  id: string;
-  productId: string;
-  name: string;
-  quantity: number;
-  unitPrice: number;
-  customization?: CustomOrderDraftItem | null;
+export type KioskOrderReceipt = {
+  orderNo: string;
+  fulfillmentType: FulfillmentType;
+  scheduleLabel: string;
 };
 
-export type PaymentRecord = {
-  id: string;
-  type: "payment" | "refund" | "adjustment";
-  method: PaymentMethod | null;
-  amount: number;
-  paidAt: string;
-  recordedBy: string;
-  memo: string;
-};
-
-export type OrderEventRecord = {
+export type WorkItemEventRecord = {
   id: string;
   type: string;
-  reason: string | null;
+  fromValue: string | null;
+  toValue: string | null;
+  actor: string;
   createdAt: string;
 };
 
-export type OrderRecord = {
+export type OrderRecord = KioskOrderReceipt & {
   id: string;
-  orderNo: string;
+  orderId: string;
   buyerName: string;
   buyerPhone: string;
-  status: OrderStatus;
-  fulfillmentType: FulfillmentType;
-  scheduleLabel: string;
-  fulfillmentId: string | null;
-  pickupAt: string | null;
-  shipDate: string | null;
+  paymentStatus: PaymentStatus;
+  paidAmount: number;
+  totalAmount: number;
+  customerArrivedAt: string | null;
+  customerNote: string;
+  productId: string;
+  productName: string;
+  unitPrice: number;
+  quantity: number;
+  lineTotal: number;
+  deliveryMethod: DeliveryMethod;
+  dueAt: string;
+  workStatus: WorkStatus;
   recipientName: string | null;
   recipientPhone: string | null;
   postalCode: string | null;
-  roadAddress: string | null;
+  roadAddr: string | null;
   roadAddrReference: string | null;
   jibunAddr: string | null;
-  detailAddress: string | null;
-  customerArrived: boolean;
-  actualArrivedAt: string | null;
-  arrivalOffsetMinutes: number | null;
-  substituteCandidateCount: number;
+  detailAddr: string | null;
+  customization: CustomOrderDraftItem | null;
   note: string;
-  totalAmount: number;
-  customerAccountId: string | null;
-  customerTotalOrdered: number;
-  customerNetReceived: number;
-  customerReceivable: number;
-  customerAdvance: number;
-  customerPaymentStatus: CustomerPaymentStatus;
-  paidAmount: number;
-  balance: number;
-  paymentStatus: PaymentStatus;
-  creditDueDate: string | null;
-  creditMemo: string | null;
   version: number;
-  submittedAt: string;
-  items: OrderItem[];
-  payments: PaymentRecord[];
-  packageCodes: string[];
-  packageTotal: number;
-  packageCompleted: number;
-  hasUnacknowledgedChange: boolean;
-  workAcceptedAt?: string | null;
-  workStartedAt?: string | null;
-  workCompletedAt?: string | null;
-  events: OrderEventRecord[];
+  createdAt: string;
+  updatedAt: string;
+  events: WorkItemEventRecord[];
 };
 
 export type OrderDraft = {
