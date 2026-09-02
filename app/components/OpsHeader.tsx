@@ -4,6 +4,13 @@ import Image from "next/image";
 import type { ReactNode } from "react";
 import AppNav, { type AppSurface } from "./AppNav";
 
+const seoulDateFormatter = new Intl.DateTimeFormat("ko-KR", {
+  timeZone: "Asia/Seoul",
+  month: "long",
+  day: "numeric",
+  weekday: "short",
+});
+
 type OpsHeaderProps = {
   surface: AppSurface;
   title: ReactNode;
@@ -14,6 +21,7 @@ type OpsHeaderProps = {
 
 export default function OpsHeader({ surface, title, subtitle, actions, className }: OpsHeaderProps) {
   const classes = ["ops-header", className].filter(Boolean).join(" ");
+  const today = seoulDateFormatter.format(new Date());
 
   return (
     <>
@@ -31,7 +39,10 @@ export default function OpsHeader({ surface, title, subtitle, actions, className
             {subtitle ? <small>{subtitle}</small> : null}
           </span>
         </a>
-        {actions ? <div className="ops-alerts">{actions}</div> : null}
+        <div className="ops-header__utility">
+          <time className="ops-header__date">{today}</time>
+          {actions ? <div className="ops-alerts">{actions}</div> : null}
+        </div>
       </header>
       <AppNav current={surface} />
     </>
