@@ -1,97 +1,103 @@
-import { and, asc, desc, eq, sql } from "drizzle-orm";
-import { getDb } from "../../../db";
-import {
-  configurationEvents,
-  productDailyLimits,
-  productDailyReservations,
-  products,
-  salesSeasons,
-} from "../../../db/schema";
-import { DEFAULT_KIOSK_HEADLINE, parseStoredSetting } from "../../lib/app-settings";
+import { env } from "cloudflare:workers";
+import { DEFAULT_KIOSK_HEADLINE } from "../../lib/app-settings";
 import { resolveCatalogProductImageUrl } from "../../lib/catalog-product-images";
 
+type ProductRow = {
+  id: string;
+  category: string;
+  code: string;
+  name: string;
+  subtitle: string;
+  description: string;
+  price: number;
+  display_weight: string | null;
+  image_url: string | null;
+  badge: string | null;
+  daily_limit: number | null;
+  sort_order: number;
+  active: number;
+  reserved_quantity: number;
+};
+
+const runtimeEnv = env as typeof env & { DB: D1Database };
+const KIOSK_SCHEDULE_DAYS = 365;
+const isoDatePattern = /^\d{4}-\d{2}-\d{2}$/;
+
 function todayInSeoul() {
-  return new Intl.DateTimeFormat("en-CA", {
+  const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: "Asia/Seoul",
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-  }).format(new Date());
+  }).formatToParts(new Date());
+  const value = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
+  return `${value("year")}-${value("month")}-${value("day")}`;
+}
+
+function validIsoDate(value: string) {
+  if (!isoDatePattern.test(value)) return false;
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year
+    && date.getUTCMonth() === month - 1
+    && date.getUTCDate() === day;
+}
+
+function addDays(date: string, days: number) {
+  const [year, month, day] = date.split("-").map(Number);
+  const value = new Date(Date.UTC(year, month - 1, day));
+  value.setUTCDate(value.getUTCDate() + days);
+  return value.toISOString().slice(0, 10);
 }
 
 export async function GET(request: Request) {
   try {
-    const url = new URL(request.url);
-    const availabilityDate = /^\d{4}-\d{2}-\d{2}$/.test(url.searchParams.get("date") ?? "")
-      ? (url.searchParams.get("date") as string)
-      : todayInSeoul();
-    const db = getDb();
-    const [productRows, seasonRows, headlineRows] = await Promise.all([
-      db
-        .select({
-          product: products,
-          dailyLimit: productDailyLimits.dailyLimit,
-          reservedQuantity: sql<number>`coalesce(sum(${productDailyReservations.quantity}), 0)`,
-        })
-        .from(products)
-        .leftJoin(
-          productDailyLimits,
-          and(
-            eq(productDailyLimits.productId, products.id),
-            eq(productDailyLimits.active, true),
-          ),
-        )
-        .leftJoin(
-          productDailyReservations,
-          and(
-            eq(productDailyReservations.productId, products.id),
-            eq(productDailyReservations.reserveDate, availabilityDate),
-            eq(productDailyReservations.status, "active"),
-          ),
-        )
-        .where(eq(products.active, true))
-        .groupBy(products.id, productDailyLimits.dailyLimit)
-        .orderBy(asc(products.displayOrder)),
-      db
-        .select()
-        .from(salesSeasons)
-        .where(eq(salesSeasons.active, true))
-        .orderBy(desc(salesSeasons.salesStartDate))
-        .limit(1),
-      db
-        .select({ afterData: configurationEvents.afterData })
-        .from(configurationEvents)
-        .where(
-          and(
-            eq(configurationEvents.entityType, "app_setting"),
-            eq(configurationEvents.entityId, "kiosk_headline"),
-          ),
-        )
-        .orderBy(desc(configurationEvents.createdAt), desc(configurationEvents.id))
-        .limit(1),
-    ]);
-
-    const season = seasonRows[0];
-    const activeSeason = season
-      ? {
-          id: season.id,
-          name: season.name,
-          holidayDate: season.holidayDate,
-          salesStartDate: season.salesStartDate,
-          salesEndDate: season.salesEndDate,
-        }
-      : null;
-    const productResponse = productRows.map(({ product, dailyLimit, reservedQuantity }) => ({
-      ...product,
-      imageUrl: resolveCatalogProductImageUrl(product.id, product.imageUrl),
-      dailyLimit,
-      reservedQuantity,
-      remainingQuantity: dailyLimit === null ? null : Math.max(0, dailyLimit - reservedQuantity),
-      availabilityDate,
-    }));
+    const today = todayInSeoul();
+    const requestedDate = new URL(request.url).searchParams.get("date")?.trim() ?? "";
+    const availabilityDate = validIsoDate(requestedDate) ? requestedDate : today;
+    const result = await runtimeEnv.DB.prepare(`
+      SELECT
+        p.id,p.category,p.code,p.name,p.subtitle,p.description,p.price,
+        p.display_weight,p.image_url,p.badge,p.daily_limit,p.sort_order,p.active,
+        COALESCE(SUM(w.quantity),0) AS reserved_quantity
+      FROM products p
+      LEFT JOIN work_items w
+        ON w.product_id=p.id
+        AND date(w.due_at)=?
+        AND w.work_status!='cancelled'
+      WHERE p.active=1
+      GROUP BY p.id
+      ORDER BY p.sort_order,p.id
+    `).bind(availabilityDate).all<ProductRow>();
 
     return Response.json(
-      { products: productResponse, activeSeason, appSettings: { kioskHeadline: parseStoredSetting(headlineRows[0]?.afterData, DEFAULT_KIOSK_HEADLINE) } },
+      {
+        products: result.results.map((product) => ({
+          id: product.id,
+          category: product.category,
+          code: product.code,
+          name: product.name,
+          subtitle: product.subtitle,
+          description: product.description,
+          price: product.price,
+          customerDisplayWeight: product.display_weight,
+          imageUrl: resolveCatalogProductImageUrl(product.id, product.image_url),
+          badge: product.badge,
+          dailyLimit: product.daily_limit,
+          reservedQuantity: product.reserved_quantity,
+          remainingQuantity: product.daily_limit === null
+            ? null
+            : Math.max(0, product.daily_limit - product.reserved_quantity),
+          availabilityDate,
+        })),
+        activeSeason: {
+          salesStartDate: today,
+          salesEndDate: addDays(today, KIOSK_SCHEDULE_DAYS),
+        },
+        appSettings: {
+          kioskHeadline: DEFAULT_KIOSK_HEADLINE,
+        },
+      },
       { headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } },
     );
   } catch (error) {
