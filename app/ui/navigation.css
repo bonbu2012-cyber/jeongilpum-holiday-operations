@@ -1,4 +1,5 @@
 .app-nav {
+  align-items: center;
   position: fixed;
   top: 50%;
   right: 14px;
@@ -24,6 +25,7 @@
   align-items: center;
   justify-content: center;
   text-align: center;
+  white-space: nowrap;
   background: transparent;
   color: #514b43;
   font-size: 10px;
