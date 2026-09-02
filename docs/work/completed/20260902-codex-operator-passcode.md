@@ -1,6 +1,6 @@
 # Task: 운영 화면 공유 암호 세션 전환
 
-- Status: Active
+- Status: Completed
 - Owner: Codex
 - Branch: `codex/operator-passcode`
 - Base commit: `c600613cc34bab9aa77bbeb2caccf0a343cb7fc3`
@@ -46,17 +46,17 @@ ChatGPT 로그인과 운영자 allowlist를 단일 운영 암호 기반의 서�
 
 ## Validation
 
-- [ ] npm ci
-- [ ] lint
-- [ ] typecheck
-- [ ] full test before and after comparison
-- [ ] build
-- [ ] local curl smoke
-- [ ] kiosk frozen diff
-- [ ] legacy auth grep
+- [x] npm ci
+- [x] lint
+- [ ] typecheck: 기존 `OrderRecord` 및 `OrderStatus` 타입 불일치로 실패
+- [x] full test before and after: 52 passed, 14 failed
+- [x] build
+- [x] local curl smoke: port 3001 점유로 local Worker port 3002에서 확인
+- [x] kiosk frozen diff
+- [x] legacy auth grep
 
 ## Completion
 
-- Final implementation commit:
-- Completed at:
-- Remaining TODO:
+- Final implementation commit: `73e1dcd`
+- Completed at: 2026-09-02
+- Remaining TODO: 기존 판매장 TypeScript 타입 계약 오류와 다른 process의 port 3001 점유는 이번 작업 범위에 포함하지 않았다.
