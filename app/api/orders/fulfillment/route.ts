@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { getChatGPTUser } from "../../../chatgpt-auth";
+import { OPERATOR_ACTOR, requireOperatorApi } from "../../../lib/operator-session";
 
 type Payload = {
   workItemId?: string;
@@ -18,23 +18,8 @@ type WorkItem = {
   version: number;
 };
 
-const runtimeEnv = env as typeof env & {
-  DB: D1Database;
-  OPERATOR_USER_IDS?: string;
-  OPERATOR_EMAILS?: string;
-};
+const runtimeEnv = env as typeof env & { DB: D1Database };
 const isoDatePattern = /^\d{4}-\d{2}-\d{2}$/;
-
-function configured(value: string | undefined) {
-  return (value ?? "").split(",").map((item) => item.trim()).filter(Boolean);
-}
-
-function isOperator(user: { userId: string; email: string }) {
-  return configured(runtimeEnv.OPERATOR_USER_IDS).includes(user.userId)
-    || configured(runtimeEnv.OPERATOR_EMAILS)
-      .map((value) => value.toLowerCase())
-      .includes(user.email.toLowerCase());
-}
 
 function validIsoDate(value: string) {
   if (!isoDatePattern.test(value)) return false;
@@ -53,9 +38,8 @@ function validPickupTime(value: string) {
 }
 
 export async function POST(request: Request) {
-  const user = await getChatGPTUser();
-  if (!user) return Response.json({ error: "로그인이 필요합니다." }, { status: 401 });
-  if (!isOperator(user)) return Response.json({ error: "운영자 권한이 없습니다." }, { status: 403 });
+  const denied = await requireOperatorApi();
+  if (denied) return denied;
 
   try {
     const payload = await request.json() as Payload;
@@ -105,7 +89,7 @@ export async function POST(request: Request) {
         current.order_id,
         JSON.stringify({ deliveryMethod: current.delivery_method, dueAt: current.due_at }),
         JSON.stringify({ deliveryMethod, dueAt }),
-        user.userId,
+        OPERATOR_ACTOR,
         now,
       ),
     ]);

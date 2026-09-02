@@ -395,28 +395,25 @@ test("payment correction preserves the original and uses reversal plus optional 
   );
   assert.doesNotMatch(transactionApi, /UPDATE customer_ledger_transactions|DELETE FROM customer_ledger_transactions/);
   assert.match(transactionApi, /related_transaction_id/);
-  assert.match(transactionApi, /verifyCustomerLedgerAdminPassword/);
+  assert.match(transactionApi, /requireOperatorApi/);
   database.close();
 });
 
-test("customer ledger is double-password protected, expires after five minutes, and stays out of workshop", async () => {
-  const [sales, detail, ledger, auth, access, transactions, workshop] = await Promise.all([
+test("customer ledger uses the shared operator session and stays out of workshop", async () => {
+  const [sales, detail, ledger, transactions, session, workshop] = await Promise.all([
     read("app/components/SalesApp.tsx"),
     read("app/components/SalesOrderDetail.tsx"),
     read("app/components/CustomerLedgerApp.tsx"),
-    read("app/lib/customer-ledger-auth.ts"),
-    read("app/api/customer-ledger/access/route.ts"),
     read("app/api/customer-ledger/transactions/route.ts"),
+    read("app/lib/operator-session.ts"),
     read("app/components/WorkshopApp.tsx"),
   ]);
   for (const label of ["고객 결제·미수 장부", "현재 미수금", "현재 선수금", "결제 등록", "결제 기록 정정", "상담 메모"]) {
     assert.match(ledger + sales + detail, new RegExp(label));
   }
   for (const method of ["card", "cash", "bank_transfer"]) assert.match(transactions, new RegExp(method));
-  assert.match(auth, /const SESSION_SECONDS = 5 \* 60/);
-  assert.match(auth, /HttpOnly; Secure; SameSite=Strict/);
-  assert.match(access, /verifyCustomerLedgerEmployeePassword/);
-  assert.match(transactions, /verifyCustomerLedgerAdminPassword/);
-  assert.match(ledger, /5 \* 60 \* 1000/);
+  assert.match(transactions, /requireOperatorApi/);
+  assert.match(session, /OPERATOR_PASSCODE/);
+  assert.doesNotMatch(ledger, /관리자 패스워드|직원 패스워드/);
   assert.doesNotMatch(workshop, /고객 결제·미수|결제누계|결제수단|외상 처리/);
 });

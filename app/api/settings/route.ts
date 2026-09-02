@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
-import { getChatGPTUser } from "../../chatgpt-auth";
 import { DEFAULT_KIOSK_HEADLINE, parseStoredSetting } from "../../lib/app-settings";
+import { OPERATOR_ACTOR, requireOperatorApi } from "../../lib/operator-session";
 
 type ProductRow = {
   id:string; category:string; code:string; name:string; subtitle:string; description:string;
@@ -24,17 +24,14 @@ type SeasonPayload = {
 type AppSettingPayload = { type:"app_setting"; key:"kiosk_headline"; value:string; expectedVersion:string };
 type Payload = ProductPayload | SeasonPayload | AppSettingPayload;
 
-const runtimeEnv=env as typeof env&{DB:D1Database;OPERATOR_USER_IDS?:string;OPERATOR_EMAILS?:string};
-function configured(value:string|undefined){return(value??"").split(",").map(item=>item.trim()).filter(Boolean)}
-function isOperator(user:{userId:string;email:string}){return configured(runtimeEnv.OPERATOR_USER_IDS).includes(user.userId)||configured(runtimeEnv.OPERATOR_EMAILS).map(value=>value.toLowerCase()).includes(user.email.toLowerCase())}
+const runtimeEnv=env as typeof env&{DB:D1Database};
 function product(row:ProductRow){return{id:row.id,category:row.category,code:row.code,name:row.name,subtitle:row.subtitle,description:row.description,price:row.price,customerDisplayWeight:row.customer_display_weight,imageUrl:row.image_url,badge:row.badge,displayOrder:row.display_order,active:Boolean(row.active),version:row.version,updatedAt:row.updated_at}}
 function season(row:SeasonRow){return{id:row.id,name:row.name,holidayDate:row.holiday_date,salesStartDate:row.sales_start_date,salesEndDate:row.sales_end_date,active:Boolean(row.active),version:row.version,updatedAt:row.updated_at}}
 
 async function authorize(){
-  const user=await getChatGPTUser();
-  if(!user)return{error:Response.json({error:"로그인이 필요합니다."},{status:401})};
-  if(!isOperator(user))return{error:Response.json({error:"설정 권한이 없습니다."},{status:403})};
-  return{user};
+  const denied=await requireOperatorApi();
+  if(denied)return{error:denied};
+  return{};
 }
 
 export async function GET(){
@@ -63,7 +60,7 @@ export async function PATCH(request:Request){
       const currentVersion=current?.id??"";
       if(currentVersion!==payload.expectedVersion)return Response.json({error:"다른 화면에서 먼저 수정했습니다. 새로고침 후 다시 시도해주세요."},{status:409});
       const id=crypto.randomUUID(),before={value:parseStoredSetting(current?.after_data,DEFAULT_KIOSK_HEADLINE)},after={value};
-      const result=await runtimeEnv.DB.prepare("INSERT INTO configuration_events(id,entity_type,entity_id,before_data,after_data,actor_id,created_at) SELECT ?,'app_setting','kiosk_headline',?,?,?,? WHERE COALESCE((SELECT id FROM configuration_events WHERE entity_type='app_setting' AND entity_id='kiosk_headline' ORDER BY created_at DESC,id DESC LIMIT 1),'')=?").bind(id,JSON.stringify(before),JSON.stringify(after),auth.user.userId,now,payload.expectedVersion).run();
+      const result=await runtimeEnv.DB.prepare("INSERT INTO configuration_events(id,entity_type,entity_id,before_data,after_data,actor_id,created_at) SELECT ?,'app_setting','kiosk_headline',?,?,?,? WHERE COALESCE((SELECT id FROM configuration_events WHERE entity_type='app_setting' AND entity_id='kiosk_headline' ORDER BY created_at DESC,id DESC LIMIT 1),'')=?").bind(id,JSON.stringify(before),JSON.stringify(after),OPERATOR_ACTOR,now,payload.expectedVersion).run();
       if(!result.meta.changes)return Response.json({error:"다른 화면에서 먼저 수정했습니다. 새로고침 후 다시 시도해주세요."},{status:409});
       return Response.json({ok:true,version:id,updatedAt:now,value});
     }
@@ -76,7 +73,7 @@ export async function PATCH(request:Request){
       const after={category:payload.category.trim(),name:payload.name.trim(),subtitle:payload.subtitle?.trim()??"",description:payload.description?.trim()??"",price,customerDisplayWeight:payload.customerDisplayWeight?.trim()||null,imageUrl:payload.imageUrl?.trim()||null,badge:payload.badge?.trim()||null,displayOrder,active:Boolean(payload.active)};
       await runtimeEnv.DB.batch([
         runtimeEnv.DB.prepare("UPDATE products SET category=?,name=?,subtitle=?,description=?,price=?,customer_display_weight=?,image_url=?,badge=?,display_order=?,active=?,version=version+1,updated_at=? WHERE id=? AND version=?").bind(after.category,after.name,after.subtitle,after.description,after.price,after.customerDisplayWeight,after.imageUrl,after.badge,after.displayOrder,after.active?1:0,now,payload.id,payload.expectedVersion),
-        runtimeEnv.DB.prepare("INSERT INTO configuration_events(id,entity_type,entity_id,before_data,after_data,actor_id,created_at) VALUES(?,'product',?,?,?,?,?)").bind(crypto.randomUUID(),payload.id,JSON.stringify(product(current)),JSON.stringify(after),auth.user.userId,now),
+        runtimeEnv.DB.prepare("INSERT INTO configuration_events(id,entity_type,entity_id,before_data,after_data,actor_id,created_at) VALUES(?,'product',?,?,?,?,?)").bind(crypto.randomUUID(),payload.id,JSON.stringify(product(current)),JSON.stringify(after),OPERATOR_ACTOR,now),
       ]);
       return Response.json({ok:true,version:current.version+1,updatedAt:now});
     }
@@ -88,7 +85,7 @@ export async function PATCH(request:Request){
       const after={name:payload.name.trim(),holidayDate:payload.holidayDate,salesStartDate:payload.salesStartDate,salesEndDate:payload.salesEndDate,active:Boolean(payload.active)};
       await runtimeEnv.DB.batch([
         runtimeEnv.DB.prepare("UPDATE sales_seasons SET name=?,holiday_date=?,sales_start_date=?,sales_end_date=?,active=?,version=version+1,updated_at=? WHERE id=? AND version=?").bind(after.name,after.holidayDate,after.salesStartDate,after.salesEndDate,after.active?1:0,now,payload.id,payload.expectedVersion),
-        runtimeEnv.DB.prepare("INSERT INTO configuration_events(id,entity_type,entity_id,before_data,after_data,actor_id,created_at) VALUES(?,'season',?,?,?,?,?)").bind(crypto.randomUUID(),payload.id,JSON.stringify(season(current)),JSON.stringify(after),auth.user.userId,now),
+        runtimeEnv.DB.prepare("INSERT INTO configuration_events(id,entity_type,entity_id,before_data,after_data,actor_id,created_at) VALUES(?,'season',?,?,?,?,?)").bind(crypto.randomUUID(),payload.id,JSON.stringify(season(current)),JSON.stringify(after),OPERATOR_ACTOR,now),
       ]);
       return Response.json({ok:true,version:current.version+1,updatedAt:now});
     }

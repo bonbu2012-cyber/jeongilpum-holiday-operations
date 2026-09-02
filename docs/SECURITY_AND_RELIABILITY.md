@@ -3,12 +3,9 @@
 ## 인증과 권한
 
 - 고객 kiosk와 운영자 surface를 분리한다.
-- 운영 page는 `requireChatGPTUser()`를 사용한다.
-- 운영 API는 다시 allowlist를 검사한다.
-- 고객 결제·미수 장부는 운영자 검사 후 별도 직원 패스워드로 진입하며 비활동 5분 후 잠긴다.
-- 결제 등록·정정·장부 분리 적용은 열린 장부 세션만 믿지 않고 관리자 패스워드를 다시 확인한다.
-- user ID는 같은 Site 안의 안정 식별자이며 email은 소문자 정규화 후 비교한다.
-- wildcard 운영자 허용을 사용하지 않는다.
+- 운영 page와 운영 API는 HttpOnly 공용 운영 암호 세션을 확인한다.
+- 암호 원문은 Worker 환경값에서만 읽고 PBKDF2-HMAC-SHA256 결과만 쿠키에 저장한다.
+- 고객 결제·미수 장부는 같은 운영 세션을 사용한다.
 - 환경변수가 비어 있으면 전체 허용이 아니라 권한거부가 기본값이다.
 
 ## PII
@@ -70,7 +67,7 @@ PII에는 고객명, 회사명, 전화번호, 수령인, 주소, 상세주소가
 - service role, token, bypass bearer token을 문서·log·client에 노출하지 않는다.
 - `.openai/hosting.json`에는 논리 binding만 유지한다.
 - Production 환경값은 Sites runtime settings에서 관리한다.
-- `CUSTOMER_LEDGER_EMPLOYEE_PASSWORD`, `CUSTOMER_LEDGER_ADMIN_PASSWORD`, `CUSTOMER_LEDGER_SESSION_SECRET`은 client bundle에 넣지 않는다.
+- `OPERATOR_PASSCODE`는 client bundle에 넣지 않는다.
 
 ## 장애 경계
 

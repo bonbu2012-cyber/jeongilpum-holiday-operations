@@ -1,7 +1,6 @@
 import { env } from "cloudflare:workers";
-import { getChatGPTUser } from "../../../../chatgpt-auth";
-import { isConfiguredOperator } from "../../../../lib/operator-auth";
 import { buildPackageCode, packageOrderToken, packageProductPrefix } from "../../../../lib/package-domain";
+import { OPERATOR_ACTOR, requireOperatorApi } from "../../../../lib/operator-session";
 
 type Payload = { orderId?: string; productId?: string; assemblyKey?: string };
 type OrderRow = { id: string; order_no: string; order_status: string };
@@ -9,12 +8,11 @@ type ItemRow = { id: string; product_id: string; product_name_snapshot: string; 
 type BomRow = { id: string; component_code: string; component_name: string; quantity_per_product: number; sort_order: number };
 type SkinPackRow = { id: string; skin_pack_code: string; component_code: string };
 type ExistingPackage = { id: string; package_code: string };
-const runtimeEnv = env as typeof env & { DB: D1Database; OPERATOR_USER_IDS?: string; OPERATOR_EMAILS?: string };
+const runtimeEnv = env as typeof env & { DB: D1Database };
 
 export async function POST(request: Request) {
-  const user = await getChatGPTUser();
-  if (!user) return Response.json({ error: "로그인이 필요합니다." }, { status: 401 });
-  if (!isConfiguredOperator(user, { userIds: runtimeEnv.OPERATOR_USER_IDS, emails: runtimeEnv.OPERATOR_EMAILS })) return Response.json({ error: "운영자 권한이 없습니다." }, { status: 403 });
+  const denied = await requireOperatorApi();
+  if (denied) return denied;
   try {
     const payload = await request.json() as Payload;
     if (!payload.orderId || !payload.productId || !payload.assemblyKey) return Response.json({ error: "주문·상품·조립 중복방지 키를 확인해주세요." }, { status: 400 });
@@ -46,11 +44,11 @@ export async function POST(request: Request) {
       runtimeEnv.DB.prepare("INSERT INTO packages(id,order_id,order_item_id,package_sequence,assembly_key,package_code,product_id,product_name_snapshot,package_status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?, 'completed',?,?)").bind(packageId, order.id, item.id, sequence, payload.assemblyKey, packageCode, item.product_id, item.product_name_snapshot, now, now),
     ];
     for (const value of selected) {
-      statements.push(runtimeEnv.DB.prepare("INSERT INTO package_skin_packs(id,package_id,skin_pack_id,product_component_id,quantity_slot,assigned_by,assigned_at) VALUES(?, ?, (SELECT id FROM skin_packs WHERE id=? AND status='available'), ?, ?, ?, ?)").bind(crypto.randomUUID(), packageId, value.pack.id, value.component.id, value.slot, user.userId, now));
+      statements.push(runtimeEnv.DB.prepare("INSERT INTO package_skin_packs(id,package_id,skin_pack_id,product_component_id,quantity_slot,assigned_by,assigned_at) VALUES(?, ?, (SELECT id FROM skin_packs WHERE id=? AND status='available'), ?, ?, ?, ?)").bind(crypto.randomUUID(), packageId, value.pack.id, value.component.id, value.slot, OPERATOR_ACTOR, now));
       statements.push(runtimeEnv.DB.prepare("UPDATE skin_packs SET status='assigned',assigned_at=?,updated_at=? WHERE id=? AND status='available'").bind(now, now, value.pack.id));
     }
-    statements.push(runtimeEnv.DB.prepare("INSERT INTO package_assignment_history(id,package_id,from_order_id,to_order_id,reason,changed_by,changed_at) VALUES(?,?,NULL,?,'INITIAL_ASSEMBLY',?,?)").bind(crypto.randomUUID(), packageId, order.id, user.userId, now));
-    statements.push(runtimeEnv.DB.prepare("INSERT INTO order_events(id,order_id,event_type,after_data,actor_id,created_at) VALUES(?,?,'PACKAGE_ASSEMBLED',?,?,?)").bind(crypto.randomUUID(), order.id, JSON.stringify({ packageId, packageCode, productId: item.product_id, skinPackIds: selected.map((value) => value.pack.id) }), user.userId, now));
+    statements.push(runtimeEnv.DB.prepare("INSERT INTO package_assignment_history(id,package_id,from_order_id,to_order_id,reason,changed_by,changed_at) VALUES(?,?,NULL,?,'INITIAL_ASSEMBLY',?,?)").bind(crypto.randomUUID(), packageId, order.id, OPERATOR_ACTOR, now));
+    statements.push(runtimeEnv.DB.prepare("INSERT INTO order_events(id,order_id,event_type,after_data,actor_id,created_at) VALUES(?,?,'PACKAGE_ASSEMBLED',?,?,?)").bind(crypto.randomUUID(), order.id, JSON.stringify({ packageId, packageCode, productId: item.product_id, skinPackIds: selected.map((value) => value.pack.id) }), OPERATOR_ACTOR, now));
     await runtimeEnv.DB.batch(statements);
     return Response.json({ ok: true, packageId, packageCode, qrValue: `/workshop/packages/${encodeURIComponent(packageCode)}` });
   } catch (error) {

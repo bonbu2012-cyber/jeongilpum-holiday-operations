@@ -30,8 +30,7 @@ npm run dev
 
 `.env.example`을 복사해 `.env.local`을 만들고 값을 입력합니다. `.env.local`과 모든 secret은 커밋하지 않습니다.
 
-- `OPERATOR_USER_IDS` — 판매장·작업장 API 접근 허용 사용자 ID 목록
-- `OPERATOR_EMAILS` — 판매장·작업장 API 접근 허용 이메일 목록
+- `OPERATOR_PASSCODE` — 판매장·작업장·설정 화면에 사용하는 공용 운영 암호
 
 ## D1 migration
 
@@ -48,8 +47,8 @@ pnpm db:generate
 ## 인증과 역할
 
 - 고객 키오스크 주문 제출은 로그인 없이 가능하며 기존 주문 조회 권한은 없습니다.
-- 판매장·작업장 페이지는 로그인 후 접근합니다.
-- 주문 목록·상태 API는 서버에서 `OPERATOR_USER_IDS`를 재검증합니다.
+- 판매장·작업장·설정 페이지는 공용 운영 암호 입력 후 접근합니다.
+- 운영 API는 HttpOnly 운영 세션을 서버에서 재검증합니다.
 
 ## 검증
 
@@ -71,8 +70,7 @@ pnpm build
 ## Troubleshooting
 
 - 상품이 보이지 않음: D1 migration 적용 여부 확인
-- 운영 화면 401: ChatGPT 로그인 확인
-- 운영 화면 403: `OPERATOR_USER_IDS` 또는 `OPERATOR_EMAILS` 확인
+- 운영 화면 401: 공용 운영 암호를 다시 입력
 - 주문 409: 중복 제출 또는 optimistic concurrency 충돌이므로 최신 주문을 다시 조회
 - 배송 접수 실패: 받는 분 연락처와 확정 주소 확인
 

@@ -1,11 +1,6 @@
 /// <reference types="vite/client" />
 import { env } from "cloudflare:workers";
-import { getChatGPTUser } from "../../chatgpt-auth";
-import {
-  isLocalDevelopmentRequest,
-  isLocalPreviewActor,
-  LOCAL_PREVIEW_ACTOR_ID,
-} from "../../lib/local-preview-auth";
+import { OPERATOR_ACTOR, requireOperatorApi } from "../../lib/operator-session";
 
 type CustomItemPayload = {
   category?: string;
@@ -96,26 +91,11 @@ type EventRow = {
   created_at: string;
 };
 
-const runtimeEnv = env as typeof env & {
-  DB: D1Database;
-  OPERATOR_USER_IDS?: string;
-  OPERATOR_EMAILS?: string;
-};
+const runtimeEnv = env as typeof env & { DB: D1Database };
 const customCategories = new Set(["진공세트", "프리미엄", "O'meat", "LA갈비", "뼈세트"]);
 const fulfillmentTypes = new Set(["onsite", "pickup", "shipping"]);
 const paymentMethods = new Set(["card", "cash", "bank_transfer"]);
 const isoDatePattern = /^\d{4}-\d{2}-\d{2}$/;
-
-function configured(value: string | undefined) {
-  return (value ?? "").split(",").map((item) => item.trim()).filter(Boolean);
-}
-
-function isOperator(user: { userId: string; email: string }) {
-  return configured(runtimeEnv.OPERATOR_USER_IDS).includes(user.userId)
-    || configured(runtimeEnv.OPERATOR_EMAILS)
-      .map((value) => value.toLowerCase())
-      .includes(user.email.toLowerCase());
-}
 
 function clean(value: string | undefined) {
   return value?.trim() ?? "";
@@ -265,11 +245,8 @@ async function receiptForIdempotency(idempotencyKey: string) {
 }
 
 export async function GET(request: Request) {
-  const user = await getChatGPTUser();
-  if (!user) return Response.json({ error: "로그인이 필요합니다." }, { status: 401 });
-  if (!isOperator(user) && !isLocalPreviewActor(user.userId, request.url, import.meta.env.DEV)) {
-    return Response.json({ error: "운영자 권한이 없습니다." }, { status: 403 });
-  }
+  const denied = await requireOperatorApi();
+  if (denied) return denied;
 
   try {
     const params = new URL(request.url).searchParams;
@@ -368,15 +345,7 @@ export async function POST(request: Request) {
       if (!paymentMethods.has(paymentChoice)) {
         return Response.json({ error: "현장판매 결제방식을 선택해주세요." }, { status: 400 });
       }
-      const user = await getChatGPTUser();
-      const localDevelopmentRequest = isLocalDevelopmentRequest(request.url, import.meta.env.DEV);
-      if (!user && !localDevelopmentRequest) {
-        return Response.json({ error: "현장판매는 직원 로그인이 필요합니다." }, { status: 401 });
-      }
-      if (user && !isOperator(user) && !isLocalPreviewActor(user.userId, request.url, import.meta.env.DEV)) {
-        return Response.json({ error: "현장판매를 기록할 운영자 권한이 없습니다." }, { status: 403 });
-      }
-      actor = user?.userId ?? LOCAL_PREVIEW_ACTOR_ID;
+      actor = OPERATOR_ACTOR;
     }
 
     const existing = await receiptForIdempotency(idempotencyKey);

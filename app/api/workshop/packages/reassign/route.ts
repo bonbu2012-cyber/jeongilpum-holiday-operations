@@ -1,6 +1,5 @@
 import { env } from "cloudflare:workers";
-import { getChatGPTUser } from "../../../../chatgpt-auth";
-import { isConfiguredOperator } from "../../../../lib/operator-auth";
+import { OPERATOR_ACTOR, requireOperatorApi } from "../../../../lib/operator-session";
 import { arrivalOffsetMinutes } from "../../../../lib/workshop-operations";
 
 type Payload = { targetOrderId?: string; packageId?: string; reason?: "EARLY_CUSTOMER_ARRIVAL" };
@@ -8,12 +7,11 @@ type OrderRow = { id: string; order_status: string; version: number; customer_no
 type PackageRow = { id: string; order_id: string; product_id: string; package_status: string; source_pickup_at: string | null; source_status: string; source_version: number; source_customer_note: string; source_fulfillment_note: string };
 type TargetItem = { id: string; quantity: number; package_count: number; max_sequence: number };
 type BomAvailability = { quantity_per_product: number; available: number };
-const runtimeEnv = env as typeof env & { DB: D1Database; OPERATOR_USER_IDS?: string; OPERATOR_EMAILS?: string };
+const runtimeEnv = env as typeof env & { DB: D1Database };
 
 export async function POST(request: Request) {
-  const user = await getChatGPTUser();
-  if (!user) return Response.json({ error: "로그인이 필요합니다." }, { status: 401 });
-  if (!isConfiguredOperator(user, { userIds: runtimeEnv.OPERATOR_USER_IDS, emails: runtimeEnv.OPERATOR_EMAILS })) return Response.json({ error: "운영자 권한이 없습니다." }, { status: 403 });
+  const denied = await requireOperatorApi();
+  if (denied) return denied;
   try {
     const payload = await request.json() as Payload;
     if (!payload.targetOrderId || !payload.packageId || payload.reason !== "EARLY_CUSTOMER_ARRIVAL") return Response.json({ error: "재배정 정보가 올바르지 않습니다." }, { status: 400 });
@@ -43,14 +41,14 @@ export async function POST(request: Request) {
     const sourceNext = counts.source_completed - 1 < counts.source_needed && value.source_status === "ready" ? "in_progress" : value.source_status;
     const now = new Date().toISOString();
     const nextSequence = Number(targetItem.max_sequence) + 1;
-    const afterData = JSON.stringify({ packageId: value.id, fromOrderId: value.order_id, toOrderId: target.id, workerId: user.userId, performedAt: now, reason: payload.reason, labelActionRequired: "VOID_AND_REPRINT" });
+    const afterData = JSON.stringify({ packageId: value.id, fromOrderId: value.order_id, toOrderId: target.id, workerId: OPERATOR_ACTOR, performedAt: now, reason: payload.reason, labelActionRequired: "VOID_AND_REPRINT" });
     const results = await runtimeEnv.DB.batch([
       runtimeEnv.DB.prepare("UPDATE packages SET order_id=?,order_item_id=?,package_sequence=?,updated_at=? WHERE id=? AND order_id=? AND package_status='completed' AND EXISTS(SELECT 1 FROM orders WHERE id=? AND version=?) AND EXISTS(SELECT 1 FROM orders WHERE id=? AND version=?)").bind(target.id, targetItem.id, nextSequence, now, value.id, value.order_id, target.id, target.version, value.order_id, value.source_version),
       runtimeEnv.DB.prepare("UPDATE orders SET order_status=?,version=version+1,updated_at=? WHERE id=? AND version=? AND EXISTS(SELECT 1 FROM packages WHERE id=? AND order_id=?)").bind(targetNext, now, target.id, target.version, value.id, target.id),
       runtimeEnv.DB.prepare("UPDATE orders SET order_status=?,version=version+1,updated_at=? WHERE id=? AND version=? AND EXISTS(SELECT 1 FROM packages WHERE id=? AND order_id=?)").bind(sourceNext, now, value.order_id, value.source_version, value.id, target.id),
-      runtimeEnv.DB.prepare("UPDATE package_labels SET status='void',voided_by=?,voided_at=?,void_reason='PACKAGE_REASSIGNED' WHERE package_id=? AND status!='void'").bind(user.userId, now, value.id),
-      runtimeEnv.DB.prepare("INSERT INTO package_assignment_history(id,package_id,from_order_id,to_order_id,reason,changed_by,changed_at) SELECT ?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM packages WHERE id=? AND order_id=?)").bind(crypto.randomUUID(), value.id, value.order_id, target.id, payload.reason, user.userId, now, value.id, target.id),
-      runtimeEnv.DB.prepare("INSERT INTO order_events(id,order_id,event_type,before_data,after_data,reason,actor_id,created_at) SELECT ?,?,'PACKAGE_REASSIGNED',?,?,?,?,? WHERE EXISTS(SELECT 1 FROM packages WHERE id=? AND order_id=?)").bind(crypto.randomUUID(), target.id, JSON.stringify({ packageId: value.id, orderId: value.order_id }), afterData, payload.reason, user.userId, now, value.id, target.id),
+      runtimeEnv.DB.prepare("UPDATE package_labels SET status='void',voided_by=?,voided_at=?,void_reason='PACKAGE_REASSIGNED' WHERE package_id=? AND status!='void'").bind(OPERATOR_ACTOR, now, value.id),
+      runtimeEnv.DB.prepare("INSERT INTO package_assignment_history(id,package_id,from_order_id,to_order_id,reason,changed_by,changed_at) SELECT ?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM packages WHERE id=? AND order_id=?)").bind(crypto.randomUUID(), value.id, value.order_id, target.id, payload.reason, OPERATOR_ACTOR, now, value.id, target.id),
+      runtimeEnv.DB.prepare("INSERT INTO order_events(id,order_id,event_type,before_data,after_data,reason,actor_id,created_at) SELECT ?,?,'PACKAGE_REASSIGNED',?,?,?,?,? WHERE EXISTS(SELECT 1 FROM packages WHERE id=? AND order_id=?)").bind(crypto.randomUUID(), target.id, JSON.stringify({ packageId: value.id, orderId: value.order_id }), afterData, payload.reason, OPERATOR_ACTOR, now, value.id, target.id),
     ]);
     if (!results[0].meta.changes || !results[1].meta.changes || !results[2].meta.changes || !results[results.length - 1].meta.changes) return Response.json({ error: "package 또는 주문 상태가 변경되었습니다. 최신 내용을 다시 확인해주세요." }, { status: 409 });
     return Response.json({ ok: true, packageId: value.id, fromOrderId: value.order_id, toOrderId: target.id, targetStatus: targetNext, sourceStatus: sourceNext, labelActionRequired: "VOID_AND_REPRINT" });

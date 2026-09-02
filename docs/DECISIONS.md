@@ -34,10 +34,10 @@
 - 결정: 주문을 hard delete하지 않고 cancelled와 event를 남긴다.
 - 결과: 결제·reservation·작업 이력을 추적할 수 있다.
 
-## ADR-006: ChatGPT 인증 + operator allowlist
+## ADR-006: 공용 운영 암호 세션
 
 - 상태: 채택
-- 결정: 운영 page는 ChatGPT 로그인을 요구하며 운영 API는 user ID/email allowlist를 추가 검사한다.
+- 결정: 운영 page와 운영 API는 공용 운영 암호에서 유도한 HttpOnly 세션을 검사한다.
 - 결과: public kiosk를 유지하면서 운영 기능을 제한한다.
 
 ## ADR-007: 설정 기반 상시 운영 문구
@@ -60,8 +60,8 @@
 - 배경: 동일 고객이 여러 날 여러 주문을 하고, 실제 입금액이 상품·주문 금액과 일치하지 않을 수 있다.
 - 결정: 정규화한 고객명·전화번호를 기본 고객 식별자로 사용하고 입금을 주문에 자동 배분하지 않는다. 취소되지 않은 고객 주문 총액과 append-only 순입금의 차이로 미수·선수금을 계산한다.
 - 결과: 부분결제·외상·선수금을 고객별로 한눈에 보고, 정정은 reversal로 원본을 보존한다. 예외 분리는 상담 메모 후 명시적으로 적용한다.
-- 보안: 운영자 allowlist에 더해 장부 진입과 각 금액 변경에서 관리자 패스워드를 확인하며 장부 세션은 5분 비활동 후 만료한다.
-- 선행조건: Production migration 0006과 두 장부 환경변수 설정.
+- 보안: 고객 장부도 같은 운영 세션을 사용하며 감사 주체는 `operator`로 기록한다.
+- 선행조건: Production migration 0006과 `OPERATOR_PASSCODE` 설정.
 
 ## 새 ADR 템플릿
 

@@ -1,16 +1,14 @@
 import { env } from "cloudflare:workers";
-import { getChatGPTUser } from "../../../../../chatgpt-auth";
-import { isConfiguredOperator } from "../../../../../lib/operator-auth";
 import { loadWorkshopPackage } from "../../../../../lib/package-detail";
+import { requireOperatorApi } from "../../../../../lib/operator-session";
 import { skinPackLabelsToLongCsv } from "../../../../../lib/production-domain";
 
 type RouteContext = { params: Promise<{ packageCode: string }> };
-const runtimeEnv = env as typeof env & { DB: D1Database; OPERATOR_USER_IDS?: string; OPERATOR_EMAILS?: string };
+const runtimeEnv = env as typeof env & { DB: D1Database };
 
 export async function GET(_request: Request, context: RouteContext) {
-  const user = await getChatGPTUser();
-  if (!user) return Response.json({ error: "로그인이 필요합니다." }, { status: 401 });
-  if (!isConfiguredOperator(user, { userIds: runtimeEnv.OPERATOR_USER_IDS, emails: runtimeEnv.OPERATOR_EMAILS })) return Response.json({ error: "운영자 권한이 없습니다." }, { status: 403 });
+  const denied = await requireOperatorApi();
+  if (denied) return denied;
   const { packageCode: encodedCode } = await context.params;
   const packageCode = decodeURIComponent(encodedCode);
   const detail = await loadWorkshopPackage(runtimeEnv.DB, packageCode);
