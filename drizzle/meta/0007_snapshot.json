@@ -1321,7 +1321,7 @@
           "name": "work_item_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "order_id": {
@@ -1396,7 +1396,7 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
+          "onDelete": "set null",
           "onUpdate": "no action"
         },
         "work_item_events_order_id_orders_id_fk": {
@@ -1636,7 +1636,7 @@
       "checkConstraints": {
         "work_items_quantity_positive": {
           "name": "work_items_quantity_positive",
-          "value": "\"work_items\".\"quantity\" > 0"
+          "value": "\"work_items\".\"quantity\" >= 0"
         },
         "work_items_line_total_nonnegative": {
           "name": "work_items_line_total_nonnegative",

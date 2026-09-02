@@ -72,7 +72,7 @@ export const workItems = sqliteTable("work_items", {
   index("idx_work_items_order").on(table.orderId),
   index("idx_work_items_due_status").on(table.dueAt, table.workStatus),
   index("idx_work_items_product_due").on(table.productId, table.dueAt),
-  check("work_items_quantity_positive", sql`${table.quantity} > 0`),
+  check("work_items_quantity_positive", sql`${table.quantity} >= 0`),
   check("work_items_line_total_nonnegative", sql`${table.lineTotal} >= 0`),
   check("work_items_delivery_method_valid", sql`${table.deliveryMethod} in ('onsite_sale', 'onsite_reservation', 'delivery')`),
   check("work_items_status_valid", sql`${table.workStatus} in ('received', 'confirmed', 'in_progress', 'ready', 'completed', 'cancelled')`),
@@ -80,7 +80,7 @@ export const workItems = sqliteTable("work_items", {
 
 export const workItemEvents = sqliteTable("work_item_events", {
   id: text("id").primaryKey(),
-  workItemId: text("work_item_id").notNull().references(() => workItems.id),
+  workItemId: text("work_item_id").references(() => workItems.id, { onDelete: "set null" }),
   orderId: text("order_id").notNull().references(() => orders.id),
   eventType: text("event_type").notNull(),
   fromValue: text("from_value"),

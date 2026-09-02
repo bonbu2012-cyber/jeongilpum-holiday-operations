@@ -659,8 +659,8 @@ export async function PATCH(request: Request) {
       unitPrice = Number(changes.unitPrice);
     }
     if (hasOwn(changes, "quantity")) {
-      if (!Number.isInteger(changes.quantity) || Number(changes.quantity) < 1) {
-        throw new RequestError("수량은 1 이상의 정수여야 합니다.");
+      if (!Number.isInteger(changes.quantity) || Number(changes.quantity) < 0) {
+        throw new RequestError("수량은 0 이상의 정수여야 합니다.");
       }
       quantity = Number(changes.quantity);
     }
@@ -845,7 +845,7 @@ export async function POST(request: Request) {
         || !validDueAt(dueAt)
         || !Number.isInteger(expectedOrderVersion)
         || !Number.isInteger(quantity)
-        || Number(quantity) < 1
+        || Number(quantity) < 0
         || !Number.isInteger(unitPrice)
         || Number(unitPrice) < 0
         || typeof deliveryMethod !== "string"
@@ -1067,10 +1067,22 @@ export async function DELETE(request: Request) {
           AND ${matchesUpdatedOrder}
       `).bind(id, id, expectedVersion, current.order_id, current.order_version + 1),
       runtimeEnv.DB.prepare(`
-        DELETE FROM work_item_events
-        WHERE work_item_id=? AND ${matchesCurrent}
+        INSERT INTO work_item_events(id,work_item_id,order_id,event_type,from_value,to_value,actor,created_at)
+        SELECT ?,?,?,'work_item_deleted',?,NULL,?,?
+        WHERE ${matchesCurrent}
           AND ${matchesUpdatedOrder}
-      `).bind(id, id, expectedVersion, current.order_id, current.order_version + 1),
+      `).bind(
+        crypto.randomUUID(),
+        id,
+        current.order_id,
+        JSON.stringify(current),
+        OPERATOR_ACTOR,
+        now,
+        id,
+        expectedVersion,
+        current.order_id,
+        current.order_version + 1,
+      ),
       runtimeEnv.DB.prepare(`
         DELETE FROM work_items
         WHERE id=? AND version=?

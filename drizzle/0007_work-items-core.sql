@@ -159,7 +159,7 @@ CREATE TABLE `work_items` (
   `updated_at` text NOT NULL,
   FOREIGN KEY (`order_id`) REFERENCES `orders`(`id`) ON UPDATE no action ON DELETE no action,
   FOREIGN KEY (`product_id`) REFERENCES `products`(`id`) ON UPDATE no action ON DELETE no action,
-  CONSTRAINT `work_items_quantity_positive` CHECK (`quantity` > 0),
+  CONSTRAINT `work_items_quantity_positive` CHECK (`quantity` >= 0),
   CONSTRAINT `work_items_line_total_nonnegative` CHECK (`line_total` >= 0),
   CONSTRAINT `work_items_delivery_method_valid` CHECK (`delivery_method` IN ('onsite_sale','onsite_reservation','delivery')),
   CONSTRAINT `work_items_status_valid` CHECK (`work_status` IN ('received','confirmed','in_progress','ready','completed','cancelled'))
@@ -173,14 +173,14 @@ CREATE INDEX `idx_work_items_product_due` ON `work_items` (`product_id`,`due_at`
 --> statement-breakpoint
 CREATE TABLE `work_item_events` (
   `id` text PRIMARY KEY NOT NULL,
-  `work_item_id` text NOT NULL,
+  `work_item_id` text,
   `order_id` text NOT NULL,
   `event_type` text NOT NULL,
   `from_value` text,
   `to_value` text,
   `actor` text NOT NULL,
   `created_at` text NOT NULL,
-  FOREIGN KEY (`work_item_id`) REFERENCES `work_items`(`id`) ON UPDATE no action ON DELETE no action,
+  FOREIGN KEY (`work_item_id`) REFERENCES `work_items`(`id`) ON UPDATE no action ON DELETE set null,
   FOREIGN KEY (`order_id`) REFERENCES `orders`(`id`) ON UPDATE no action ON DELETE no action
 );
 --> statement-breakpoint

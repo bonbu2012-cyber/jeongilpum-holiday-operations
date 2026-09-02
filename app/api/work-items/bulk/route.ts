@@ -416,17 +416,23 @@ export async function PATCH(request: Request) {
           ...orderVersionBindings(updatedOrders),
           updatedOrders.length,
         ),
-        runtimeEnv.DB.prepare(`
-          DELETE FROM work_item_events
-          WHERE work_item_id IN (${ids.map(() => "?").join(",")})
-            AND ${allSelectionMatches(selection)}
-            AND ${allOrderVersionsMatch(updatedOrders)}
-        `).bind(
-          ...ids,
-          ...allSelectionBindings(selection),
-          ...orderVersionBindings(updatedOrders),
-          updatedOrders.length,
-        ),
+        ...ids.map((id, index) =>
+          runtimeEnv.DB.prepare(`
+            INSERT INTO work_item_events(id,work_item_id,order_id,event_type,from_value,to_value,actor,created_at)
+            SELECT ?,?,?,'work_item_deleted',?,NULL,?,?
+            WHERE ${allSelectionMatches(selection)}
+              AND ${allOrderVersionsMatch(updatedOrders)}
+          `).bind(
+            crypto.randomUUID(),
+            id,
+            current[index].order_id,
+            JSON.stringify(current[index]),
+            OPERATOR_ACTOR,
+            now,
+            ...allSelectionBindings(selection),
+            ...orderVersionBindings(updatedOrders),
+            updatedOrders.length,
+          )),
         runtimeEnv.DB.prepare(`
           DELETE FROM work_items
           WHERE (${selectionPredicate(selection)})
@@ -439,7 +445,7 @@ export async function PATCH(request: Request) {
           updatedOrders.length,
         ),
       ]);
-      if (results[0].meta.changes !== affectedOrderIds.length || results[5].meta.changes !== selection.length) {
+      if (results[0].meta.changes !== affectedOrderIds.length || results[results.length - 1].meta.changes !== selection.length) {
         return Response.json({ error: "다른 화면에서 작업이 변경되었습니다. 새로고침 후 다시 시도해주세요." }, { status: 409 });
       }
       return Response.json({ action, affected: selection.length, deletedIds: ids });
