@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { getChatGPTUser } from "../../../chatgpt-auth";
 
 type CancelReasonType = "test" | "customer_cancelled" | "custom";
-type WorkStatus = "confirmed" | "in_progress" | "ready" | "completed" | "cancelled";
+type WorkStatus = "received" | "confirmed" | "in_progress" | "ready" | "completed" | "cancelled";
 type StatusPayload = {
   workItemId?: string;
   status?: WorkStatus;
@@ -22,14 +22,7 @@ const runtimeEnv = env as typeof env & {
   OPERATOR_USER_IDS?: string;
   OPERATOR_EMAILS?: string;
 };
-const allowed: Record<Current["work_status"], WorkStatus[]> = {
-  received: ["confirmed", "cancelled"],
-  confirmed: ["in_progress", "cancelled"],
-  in_progress: ["ready", "cancelled"],
-  ready: ["completed", "cancelled"],
-  completed: [],
-  cancelled: [],
-};
+const WORK_STATUSES: WorkStatus[] = ["received", "confirmed", "in_progress", "ready", "completed", "cancelled"];
 
 function configured(value: string | undefined) {
   return (value ?? "").split(",").map((item) => item.trim()).filter(Boolean);
@@ -50,7 +43,7 @@ export async function PATCH(request: Request) {
   try {
     const payload = await request.json() as StatusPayload;
     const workItemId = payload.workItemId?.trim() ?? "";
-    if (!workItemId || !payload.status || !Number.isInteger(payload.expectedVersion)) {
+    if (!workItemId || !payload.status || !WORK_STATUSES.includes(payload.status) || !Number.isInteger(payload.expectedVersion)) {
       return Response.json({ error: "작업 상태 정보가 올바르지 않습니다." }, { status: 400 });
     }
     let cancellationReason: string | null = null;
@@ -81,9 +74,6 @@ export async function PATCH(request: Request) {
         error: "다른 직원이 먼저 수정했습니다. 최신 내용을 다시 확인해주세요.",
         latestVersion: current.version,
       }, { status: 409 });
-    }
-    if (!allowed[current.work_status].includes(payload.status)) {
-      return Response.json({ error: "현재 단계에서 허용되지 않는 변경입니다." }, { status: 409 });
     }
 
     const now = new Date().toISOString();
