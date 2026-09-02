@@ -35,6 +35,14 @@
   padding: 0 15px;
 }
 
+.ui-button--icon-only {
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
+}
+
 .ui-button--primary {
   background: var(--wine);
   color: #fff;
