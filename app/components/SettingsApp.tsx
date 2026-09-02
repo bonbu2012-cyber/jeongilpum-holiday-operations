@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { ArrowDown, ArrowUp, GripVertical, Save } from "lucide-react";
+import { GripVertical, Save } from "lucide-react";
 import { useState } from "react";
 import type { DragEvent } from "react";
 import AppNav from "./AppNav";
@@ -165,6 +165,14 @@ function orderedProducts(products: ProductRecord[], categoryOrder: Record<string
   });
 }
 
+function withCategoryOverrides(products: ProductRecord[], categoryAssignment: Record<string, string>) {
+  if (!Object.keys(categoryAssignment).length) return products;
+  return products.map((product) => {
+    const category = categoryAssignment[product.id];
+    return category && category !== product.category ? { ...product, category } : product;
+  });
+}
+
 function productGroups(products: ProductRecord[]) {
   const groups = new Map<string, ProductRecord[]>();
   for (const product of products) {
@@ -195,6 +203,7 @@ export default function SettingsApp() {
   const [draggedProductId, setDraggedProductId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [categoryOrder, setCategoryOrder] = useState<Record<string, string[]>>({});
+  const [categoryAssignment, setCategoryAssignment] = useState<Record<string, string>>({});
   const [bulkAction, setBulkAction] = useState<BulkAction>(null);
   const [bulkDailyLimit, setBulkDailyLimit] = useState("");
   const [bulkCategory, setBulkCategory] = useState(PRODUCT_CATEGORIES[0]);
@@ -212,7 +221,7 @@ export default function SettingsApp() {
     loading: settingsLoading,
     reload: reloadSettings,
   } = useResource<SettingsResponse>("/api/settings", 2500);
-  const products = orderedProducts(productRows(catalog, settings), categoryOrder);
+  const products = orderedProducts(withCategoryOverrides(productRows(catalog, settings), categoryAssignment), categoryOrder);
   const normalizedQuery = query.trim().toLocaleLowerCase("ko-KR");
   const visibleProducts = normalizedQuery
     ? products.filter((product) => `${product.name} ${product.subtitle} ${product.category}`.toLocaleLowerCase("ko-KR").includes(normalizedQuery))
@@ -240,62 +249,95 @@ export default function SettingsApp() {
     setDraft((current) => current ? { ...current, [key]: value } : current);
   };
 
-  const persistOrder = async (category: string, rows: ProductRecord[]) => {
+  const clearPendingMove = (categories: string[], productIds: string[] = []) => {
+    setCategoryOrder((current) => {
+      const next = { ...current };
+      for (const category of categories) delete next[category];
+      return next;
+    });
+    if (!productIds.length) return;
+    setCategoryAssignment((current) => {
+      const next = { ...current };
+      for (const id of productIds) delete next[id];
+      return next;
+    });
+  };
+
+  const runReorder = async (action: () => Promise<void>, rollback: () => void, errorFallback: string) => {
     setReordering(true);
     setNotice("");
     try {
-      await productMutation({
-        type: "product-reorder",
-        category,
-        items: rows.map((product) => ({ id: product.id, expectedVersion: product.version })),
-      });
+      await action();
       await reload();
-      setCategoryOrder((current) => {
-        const next = { ...current };
-        delete next[category];
-        return next;
-      });
     } catch (caught) {
-      setCategoryOrder((current) => {
-        const next = { ...current };
-        delete next[category];
-        return next;
-      });
-      setNotice(caught instanceof Error ? caught.message : "상품 순서를 저장하지 못했습니다.");
+      setNotice(caught instanceof Error ? caught.message : errorFallback);
     } finally {
+      rollback();
       setReordering(false);
       setDraggedProductId(null);
     }
   };
 
-  const reorderProduct = (category: string, sourceId: string, targetId: string) => {
-    if (sourceId === targetId || reordering) return;
-    const categoryRows = products.filter((product) => product.category === category);
-    const sourceIndex = categoryRows.findIndex((product) => product.id === sourceId);
-    const targetIndex = categoryRows.findIndex((product) => product.id === targetId);
-    if (sourceIndex < 0 || targetIndex < 0) return;
+  const persistOrder = (category: string, rows: ProductRecord[]) => runReorder(
+    () => productMutation({
+      type: "product-reorder",
+      category,
+      items: rows.map((product) => ({ id: product.id, expectedVersion: product.version })),
+    }),
+    () => clearPendingMove([category]),
+    "상품 순서를 저장하지 못했습니다.",
+  );
 
-    const nextRows = [...categoryRows];
-    const [source] = nextRows.splice(sourceIndex, 1);
-    nextRows.splice(targetIndex, 0, source);
-    setCategoryOrder((current) => ({ ...current, [category]: nextRows.map((product) => product.id) }));
-    void persistOrder(category, nextRows);
+  const persistCategoryMove = (source: ProductRecord, targetCategory: string, orderedRows: ProductRecord[]) => runReorder(
+    async () => {
+      await productMutation({
+        type: "product-bulk",
+        action: "category",
+        items: [{ id: source.id, expectedVersion: source.version }],
+        category: targetCategory,
+      });
+      const [nextCatalog, nextSettings] = await Promise.all([reloadCatalog(), reloadSettings()]);
+      const refreshedById = new Map(
+        productRows(nextCatalog ?? null, nextSettings ?? null).map((product) => [product.id, product]),
+      );
+      const items = orderedRows
+        .map((product) => refreshedById.get(product.id))
+        .filter((product): product is ProductRecord => Boolean(product))
+        .map((product) => ({ id: product.id, expectedVersion: product.version }));
+      await productMutation({ type: "product-reorder", category: targetCategory, items });
+    },
+    () => clearPendingMove([source.category, targetCategory], [source.id]),
+    "카테고리를 변경하지 못했습니다.",
+  );
+
+  const relocateProduct = (sourceId: string, targetCategory: string, targetId: string | null) => {
+    if (reordering) return;
+    const source = products.find((product) => product.id === sourceId);
+    if (!source) return;
+    if (source.category === targetCategory && sourceId === targetId) return;
+
+    const destinationRows = products.filter((product) => product.category === targetCategory && product.id !== sourceId);
+    const targetIndex = targetId ? destinationRows.findIndex((product) => product.id === targetId) : -1;
+    const nextRows = [...destinationRows];
+    nextRows.splice(targetIndex < 0 ? nextRows.length : targetIndex, 0, source);
+    setCategoryOrder((current) => ({ ...current, [targetCategory]: nextRows.map((product) => product.id) }));
+
+    if (source.category === targetCategory) {
+      void persistOrder(targetCategory, nextRows);
+      return;
+    }
+
+    setCategoryAssignment((current) => ({ ...current, [sourceId]: targetCategory }));
+    void persistCategoryMove(source, targetCategory, nextRows);
   };
 
-  const moveProduct = (category: string, productId: string, direction: -1 | 1) => {
-    const categoryRows = products.filter((product) => product.category === category);
-    const sourceIndex = categoryRows.findIndex((product) => product.id === productId);
-    const target = categoryRows[sourceIndex + direction];
+  const stepProduct = (productId: string, direction: -1 | 1) => {
+    const source = products.find((product) => product.id === productId);
+    if (!source) return;
+    const categoryRows = products.filter((product) => product.category === source.category);
+    const target = categoryRows[categoryRows.findIndex((product) => product.id === productId) + direction];
     if (!target) return;
-    reorderProduct(category, productId, target.id);
-  };
-
-  const updateCategorySelection = (categoryRows: ProductRecord[], nextCategoryIds: string[]) => {
-    const categoryIdSet = new Set(categoryRows.map((product) => product.id));
-    setSelectedIds((current) => [
-      ...current.filter((id) => !categoryIdSet.has(id)),
-      ...nextCategoryIds,
-    ]);
+    relocateProduct(productId, source.category, target.id);
   };
 
   const save = async () => {
@@ -368,74 +410,36 @@ export default function SettingsApp() {
     }
   };
 
-  const columnsFor = (category: string, categoryRows: ProductRecord[]): DataTableColumn<ProductRecord>[] => [
+  const columns: DataTableColumn<ProductRecord>[] = [
     {
-      id: "move",
+      id: "handle",
       header: "순서",
-      cell: (product) => {
-        const productIndex = categoryRows.findIndex((item) => item.id === product.id);
-        return <div
-          className="settings-row-order"
-          onDragOver={(event) => {
-            if (draggedProductId && draggedProductId !== product.id) event.preventDefault();
-          }}
-          onDrop={(event) => {
-            event.preventDefault();
+      cell: (product) => (
+        <button
+          type="button"
+          className="settings-row-handle"
+          draggable={!reordering}
+          disabled={reordering}
+          aria-label={`${product.name} 순서 이동, 화살표 키로 같은 카테고리 내에서 이동`}
+          onClick={(event) => event.stopPropagation()}
+          onKeyDown={(event) => {
             event.stopPropagation();
-            const sourceId = event.dataTransfer.getData("text/plain") || draggedProductId;
-            if (sourceId) reorderProduct(category, sourceId, product.id);
+            if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+            event.preventDefault();
+            stepProduct(product.id, event.key === "ArrowUp" ? -1 : 1);
           }}
+          onDragStart={(event: DragEvent<HTMLButtonElement>) => {
+            event.stopPropagation();
+            event.dataTransfer.effectAllowed = "move";
+            event.dataTransfer.setData("text/plain", product.id);
+            setDraggedProductId(product.id);
+          }}
+          onDragEnd={() => setDraggedProductId(null)}
         >
-          <Button
-            variant="ghost"
-            size="sm"
-            draggable={!reordering}
-            disabled={reordering}
-            leadingIcon={<GripVertical />}
-            aria-label={`${product.name} 순서 이동`}
-            onClick={(event) => event.stopPropagation()}
-            onKeyDown={(event) => event.stopPropagation()}
-            onDragStart={(event: DragEvent<HTMLButtonElement>) => {
-              event.stopPropagation();
-              event.dataTransfer.effectAllowed = "move";
-              event.dataTransfer.setData("text/plain", product.id);
-              setDraggedProductId(product.id);
-            }}
-            onDragEnd={() => setDraggedProductId(null)}
-          >
-            이동
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            leadingIcon={<ArrowUp />}
-            disabled={reordering || productIndex === 0}
-            aria-label={`${product.name} 위로 이동`}
-            onClick={(event) => {
-              event.stopPropagation();
-              moveProduct(category, product.id, -1);
-            }}
-            onKeyDown={(event) => event.stopPropagation()}
-          >
-            위
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            leadingIcon={<ArrowDown />}
-            disabled={reordering || productIndex === categoryRows.length - 1}
-            aria-label={`${product.name} 아래로 이동`}
-            onClick={(event) => {
-              event.stopPropagation();
-              moveProduct(category, product.id, 1);
-            }}
-            onKeyDown={(event) => event.stopPropagation()}
-          >
-            아래
-          </Button>
-        </div>;
-      },
-      width: "260px",
+          <GripVertical size={16} aria-hidden="true" />
+        </button>
+      ),
+      width: "56px",
     },
     {
       id: "name",
@@ -521,25 +525,38 @@ export default function SettingsApp() {
     </section> : null}
     {loading && !catalog && !settings ? <div className="settings-loading">상품을 불러오고 있습니다.</div> : null}
     {error ? <div className="access-error" role="alert"><b>상품 관리 화면에 연결할 수 없습니다</b><span>{error.message}</span></div> : null}
-    {!error && (catalog || settings) ? <div className="settings-category-list">
-      {productGroups(visibleProducts).map(({ category, rows }) => <section className="settings-section settings-category-section" key={category}>
-        <div className="settings-category-heading">
-          <h2>{category}</h2>
-          <span>{rows.length}개</span>
-        </div>
-        <DataTable
-          rows={rows}
-          columns={columnsFor(category, rows)}
-          getRowId={(product) => product.id}
-          onRowClick={openEditor}
-          selectedIds={selectedIds.filter((id) => rows.some((product) => product.id === id))}
-          onSelectedIdsChange={(ids) => updateCategorySelection(rows, ids)}
-          emptyMessage="카테고리에 상품이 없습니다."
-          ariaLabel={`${category} 상품 목록`}
-        />
-      </section>)}
-      {!visibleProducts.length ? <section className="settings-section"><div className="settings-empty">검색 조건에 맞는 상품이 없습니다.</div></section> : null}
-    </div> : null}
+    {!error && (catalog || settings) ? <section className="settings-section">
+      <DataTable
+        columns={columns}
+        groups={productGroups(visibleProducts).map(({ category, rows }) => ({
+          id: category,
+          header: <div className="settings-category-heading"><h2>{category}</h2><span>{rows.length}개</span></div>,
+          rows,
+        }))}
+        getRowId={(product) => product.id}
+        onRowClick={openEditor}
+        onRowDragOver={(product, event) => {
+          if (draggedProductId && draggedProductId !== product.id) event.preventDefault();
+        }}
+        onRowDrop={(product, event) => {
+          event.preventDefault();
+          const sourceId = event.dataTransfer.getData("text/plain") || draggedProductId;
+          if (sourceId) relocateProduct(sourceId, product.category, product.id);
+        }}
+        onGroupDragOver={(group, event) => {
+          if (draggedProductId) event.preventDefault();
+        }}
+        onGroupDrop={(group, event) => {
+          event.preventDefault();
+          const sourceId = event.dataTransfer.getData("text/plain") || draggedProductId;
+          if (sourceId) relocateProduct(sourceId, group.id, null);
+        }}
+        selectedIds={selectedIds}
+        onSelectedIdsChange={setSelectedIds}
+        emptyMessage="검색 조건에 맞는 상품이 없습니다."
+        ariaLabel="상품 목록"
+      />
+    </section> : null}
     <Modal
       open={Boolean(editing && draft)}
       title={editing ? `${editing.name} 수정` : "상품 수정"}

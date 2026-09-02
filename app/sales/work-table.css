@@ -40,13 +40,6 @@
   width: 100%;
 }
 
-.sales-work-table__status-filters {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: end;
-  gap: 5px;
-}
-
 .sales-work-table__bulk-actions > button {
   align-self: end;
 }

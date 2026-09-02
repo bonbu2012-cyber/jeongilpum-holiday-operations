@@ -379,10 +379,11 @@
 }
 
 .ui-toolbar {
+  --ui-toolbar-control-height: 40px;
   min-height: 48px;
   padding: 4px;
   display: flex;
-  align-items: center;
+  align-items: end;
   gap: 8px;
   flex-wrap: wrap;
   border: 1px solid #d9d1c4;
@@ -392,7 +393,7 @@
 
 .ui-toolbar__search {
   min-width: min(100%, 240px);
-  min-height: 40px;
+  min-height: var(--ui-toolbar-control-height);
   padding: 0 10px;
   display: flex;
   align-items: center;
@@ -423,7 +424,7 @@
 .ui-toolbar__content,
 .ui-toolbar__actions {
   display: flex;
-  align-items: center;
+  align-items: end;
   gap: 6px;
   flex-wrap: wrap;
 }
@@ -441,6 +442,7 @@
   padding: 0 8px;
   display: inline-flex;
   align-items: center;
+  align-self: end;
   border-radius: var(--radius-sm);
   background: #fff3ef;
   color: var(--wine);

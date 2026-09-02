@@ -1,8 +1,8 @@
 "use client";
 
 import { ChevronDown, ChevronUp, ChevronsUpDown } from "lucide-react";
-import { useMemo, useState } from "react";
-import type { CSSProperties, KeyboardEvent, ReactNode } from "react";
+import { Fragment, useMemo, useState } from "react";
+import type { CSSProperties, DragEvent, KeyboardEvent, ReactNode } from "react";
 
 export type DataTableSortValue = string | number | Date | null | undefined;
 
@@ -15,13 +15,24 @@ export type DataTableColumn<Row> = {
   align?: "left" | "center" | "right";
 };
 
-export type DataTableProps<Row> = {
+export type DataTableGroup<Row> = {
+  id: string;
+  header: ReactNode;
   rows: Row[];
+};
+
+export type DataTableProps<Row> = {
+  rows?: Row[];
   columns: DataTableColumn<Row>[];
   getRowId: (row: Row) => string;
+  groups?: DataTableGroup<Row>[];
   rowBackground?: (row: Row) => string | undefined;
   rowClassName?: (row: Row) => string | undefined;
   onRowClick?: (row: Row) => void;
+  onRowDragOver?: (row: Row, event: DragEvent<HTMLTableRowElement>) => void;
+  onRowDrop?: (row: Row, event: DragEvent<HTMLTableRowElement>) => void;
+  onGroupDragOver?: (group: DataTableGroup<Row>, event: DragEvent<HTMLTableRowElement>) => void;
+  onGroupDrop?: (group: DataTableGroup<Row>, event: DragEvent<HTMLTableRowElement>) => void;
   selectedIds?: string[];
   onSelectedIdsChange?: (ids: string[]) => void;
   initialSort?: { columnId: string; direction?: "asc" | "desc" };
@@ -47,9 +58,14 @@ export function DataTable<Row>({
   rows,
   columns,
   getRowId,
+  groups,
   rowBackground,
   rowClassName,
   onRowClick,
+  onRowDragOver,
+  onRowDrop,
+  onGroupDragOver,
+  onGroupDrop,
   selectedIds,
   onSelectedIdsChange,
   initialSort,
@@ -60,19 +76,23 @@ export function DataTable<Row>({
   const [sort, setSort] = useState<SortState>(
     initialSort ? { columnId: initialSort.columnId, direction: initialSort.direction ?? "asc" } : null,
   );
+  const effectiveRows = useMemo(
+    () => groups ? groups.flatMap((group) => group.rows) : rows ?? [],
+    [groups, rows],
+  );
   const activeSelectedIds = selectedIds ?? internalSelectedIds;
   const selectedIdSet = useMemo(() => new Set(activeSelectedIds), [activeSelectedIds]);
-  const selectedAll = rows.length > 0 && rows.every((row) => selectedIdSet.has(getRowId(row)));
+  const selectedAll = effectiveRows.length > 0 && effectiveRows.every((row) => selectedIdSet.has(getRowId(row)));
 
   const sortedRows = useMemo(() => {
-    if (!sort) return rows;
+    if (groups || !sort) return effectiveRows;
     const column = columns.find((item) => item.id === sort.columnId);
-    if (!column?.sortValue) return rows;
-    return [...rows].sort((left, right) => {
+    if (!column?.sortValue) return effectiveRows;
+    return [...effectiveRows].sort((left, right) => {
       const value = compareValues(column.sortValue?.(left), column.sortValue?.(right));
       return sort.direction === "asc" ? value : -value;
     });
-  }, [columns, rows, sort]);
+  }, [columns, effectiveRows, groups, sort]);
 
   const updateSelectedIds = (nextIds: string[]) => {
     if (selectedIds === undefined) setInternalSelectedIds(nextIds);
@@ -80,7 +100,7 @@ export function DataTable<Row>({
   };
 
   const toggleAll = () => {
-    updateSelectedIds(selectedAll ? [] : rows.map(getRowId));
+    updateSelectedIds(selectedAll ? [] : effectiveRows.map(getRowId));
   };
 
   const toggleRow = (row: Row) => {
@@ -93,7 +113,7 @@ export function DataTable<Row>({
   };
 
   const toggleSort = (column: DataTableColumn<Row>) => {
-    if (!column.sortValue) return;
+    if (groups || !column.sortValue) return;
     setSort((current) => {
       if (current?.columnId !== column.id) return { columnId: column.id, direction: "asc" };
       return { columnId: column.id, direction: current.direction === "asc" ? "desc" : "asc" };
@@ -104,6 +124,44 @@ export function DataTable<Row>({
     if (!onRowClick || (event.key !== "Enter" && event.key !== " ")) return;
     event.preventDefault();
     onRowClick(row);
+  };
+
+  const renderRow = (row: Row) => {
+    const id = getRowId(row);
+    const clickable = Boolean(onRowClick);
+    const style: CSSProperties | undefined = rowBackground?.(row)
+      ? { backgroundColor: rowBackground(row) }
+      : undefined;
+    return (
+      <tr
+        key={id}
+        className={[
+          clickable ? "ui-data-table__row--clickable" : "",
+          groups ? "ui-data-table__row--grouped" : "",
+          rowClassName?.(row) ?? "",
+        ].filter(Boolean).join(" ")}
+        style={style}
+        tabIndex={clickable ? 0 : undefined}
+        onClick={clickable ? () => onRowClick?.(row) : undefined}
+        onKeyDown={(event) => onRowKeyDown(event, row)}
+        onDragOver={onRowDragOver ? (event) => onRowDragOver(row, event) : undefined}
+        onDrop={onRowDrop ? (event) => onRowDrop(row, event) : undefined}
+      >
+        <td className="ui-data-table__selection" onClick={(event) => event.stopPropagation()}>
+          <input
+            type="checkbox"
+            checked={selectedIdSet.has(id)}
+            onChange={() => toggleRow(row)}
+            aria-label={`${id} 선택`}
+          />
+        </td>
+        {columns.map((column) => (
+          <td key={column.id} style={{ textAlign: column.align ?? "left" }}>
+            {column.cell(row)}
+          </td>
+        ))}
+      </tr>
+    );
   };
 
   return (
@@ -120,8 +178,8 @@ export function DataTable<Row>({
               />
             </th>
             {columns.map((column) => {
-              const sortable = Boolean(column.sortValue);
-              const sorted = sort?.columnId === column.id;
+              const sortable = !groups && Boolean(column.sortValue);
+              const sorted = sortable && sort?.columnId === column.id;
               const style = column.width ? { width: column.width } : undefined;
               return (
                 <th key={column.id} style={style} aria-sort={sorted ? (sort?.direction === "asc" ? "ascending" : "descending") : undefined}>
@@ -141,38 +199,19 @@ export function DataTable<Row>({
           </tr>
         </thead>
         <tbody>
-          {sortedRows.map((row) => {
-            const id = getRowId(row);
-            const clickable = Boolean(onRowClick);
-            const style: CSSProperties | undefined = rowBackground?.(row)
-              ? { backgroundColor: rowBackground(row) }
-              : undefined;
-            return (
+          {groups ? groups.map((group) => (
+            <Fragment key={group.id}>
               <tr
-                key={id}
-                className={[clickable ? "ui-data-table__row--clickable" : "", rowClassName?.(row) ?? ""].filter(Boolean).join(" ")}
-                style={style}
-                tabIndex={clickable ? 0 : undefined}
-                onClick={clickable ? () => onRowClick?.(row) : undefined}
-                onKeyDown={(event) => onRowKeyDown(event, row)}
+                className="ui-data-table__group-row"
+                onDragOver={onGroupDragOver ? (event) => onGroupDragOver(group, event) : undefined}
+                onDrop={onGroupDrop ? (event) => onGroupDrop(group, event) : undefined}
               >
-                <td className="ui-data-table__selection" onClick={(event) => event.stopPropagation()}>
-                  <input
-                    type="checkbox"
-                    checked={selectedIdSet.has(id)}
-                    onChange={() => toggleRow(row)}
-                    aria-label={`${id} 선택`}
-                  />
-                </td>
-                {columns.map((column) => (
-                  <td key={column.id} style={{ textAlign: column.align ?? "left" }}>
-                    {column.cell(row)}
-                  </td>
-                ))}
+                <td colSpan={columns.length + 1}>{group.header}</td>
               </tr>
-            );
-          })}
-          {!sortedRows.length ? (
+              {group.rows.map(renderRow)}
+            </Fragment>
+          )) : sortedRows.map(renderRow)}
+          {!effectiveRows.length ? (
             <tr>
               <td className="ui-data-table__empty" colSpan={columns.length + 1}>{emptyMessage}</td>
             </tr>

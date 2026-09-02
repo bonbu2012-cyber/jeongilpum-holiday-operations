@@ -287,6 +287,14 @@ export default function SalesApp() {
   const workItems = workData?.workItems ?? [];
   const selectedWorkItems = workItems.filter((item) => selectedIds.includes(item.id));
   const error = tab === "work" ? workError : customerError;
+  const dashboardTotals = Object.values(workData?.dashboard ?? {}).reduce<Record<DeliveryMethod, number>>(
+    (totals, statusTotals) => ({
+      onsite_sale: totals.onsite_sale + statusTotals.onsite_sale,
+      onsite_reservation: totals.onsite_reservation + statusTotals.onsite_reservation,
+      delivery: totals.delivery + statusTotals.delivery,
+    }),
+    { onsite_sale: 0, onsite_reservation: 0, delivery: 0 },
+  );
 
   const reloadActive = async () => {
     await Promise.all([
@@ -557,18 +565,12 @@ export default function SalesApp() {
       <main className="sales-work-table__main">
         <div className="sales-work-table__dashboard">
           <StatTiles
-            ariaLabel="오늘 작업 현황"
-            tiles={(["received", "confirmed", "in_progress", "ready", "completed"] as const).map((status) => ({
-              id: status,
-              label: WORK_STATUS_LABELS[status],
-              value: (workData?.dashboard[status].onsite_sale ?? 0) + (workData?.dashboard[status].onsite_reservation ?? 0) + (workData?.dashboard[status].delivery ?? 0),
-              tone: status === "ready" || status === "completed" ? "success" : status === "received" ? "attention" : "default",
-              subtotals: [
-                { label: "현장판매", value: workData?.dashboard[status].onsite_sale ?? 0 },
-                { label: "현장예약", value: workData?.dashboard[status].onsite_reservation ?? 0 },
-                { label: "택배예약", value: workData?.dashboard[status].delivery ?? 0 },
-              ],
-            }))}
+            ariaLabel="오늘 수령방법별 작업 수량"
+            tiles={[
+              { id: "onsite_sale", label: DELIVERY_LABELS.onsite_sale, value: dashboardTotals.onsite_sale },
+              { id: "onsite_reservation", label: DELIVERY_LABELS.onsite_reservation, value: dashboardTotals.onsite_reservation },
+              { id: "delivery", label: DELIVERY_LABELS.delivery, value: dashboardTotals.delivery },
+            ]}
           />
         </div>
 
@@ -593,14 +595,12 @@ export default function SalesApp() {
             label: "작업 및 고객 검색",
           }}
           filters={<>
-            <div className="sales-work-table__status-filters" role="group" aria-label="작업 상태">
-              <Button size="sm" variant={workStatus ? "ghost" : "primary"} aria-pressed={!workStatus} onClick={() => setWorkStatus("")}>전체</Button>
+            <FieldSelect id="sales-work-status-filter" label="작업 상태" value={workStatus} onChange={(event) => setWorkStatus(event.target.value)}>
+              <option value="">모든 작업 상태</option>
               {WORK_STATUS_OPTIONS.map((status) => (
-                <Button key={status} size="sm" variant={workStatus === status ? "primary" : "ghost"} aria-pressed={workStatus === status} onClick={() => setWorkStatus(status)}>
-                  {WORK_STATUS_LABELS[status]}
-                </Button>
+                <option key={status} value={status}>{WORK_STATUS_LABELS[status]}</option>
               ))}
-            </div>
+            </FieldSelect>
             <FieldSelect id="sales-delivery-method-filter" label="수령방법" value={deliveryMethod} onChange={(event) => setDeliveryMethod(event.target.value)}>
               <option value="">모든 수령방법</option>
               {Object.entries(DELIVERY_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
