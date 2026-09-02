@@ -46,9 +46,11 @@ test("shipping stores separated Kakao address fields and requires a shipping dat
  assert.match(api,/발송 예정/);
 });
 
-test("operator APIs enforce identity and role and create an atomic D1 fulfillment",async()=>{
- const [orders,status]=await Promise.all([read("app/api/orders/route.ts"),read("app/api/orders/status/route.ts")]);
- for(const source of [orders,status]){assert.match(source,/getChatGPTUser/);assert.match(source,/OPERATOR_USER_IDS/);assert.match(source,/status:\s*403/)}
+test("operator APIs require one passcode session and create an atomic D1 fulfillment",async()=>{
+ const [orders,status,session]=await Promise.all([read("app/api/orders/route.ts"),read("app/api/orders/status/route.ts"),read("app/lib/operator-session.ts")]);
+ for(const source of [orders,status])assert.match(source,/requireOperatorApi/);
+ assert.match(session,/PBKDF2/);
+ assert.match(session,/iterations:\s*100000/);
  assert.match(orders,/idempotency_key/);
  assert.match(orders,/runtimeEnv\.DB\.batch/);
  assert.match(orders,/INSERT INTO fulfillments/);
@@ -98,7 +100,7 @@ test("custom order and settings workflows stay durable",async()=>{
  assert.match(kiosk,/category-name omeat/);
  assert.match(custom,/idempotencyKey/);
  assert.match(settings,/제품 사진 URL/);
- assert.match(settingsApi,/OPERATOR_USER_IDS/);
+ assert.match(settingsApi,/requireOperatorApi/);
  assert.match(settingsApi,/configuration_events/);
  assert.match(d1,/custom_orders_no_hard_delete/);
 });
@@ -150,13 +152,10 @@ test("sales date views exclude cancelled orders while search keeps history",asyn
  assert.match(ordersApi,/else if \(q\)[\s\S]*SALES_SEARCH_ORDERS_SQL/);
 });
 
-test("P0 sales auth accepts configured user IDs or operator emails and disables response caches",async()=>{
+test("P0 sales APIs require the shared session and disable response caches",async()=>{
  const [orders,status,fulfillment,settings,client]=await Promise.all([read("app/api/orders/route.ts"),read("app/api/orders/status/route.ts"),read("app/api/orders/fulfillment/route.ts"),read("app/api/settings/route.ts"),read("app/lib/orders-client.ts")]);
  for(const source of [orders,status,fulfillment,settings]){
-  assert.match(source,/OPERATOR_USER_IDS/);
-  assert.match(source,/OPERATOR_EMAILS/);
-  assert.match(source,/user\.email\.toLowerCase\(\)/);
-  assert.match(source,/isOperator\(user\)/);
+  assert.match(source,/requireOperatorApi/);
  }
  assert.match(client,/cache:"no-store"/);
  assert.match(orders,/no-store, no-cache, must-revalidate/);

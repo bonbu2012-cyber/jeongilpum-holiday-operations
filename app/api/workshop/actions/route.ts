@@ -1,18 +1,14 @@
 import { env } from "cloudflare:workers";
-import { getChatGPTUser } from "../../../chatgpt-auth";
+import { OPERATOR_ACTOR, requireOperatorApi } from "../../../lib/operator-session";
 import { canApplyWorkshopAction, workshopActionEventType, workshopActionNextStatus, type WorkshopAction } from "../../../lib/workshop-operations";
 
 type Payload = { orderId?: string; action?: WorkshopAction; expectedVersion?: number };
 type Current = { id: string; order_status: "submitted" | "confirmed" | "in_progress" | "ready" | "fulfilled" | "cancelled"; version: number };
-const runtimeEnv = env as typeof env & { DB: D1Database; OPERATOR_USER_IDS?: string; OPERATOR_EMAILS?: string };
-
-function configured(value: string | undefined) { return (value ?? "").split(",").map((item) => item.trim()).filter(Boolean); }
-function isOperator(user: { userId: string; email: string }) { return configured(runtimeEnv.OPERATOR_USER_IDS).includes(user.userId) || configured(runtimeEnv.OPERATOR_EMAILS).map((value) => value.toLowerCase()).includes(user.email.toLowerCase()); }
+const runtimeEnv = env as typeof env & { DB: D1Database };
 
 export async function POST(request: Request) {
-  const user = await getChatGPTUser();
-  if (!user) return Response.json({ error: "로그인이 필요합니다." }, { status: 401 });
-  if (!isOperator(user)) return Response.json({ error: "운영자 권한이 없습니다." }, { status: 403 });
+  const denied = await requireOperatorApi();
+  if (denied) return denied;
   try {
     const payload = await request.json() as Payload;
     if (!payload.orderId || !payload.action || !["accept", "start", "complete"].includes(payload.action) || !Number.isInteger(payload.expectedVersion)) {
@@ -38,7 +34,7 @@ export async function POST(request: Request) {
 
     if (payload.action === "start") statements.push(runtimeEnv.DB.prepare("UPDATE packages SET package_status='in_progress',updated_at=? WHERE order_id=? AND package_status='queued'").bind(now, payload.orderId));
     if (payload.action === "complete") statements.push(runtimeEnv.DB.prepare("UPDATE packages SET package_status='completed',updated_at=? WHERE order_id=? AND package_status='in_progress'").bind(now, payload.orderId));
-    statements.push(runtimeEnv.DB.prepare("INSERT INTO order_events(id,order_id,event_type,before_data,after_data,actor_id,created_at) SELECT ?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM orders WHERE id=? AND version=? AND order_status=?) AND NOT EXISTS(SELECT 1 FROM order_events WHERE order_id=? AND event_type=?)").bind(crypto.randomUUID(), payload.orderId, eventType, JSON.stringify({ status: current.order_status }), JSON.stringify({ status: nextStatus, action: payload.action }), user.userId, now, payload.orderId, payload.expectedVersion + 1, nextStatus, payload.orderId, eventType));
+    statements.push(runtimeEnv.DB.prepare("INSERT INTO order_events(id,order_id,event_type,before_data,after_data,actor_id,created_at) SELECT ?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM orders WHERE id=? AND version=? AND order_status=?) AND NOT EXISTS(SELECT 1 FROM order_events WHERE order_id=? AND event_type=?)").bind(crypto.randomUUID(), payload.orderId, eventType, JSON.stringify({ status: current.order_status }), JSON.stringify({ status: nextStatus, action: payload.action }), OPERATOR_ACTOR, now, payload.orderId, payload.expectedVersion + 1, nextStatus, payload.orderId, eventType));
     const result = await runtimeEnv.DB.batch(statements);
     if (!result[0].meta.changes) {
       const applied = await runtimeEnv.DB.prepare("SELECT id FROM order_events WHERE order_id=? AND event_type=? LIMIT 1").bind(payload.orderId, eventType).first<{ id: string }>();

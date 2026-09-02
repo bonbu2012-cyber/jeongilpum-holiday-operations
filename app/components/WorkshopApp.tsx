@@ -162,7 +162,7 @@ export default function WorkshopApp() {
         <label><span>달력</span><input type="date" value={selectedDate} onChange={(event) => { setSelectedDate(event.target.value); setProductFilterId(null); }} /></label>
       </section>
 
-      {error && <div className="access-error workshop-error" role="alert"><b>작업 목록에 연결할 수 없습니다</b><span>{error}</span><a href="/signin-with-chatgpt?return_to=/workshop">작업자 로그인</a></div>}
+      {error && <div className="access-error workshop-error" role="alert"><b>작업 목록에 연결할 수 없습니다</b><span>{error}</span><button onClick={() => location.reload()}>화면 새로고침</button></div>}
 
       <section className="workshop-summary" aria-label="오늘 작업 요약">
         <div><small>전체 주문</small><b>{summary.total}</b></div>

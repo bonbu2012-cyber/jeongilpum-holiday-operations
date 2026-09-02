@@ -1,9 +1,5 @@
-import {
-  customerLedgerEnv,
-  requireCustomerLedgerSession,
-  verifyCustomerLedgerAdminPassword,
-  withCustomerLedgerSession,
-} from "../../../lib/customer-ledger-auth";
+import { customerLedgerEnv } from "../../../lib/customer-ledger-db";
+import { OPERATOR_ACTOR, requireOperatorApi } from "../../../lib/operator-session";
 
 type Payload = {
   action?: "note" | "apply";
@@ -14,7 +10,6 @@ type Payload = {
   transferAmount?: number;
   applicationMemo?: string;
   ledgerLabel?: string;
-  adminPassword?: string;
 };
 
 type AccountRow = {
@@ -39,8 +34,8 @@ async function accountOrders(customerAccountId: string, orderIds: string[]) {
 }
 
 export async function POST(request: Request) {
-  const access = await requireCustomerLedgerSession(request);
-  if ("response" in access) return access.response;
+  const denied = await requireOperatorApi();
+  if (denied) return denied;
   try {
     const payload = await request.json() as Payload;
     const customerAccountId = clean(payload.customerAccountId);
@@ -65,7 +60,7 @@ export async function POST(request: Request) {
         customerLedgerEnv.DB.prepare(`
           INSERT INTO customer_ledger_consultations(id,customer_account_id,note,status,created_by,created_at)
           VALUES(?,? ,?,'pending',?,?)
-        `).bind(consultationId, customerAccountId, note, access.user.userId, now),
+        `).bind(consultationId, customerAccountId, note, OPERATOR_ACTOR, now),
         ...orderIds.map((orderId) => customerLedgerEnv.DB.prepare(`
           INSERT INTO customer_ledger_consultation_orders(id,consultation_id,order_id,created_at)
           VALUES(?,?,?,?)
@@ -77,11 +72,11 @@ export async function POST(request: Request) {
           crypto.randomUUID(),
           customerAccountId,
           JSON.stringify({ consultationId, orderIds }),
-          access.user.userId,
+          OPERATOR_ACTOR,
           now,
         ),
       ]);
-      return withCustomerLedgerSession(Response.json({ ok: true, consultationId }, { status: 201 }), access.user.userId);
+      return Response.json({ ok: true, consultationId }, { status: 201 });
     }
 
     if (payload.action === "apply") {
@@ -90,13 +85,6 @@ export async function POST(request: Request) {
       const transferAmount = Number(payload.transferAmount ?? 0);
       if (!consultationId || !applicationMemo || !Number.isInteger(transferAmount) || transferAmount < 0) {
         return Response.json({ error: "분리 적용 내용과 이관금액을 확인해주세요." }, { status: 400 });
-      }
-      const password = await verifyCustomerLedgerAdminPassword(clean(payload.adminPassword));
-      if (password.configurationMissing) {
-        return Response.json({ error: "고객 장부 관리자 비밀번호 설정이 필요합니다." }, { status: 503 });
-      }
-      if (!password.ok) {
-        return Response.json({ error: "관리자 비밀번호가 올바르지 않습니다." }, { status: 403 });
       }
       const consultation = await customerLedgerEnv.DB.prepare(`
         SELECT id,status FROM customer_ledger_consultations
@@ -150,13 +138,13 @@ export async function POST(request: Request) {
           UPDATE order_customer_accounts
           SET customer_account_id=?,linked_at=?,linked_by=?,link_reason='consultation_split'
           WHERE customer_account_id=? AND order_id IN (${placeholders})
-        `).bind(targetCustomerAccountId, now, access.user.userId, customerAccountId, ...orderIds),
+        `).bind(targetCustomerAccountId, now, OPERATOR_ACTOR, customerAccountId, ...orderIds),
         customerLedgerEnv.DB.prepare(`
           UPDATE customer_ledger_consultations
           SET status='applied',applied_by=?,applied_at=?,target_customer_account_id=?,transfer_amount=?,application_memo=?
           WHERE id=? AND status='pending'
         `).bind(
-          access.user.userId,
+          OPERATOR_ACTOR,
           now,
           targetCustomerAccountId,
           transferAmount,
@@ -178,7 +166,7 @@ export async function POST(request: Request) {
             applicationMemo,
             consultationId,
             `split:${consultationId}:out`,
-            access.user.userId,
+            OPERATOR_ACTOR,
             now,
           ),
           customerLedgerEnv.DB.prepare(`
@@ -193,7 +181,7 @@ export async function POST(request: Request) {
             applicationMemo,
             consultationId,
             `split:${consultationId}:in`,
-            access.user.userId,
+            OPERATOR_ACTOR,
             now,
           ),
         );
@@ -207,7 +195,7 @@ export async function POST(request: Request) {
           customerAccountId,
           JSON.stringify({ consultationId, targetCustomerAccountId, orderIds, transferAmount }),
           applicationMemo,
-          access.user.userId,
+          OPERATOR_ACTOR,
           now,
         ),
         customerLedgerEnv.DB.prepare(`
@@ -218,12 +206,12 @@ export async function POST(request: Request) {
           targetCustomerAccountId,
           JSON.stringify({ consultationId, sourceCustomerAccountId: customerAccountId, orderIds, transferAmount }),
           applicationMemo,
-          access.user.userId,
+          OPERATOR_ACTOR,
           now,
         ),
       );
       await customerLedgerEnv.DB.batch(statements);
-      return withCustomerLedgerSession(Response.json({ ok: true, targetCustomerAccountId }, { status: 201 }), access.user.userId);
+      return Response.json({ ok: true, targetCustomerAccountId }, { status: 201 });
     }
 
     return Response.json({ error: "상담 처리 종류를 확인해주세요." }, { status: 400 });

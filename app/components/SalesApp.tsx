@@ -145,6 +145,10 @@ export default function SalesApp() {
     setLedgerCustomerId(customerAccountId ?? null);
     setLedgerOpen(true);
   };
+  const logout = async () => {
+    await fetch("/api/operator-session", { method: "DELETE" });
+    location.reload();
+  };
 
   const scheduledOrders = useMemo(() => orders.filter((order) =>
     order.fulfillmentId && order.status !== "cancelled" && scheduleDate(order) === selectedDate),
@@ -167,7 +171,7 @@ export default function SalesApp() {
   return <div className="ops-app sales-app">
     <header className="ops-header sales-header">
       <a href="/sales" className="ops-brand"><img className="operations-brand-logo" src="/jeongilpum-logo.png" alt="정일품 정육식당 로고"/><span>정일품 주문관리<small>판매장 운영</small></span></a>
-      <div className="ops-alerts"><button onClick={() => void loadDate()} disabled={refreshing}>{refreshing ? "동기화 중…" : "지금 새로고침"}</button><a href="/signout-with-chatgpt?return_to=/">로그아웃</a></div>
+      <div className="ops-alerts"><button onClick={() => void loadDate()} disabled={refreshing}>{refreshing ? "동기화 중…" : "지금 새로고침"}</button><button onClick={() => void logout()}>로그아웃</button></div>
     </header>
     <AppNav current="sales" />
 
@@ -179,7 +183,7 @@ export default function SalesApp() {
         <label><span>달력</span><input type="date" value={selectedDate} onChange={(event) => setSelectedDate(event.target.value)} /></label>
       </section>
 
-      {error && <div className="access-error sales-load-error" role="alert"><b>판매장 주문을 불러오지 못했습니다</b><span>{error}</span><a href="/signin-with-chatgpt?return_to=/sales">운영자 로그인</a></div>}
+      {error && <div className="access-error sales-load-error" role="alert"><b>판매장 주문을 불러오지 못했습니다</b><span>{error}</span><button onClick={() => location.reload()}>화면 새로고침</button></div>}
 
       <section className="sales-summary" aria-label="선택 날짜 운영 요약">
         <div className="sales-summary-total"><small>{selectedDate === todayInSeoul() ? "오늘 주문" : "선택일 주문"}</small><b>{summary.total}</b></div>

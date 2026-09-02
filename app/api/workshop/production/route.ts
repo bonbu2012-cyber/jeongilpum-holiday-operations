@@ -1,6 +1,5 @@
 import { env } from "cloudflare:workers";
-import { getChatGPTUser } from "../../../chatgpt-auth";
-import { isConfiguredOperator } from "../../../lib/operator-auth";
+import { OPERATOR_ACTOR, requireOperatorApi } from "../../../lib/operator-session";
 import { loadProductionOverview } from "../../../lib/production-data";
 import { buildSkinPackCode, validateSkinPackWeight, type SkinPackLabelPayload } from "../../../lib/production-domain";
 import { parseTraceabilityScan, validateTraceabilityLength } from "../../../lib/package-domain";
@@ -13,15 +12,8 @@ type RoutePayload =
   | { action: "complete_batch"; batchId?: string };
 type BatchRow = { id: string; production_date: string; parent_batch_id: string | null; segment_no: number; component_code: string; cut_name_snapshot: string; required_quantity: number; production_target: number; produced_quantity: number; traceability_no: string; origin: string; slaughterhouse: string; cattle_type: string; grade: string; storage_method: string; expiry_text: string; packaging_material: string; food_type: string; status: string };
 type ExistingPack = { id: string; skin_pack_code: string };
-const runtimeEnv = env as typeof env & { DB: D1Database; OPERATOR_USER_IDS?: string; OPERATOR_EMAILS?: string; TRACEABILITY_NO_LENGTHS?: string };
+const runtimeEnv = env as typeof env & { DB: D1Database; TRACEABILITY_NO_LENGTHS?: string };
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
-
-async function authorized() {
-  const user = await getChatGPTUser();
-  if (!user) return { response: Response.json({ error: "로그인이 필요합니다." }, { status: 401 }) };
-  if (!isConfiguredOperator(user, { userIds: runtimeEnv.OPERATOR_USER_IDS, emails: runtimeEnv.OPERATOR_EMAILS })) return { response: Response.json({ error: "운영자 권한이 없습니다." }, { status: 403 }) };
-  return { user };
-}
 
 function validDate(value: string) {
   if (!datePattern.test(value)) return false;
@@ -48,20 +40,20 @@ async function traceValues(payload: { rawScan?: string; origin?: string; slaught
 }
 
 export async function GET(request: Request) {
-  const auth = await authorized();
-  if ("response" in auth) return auth.response;
+  const denied = await requireOperatorApi();
+  if (denied) return denied;
   const date = new URL(request.url).searchParams.get("date") ?? "";
   if (!validDate(date)) return Response.json({ error: "조회 날짜 형식을 확인해주세요." }, { status: 400 });
   try {
-    return Response.json(await loadProductionOverview(runtimeEnv.DB, date, auth.user.userId), { headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } });
+    return Response.json(await loadProductionOverview(runtimeEnv.DB, date, OPERATOR_ACTOR), { headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "생산 현황을 불러오지 못했습니다." }, { status: 500 });
   }
 }
 
 export async function POST(request: Request) {
-  const auth = await authorized();
-  if ("response" in auth) return auth.response;
+  const denied = await requireOperatorApi();
+  if (denied) return denied;
   try {
     const payload = await request.json() as RoutePayload;
     const now = new Date().toISOString();
@@ -69,14 +61,14 @@ export async function POST(request: Request) {
     if (payload.action === "create_batch") {
       const date = payload.date ?? "";
       if (!validDate(date) || !payload.componentCode || !payload.cutName || !Number.isInteger(payload.productionTarget) || Number(payload.productionTarget) < 0) return Response.json({ error: "생산일·부위·생산목표를 확인해주세요." }, { status: 400 });
-      const overview = await loadProductionOverview(runtimeEnv.DB, date, auth.user.userId);
+      const overview = await loadProductionOverview(runtimeEnv.DB, date, OPERATOR_ACTOR);
       const requirement = overview.requirements.find((item) => item.componentCode === payload.componentCode);
       if (!requirement) return Response.json({ error: "선택 날짜 주문의 BOM에서 해당 부위를 찾을 수 없습니다." }, { status: 409 });
-      const trace = await traceValues(payload, auth.user.userId, now);
+      const trace = await traceValues(payload, OPERATOR_ACTOR, now);
       const batchId = crypto.randomUUID();
       await runtimeEnv.DB.batch([
         trace.statement,
-        runtimeEnv.DB.prepare("INSERT INTO production_batches(id,production_date,parent_batch_id,segment_no,component_code,cut_name_snapshot,required_quantity,available_quantity_at_start,additional_needed,production_target,produced_quantity,traceability_no,origin,slaughterhouse,cattle_type,grade,storage_method,expiry_text,packaging_material,food_type,status,started_by,started_at,created_at,updated_at) VALUES(?,?,NULL,1,?,?,?,?,?,?,0,?,?,?,?,?,?,?,?,?,'in_progress',?,?,?,?)").bind(batchId, date, requirement.componentCode, requirement.componentName, requirement.requiredQuantity, requirement.availableQuantity, requirement.additionalNeeded, payload.productionTarget, trace.traceabilityNo, trace.origin, trace.slaughterhouse, trace.cattleType, trace.grade, optionalText(payload.storageMethod, 200), optionalText(payload.expiryText, 200), optionalText(payload.packagingMaterial, 200), optionalText(payload.foodType, 200), auth.user.userId, now, now, now),
+        runtimeEnv.DB.prepare("INSERT INTO production_batches(id,production_date,parent_batch_id,segment_no,component_code,cut_name_snapshot,required_quantity,available_quantity_at_start,additional_needed,production_target,produced_quantity,traceability_no,origin,slaughterhouse,cattle_type,grade,storage_method,expiry_text,packaging_material,food_type,status,started_by,started_at,created_at,updated_at) VALUES(?,?,NULL,1,?,?,?,?,?,?,0,?,?,?,?,?,?,?,?,?,'in_progress',?,?,?,?)").bind(batchId, date, requirement.componentCode, requirement.componentName, requirement.requiredQuantity, requirement.availableQuantity, requirement.additionalNeeded, payload.productionTarget, trace.traceabilityNo, trace.origin, trace.slaughterhouse, trace.cattleType, trace.grade, optionalText(payload.storageMethod, 200), optionalText(payload.expiryText, 200), optionalText(payload.packagingMaterial, 200), optionalText(payload.foodType, 200), OPERATOR_ACTOR, now, now, now),
       ]);
       return Response.json({ ok: true, batchId });
     }
@@ -92,14 +84,14 @@ export async function POST(request: Request) {
       if (!payload.batchId || !Number.isInteger(payload.productionTarget) || Number(payload.productionTarget) < 0) return Response.json({ error: "새 구간의 생산목표를 확인해주세요." }, { status: 400 });
       const current = await runtimeEnv.DB.prepare("SELECT id,production_date,parent_batch_id,segment_no,component_code,cut_name_snapshot,required_quantity,production_target,produced_quantity,traceability_no,origin,slaughterhouse,cattle_type,grade,storage_method,expiry_text,packaging_material,food_type,status FROM production_batches WHERE id=?").bind(payload.batchId).first<BatchRow>();
       if (!current || current.status !== "in_progress") return Response.json({ error: "진행 중인 batch를 찾을 수 없습니다." }, { status: 404 });
-      const trace = await traceValues(payload, auth.user.userId, now);
+      const trace = await traceValues(payload, OPERATOR_ACTOR, now);
       const available = await runtimeEnv.DB.prepare("SELECT COUNT(*) AS quantity FROM skin_packs WHERE component_code=? AND status='available'").bind(current.component_code).first<{ quantity: number }>();
       const availableQuantity = Number(available?.quantity ?? 0);
       const childId = crypto.randomUUID();
       await runtimeEnv.DB.batch([
         trace.statement,
         runtimeEnv.DB.prepare("UPDATE production_batches SET status='completed',completed_at=?,updated_at=? WHERE id=? AND status='in_progress'").bind(now, now, current.id),
-        runtimeEnv.DB.prepare("INSERT INTO production_batches(id,production_date,parent_batch_id,segment_no,component_code,cut_name_snapshot,required_quantity,available_quantity_at_start,additional_needed,production_target,produced_quantity,traceability_no,origin,slaughterhouse,cattle_type,grade,storage_method,expiry_text,packaging_material,food_type,status,started_by,started_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,0,?,?,?,?,?,?,?,?,?,'in_progress',?,?,?,?)").bind(childId, current.production_date, current.parent_batch_id ?? current.id, current.segment_no + 1, current.component_code, current.cut_name_snapshot, current.required_quantity, availableQuantity, Math.max(0, current.required_quantity - availableQuantity), payload.productionTarget, trace.traceabilityNo, trace.origin, trace.slaughterhouse, trace.cattleType, trace.grade, optionalText(payload.storageMethod, 200) || current.storage_method, optionalText(payload.expiryText, 200) || current.expiry_text, optionalText(payload.packagingMaterial, 200) || current.packaging_material, optionalText(payload.foodType, 200) || current.food_type, auth.user.userId, now, now, now),
+        runtimeEnv.DB.prepare("INSERT INTO production_batches(id,production_date,parent_batch_id,segment_no,component_code,cut_name_snapshot,required_quantity,available_quantity_at_start,additional_needed,production_target,produced_quantity,traceability_no,origin,slaughterhouse,cattle_type,grade,storage_method,expiry_text,packaging_material,food_type,status,started_by,started_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,0,?,?,?,?,?,?,?,?,?,'in_progress',?,?,?,?)").bind(childId, current.production_date, current.parent_batch_id ?? current.id, current.segment_no + 1, current.component_code, current.cut_name_snapshot, current.required_quantity, availableQuantity, Math.max(0, current.required_quantity - availableQuantity), payload.productionTarget, trace.traceabilityNo, trace.origin, trace.slaughterhouse, trace.cattleType, trace.grade, optionalText(payload.storageMethod, 200) || current.storage_method, optionalText(payload.expiryText, 200) || current.expiry_text, optionalText(payload.packagingMaterial, 200) || current.packaging_material, optionalText(payload.foodType, 200) || current.food_type, OPERATOR_ACTOR, now, now, now),
       ]);
       return Response.json({ ok: true, batchId: childId });
     }
@@ -120,8 +112,8 @@ export async function POST(request: Request) {
       const label: SkinPackLabelPayload = { skinPackCode, cutName: batch.cut_name_snapshot, weightG: Number(payload.weightG), traceabilityNo: batch.traceability_no, origin: batch.origin, slaughterhouse: batch.slaughterhouse, grade: batch.grade, manufacturedAt: now, storageMethod: batch.storage_method, expiryText: batch.expiry_text, packagingMaterial: batch.packaging_material, foodType: batch.food_type };
       try {
         const results = await runtimeEnv.DB.batch([
-          runtimeEnv.DB.prepare("INSERT INTO skin_packs(id,production_batch_id,batch_sequence,skin_pack_code,component_code,cut_name_snapshot,weight_g,traceability_no,origin,slaughterhouse,cattle_type,grade,manufactured_at,storage_method,expiry_text,packaging_material,food_type,status,idempotency_key,created_by,created_at,updated_at) SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'available',?,?,?,? FROM production_batches pb WHERE pb.id=? AND pb.status='in_progress' AND pb.produced_quantity=? AND pb.produced_quantity<pb.production_target").bind(skinPackId, batch.id, sequence, skinPackCode, batch.component_code, batch.cut_name_snapshot, payload.weightG, batch.traceability_no, batch.origin, batch.slaughterhouse, batch.cattle_type, batch.grade, now, batch.storage_method, batch.expiry_text, batch.packaging_material, batch.food_type, payload.idempotencyKey, auth.user.userId, now, now, batch.id, batch.produced_quantity),
-          runtimeEnv.DB.prepare("INSERT INTO skin_pack_labels(id,skin_pack_id,version,status,payload_json,created_by,created_at) SELECT ?,?,1,'draft',?,?,? WHERE EXISTS(SELECT 1 FROM skin_packs WHERE id=? AND idempotency_key=?) AND NOT EXISTS(SELECT 1 FROM skin_pack_labels WHERE skin_pack_id=?)").bind(crypto.randomUUID(), skinPackId, JSON.stringify(label), auth.user.userId, now, skinPackId, payload.idempotencyKey, skinPackId),
+          runtimeEnv.DB.prepare("INSERT INTO skin_packs(id,production_batch_id,batch_sequence,skin_pack_code,component_code,cut_name_snapshot,weight_g,traceability_no,origin,slaughterhouse,cattle_type,grade,manufactured_at,storage_method,expiry_text,packaging_material,food_type,status,idempotency_key,created_by,created_at,updated_at) SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'available',?,?,?,? FROM production_batches pb WHERE pb.id=? AND pb.status='in_progress' AND pb.produced_quantity=? AND pb.produced_quantity<pb.production_target").bind(skinPackId, batch.id, sequence, skinPackCode, batch.component_code, batch.cut_name_snapshot, payload.weightG, batch.traceability_no, batch.origin, batch.slaughterhouse, batch.cattle_type, batch.grade, now, batch.storage_method, batch.expiry_text, batch.packaging_material, batch.food_type, payload.idempotencyKey, OPERATOR_ACTOR, now, now, batch.id, batch.produced_quantity),
+          runtimeEnv.DB.prepare("INSERT INTO skin_pack_labels(id,skin_pack_id,version,status,payload_json,created_by,created_at) SELECT ?,?,1,'draft',?,?,? WHERE EXISTS(SELECT 1 FROM skin_packs WHERE id=? AND idempotency_key=?) AND NOT EXISTS(SELECT 1 FROM skin_pack_labels WHERE skin_pack_id=?)").bind(crypto.randomUUID(), skinPackId, JSON.stringify(label), OPERATOR_ACTOR, now, skinPackId, payload.idempotencyKey, skinPackId),
           runtimeEnv.DB.prepare("UPDATE production_batches SET produced_quantity=produced_quantity+1,updated_at=? WHERE id=? AND status='in_progress' AND produced_quantity=? AND produced_quantity<production_target AND EXISTS(SELECT 1 FROM skin_packs WHERE id=? AND idempotency_key=?)").bind(now, batch.id, batch.produced_quantity, skinPackId, payload.idempotencyKey),
         ]);
         if (!results[0].meta.changes || !results[1].meta.changes || !results[2].meta.changes) {

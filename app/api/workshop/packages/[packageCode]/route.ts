@@ -1,18 +1,10 @@
 import { env } from "cloudflare:workers";
-import { getChatGPTUser } from "../../../../chatgpt-auth";
-import { isConfiguredOperator } from "../../../../lib/operator-auth";
 import { loadWorkshopPackage, packageLabelPayload } from "../../../../lib/package-detail";
+import { OPERATOR_ACTOR, requireOperatorApi } from "../../../../lib/operator-session";
 
 type RouteContext = { params: Promise<{ packageCode: string }> };
 type PreviewPayload = { action: "preview_label" };
-const runtimeEnv = env as typeof env & { DB: D1Database; OPERATOR_USER_IDS?: string; OPERATOR_EMAILS?: string };
-
-async function authorized() {
-  const user = await getChatGPTUser();
-  if (!user) return { response: Response.json({ error: "로그인이 필요합니다." }, { status: 401 }) };
-  if (!isConfiguredOperator(user, { userIds: runtimeEnv.OPERATOR_USER_IDS, emails: runtimeEnv.OPERATOR_EMAILS })) return { response: Response.json({ error: "운영자 권한이 없습니다." }, { status: 403 }) };
-  return { user };
-}
+const runtimeEnv = env as typeof env & { DB: D1Database };
 
 async function detailResponse(packageCode: string) {
   const detail = await loadWorkshopPackage(runtimeEnv.DB, packageCode);
@@ -21,15 +13,15 @@ async function detailResponse(packageCode: string) {
 }
 
 export async function GET(_request: Request, context: RouteContext) {
-  const auth = await authorized();
-  if ("response" in auth) return auth.response;
+  const denied = await requireOperatorApi();
+  if (denied) return denied;
   const { packageCode } = await context.params;
   return detailResponse(decodeURIComponent(packageCode));
 }
 
 export async function PATCH(request: Request, context: RouteContext) {
-  const auth = await authorized();
-  if ("response" in auth) return auth.response;
+  const denied = await requireOperatorApi();
+  if (denied) return denied;
   const { packageCode: encodedCode } = await context.params;
   const packageCode = decodeURIComponent(encodedCode);
   const detail = await loadWorkshopPackage(runtimeEnv.DB, packageCode);
@@ -43,8 +35,8 @@ export async function PATCH(request: Request, context: RouteContext) {
     const latest = await runtimeEnv.DB.prepare("SELECT COALESCE(MAX(version),0) AS version FROM package_labels WHERE package_id=?").bind(detail.packageId).first<{ version: number }>();
     const version = Number(latest?.version ?? 0) + 1;
     await runtimeEnv.DB.batch([
-      runtimeEnv.DB.prepare("INSERT INTO package_labels(id,package_id,version,status,payload_json,qr_value,created_by,created_at) VALUES(?,?,?,'draft',?,?,?,?)").bind(crypto.randomUUID(), detail.packageId, version, JSON.stringify(label), detail.qrValue, auth.user.userId, now),
-      runtimeEnv.DB.prepare("INSERT INTO order_events(id,order_id,event_type,after_data,actor_id,created_at) VALUES(?,?,'PACKAGE_LABEL_PREVIEWED',?,?,?)").bind(crypto.randomUUID(), detail.orderId, JSON.stringify({ packageId: detail.packageId, labelVersion: version }), auth.user.userId, now),
+      runtimeEnv.DB.prepare("INSERT INTO package_labels(id,package_id,version,status,payload_json,qr_value,created_by,created_at) VALUES(?,?,?,'draft',?,?,?,?)").bind(crypto.randomUUID(), detail.packageId, version, JSON.stringify(label), detail.qrValue, OPERATOR_ACTOR, now),
+      runtimeEnv.DB.prepare("INSERT INTO order_events(id,order_id,event_type,after_data,actor_id,created_at) VALUES(?,?,'PACKAGE_LABEL_PREVIEWED',?,?,?)").bind(crypto.randomUUID(), detail.orderId, JSON.stringify({ packageId: detail.packageId, labelVersion: version }), OPERATOR_ACTOR, now),
     ]);
     return Response.json({ ok: true, version, label });
   } catch (error) {

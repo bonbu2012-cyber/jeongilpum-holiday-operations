@@ -85,7 +85,7 @@ export default function SettingsApp(){
     <AppNav current="settings"/>
     <section className="settings-intro"><small>APP SETTINGS</small><h1>앱에서 바로 수정하세요</h1><p>저장한 상품 정보와 판매 일정은 키오스크에 즉시 반영됩니다.</p></section>
     {loading&&<div className="settings-loading">설정을 불러오고 있습니다…</div>}
-    {error&&<div className="access-error"><b>설정 화면에 연결할 수 없습니다</b><span>{error}</span><a href="/signin-with-chatgpt?return_to=/settings">운영자 로그인</a></div>}
+    {error&&<div className="access-error"><b>설정 화면에 연결할 수 없습니다</b><span>{error}</span><button onClick={()=>location.reload()}>화면 새로고침</button></div>}
     {!loading&&!error&&<>
       <section className="settings-section">
         <div className="settings-title"><div><small>KIOSK MESSAGE</small><h2>메인 상단 문구</h2></div><p>저장하면 고객 키오스크를 다시 열거나 새로고침할 때 반영됩니다.</p></div>

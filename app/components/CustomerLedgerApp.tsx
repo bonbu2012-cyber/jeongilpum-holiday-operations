@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import type { PaymentMethod } from "./types";
 import { useResource } from "../ui/use-resource";
 
@@ -97,22 +97,15 @@ export default function CustomerLedgerApp({
   onClose: () => void;
   onChanged: () => void;
 }) {
-  const [unlocked, setUnlocked] = useState(false);
-  const [password, setPassword] = useState("");
   const [query, setQuery] = useState("");
   const [submittedQuery, setSubmittedQuery] = useState("");
   const [customers, setCustomers] = useState<CustomerSummary[]>([]);
   const [selectedId, setSelectedId] = useState(initialCustomerId ?? "");
   const [detail, setDetail] = useState<CustomerDetail | null>(null);
-  const [accessLoading, setAccessLoading] = useState(true);
   const [error, setError] = useState("");
-  const lastServerTouch = useRef(0);
-  const lockTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const resourceUrl = unlocked
-    ? selectedId
-      ? "/api/customer-ledger?customerId=" + encodeURIComponent(selectedId)
-      : "/api/customer-ledger?q=" + encodeURIComponent(submittedQuery)
-    : null;
+  const resourceUrl = selectedId
+    ? "/api/customer-ledger?customerId=" + encodeURIComponent(selectedId)
+    : "/api/customer-ledger?q=" + encodeURIComponent(submittedQuery);
   const {
     loading: resourceLoading,
     reload,
@@ -127,81 +120,10 @@ export default function CustomerLedgerApp({
       setError("");
     },
     onError: (resourceError) => {
-      if (resourceError.status === 401) {
-        setUnlocked(false);
-        setDetail(null);
-        setError("5분 동안 사용하지 않아 고객 장부가 잠겼습니다.");
-        return;
-      }
       setError(resourceError.message || "고객 장부를 불러오지 못했습니다.");
     },
   });
-  const loading = accessLoading || resourceLoading;
-
-  const lock = useCallback(async () => {
-    setUnlocked(false);
-    setPassword("");
-    setDetail(null);
-    if (lockTimer.current) clearTimeout(lockTimer.current);
-    await fetch("/api/customer-ledger/access", { method: "DELETE" }).catch(() => undefined);
-  }, []);
-
-  const resetIdle = useCallback(() => {
-    if (!unlocked) return;
-    if (lockTimer.current) clearTimeout(lockTimer.current);
-    lockTimer.current = setTimeout(() => void lock(), 5 * 60 * 1000);
-    if (Date.now() - lastServerTouch.current > 60_000) {
-      lastServerTouch.current = Date.now();
-      void fetch("/api/customer-ledger/access", { cache: "no-store" }).then((response) => {
-        if (!response.ok) void lock();
-      }).catch(() => undefined);
-    }
-  }, [lock, unlocked]);
-
-  useEffect(() => {
-    const check = async () => {
-      const response = await fetch("/api/customer-ledger/access", { cache: "no-store" });
-      setUnlocked(response.ok);
-      setAccessLoading(false);
-    };
-    void check();
-  }, []);
-
-  useEffect(() => {
-    if (!unlocked) return;
-    resetIdle();
-    const activity = () => resetIdle();
-    window.addEventListener("pointerdown", activity);
-    window.addEventListener("keydown", activity);
-    window.addEventListener("input", activity);
-    return () => {
-      window.removeEventListener("pointerdown", activity);
-      window.removeEventListener("keydown", activity);
-      window.removeEventListener("input", activity);
-      if (lockTimer.current) clearTimeout(lockTimer.current);
-    };
-  }, [resetIdle, unlocked]);
-
-  const unlock = async () => {
-    setAccessLoading(true);
-    setError("");
-    try {
-      const response = await fetch("/api/customer-ledger/access", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
-      });
-      const data = await response.json() as { error?: string };
-      if (!response.ok) throw new Error(data.error || "고객 장부를 열지 못했습니다.");
-      lastServerTouch.current = Date.now();
-      setUnlocked(true);
-      setPassword("");
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "고객 장부를 열지 못했습니다.");
-    } finally {
-      setAccessLoading(false);
-    }
-  };
+  const loading = resourceLoading;
 
   const refresh = async () => {
     await reload();
@@ -212,25 +134,16 @@ export default function CustomerLedgerApp({
     <section className="customer-ledger" aria-label="고객 결제와 미수 장부">
       <header className="ledger-header">
         <div><small>OWNER LEDGER</small><h2>고객 결제·미수 장부</h2></div>
-        <div>{unlocked && <button onClick={() => void lock()}>장부 잠금</button>}<button onClick={onClose} aria-label="고객 장부 닫기">×</button></div>
+        <div><button onClick={onClose} aria-label="고객 장부 닫기">×</button></div>
       </header>
 
-      {!unlocked ? <form className="ledger-lock" onSubmit={(event) => { event.preventDefault(); void unlock(); }}>
-        <b>관리자 확인이 필요합니다</b>
-        <p>고객정보와 결제장부는 직원 패스워드 확인 후 5분 동안 열립니다.</p>
-        <label><span>직원 패스워드</span><input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" /></label>
-        {error && <p className="payment-error" role="alert">{error}</p>}
-        <button className="task-primary" disabled={loading || !password}>{loading ? "확인 중…" : "고객 장부 열기"}</button>
-      </form> : <>
-        <div className="ledger-toolbar">
-          {detail ? <button onClick={() => { setDetail(null); setSelectedId(""); }}>← 고객 목록</button> : <form onSubmit={(event) => { event.preventDefault(); if (query === submittedQuery) void reload(); else setSubmittedQuery(query); }}><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="고객명·전화번호 검색" /><button>검색</button></form>}
-          <span>5분 비활동 시 자동 잠금</span>
-        </div>
-        {error && <p className="ledger-error" role="alert">{error}</p>}
-        {loading && <div className="ledger-loading">장부를 확인하고 있습니다…</div>}
-        {!loading && !detail && <CustomerList customers={customers} onSelect={(customerId) => setSelectedId(customerId)} />}
-        {!loading && detail && <CustomerDetailView detail={detail} refresh={() => void refresh()} />}
-      </>}
+      <div className="ledger-toolbar">
+        {detail ? <button onClick={() => { setDetail(null); setSelectedId(""); }}>← 고객 목록</button> : <form onSubmit={(event) => { event.preventDefault(); if (query === submittedQuery) void reload(); else setSubmittedQuery(query); }}><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="고객명·전화번호 검색" /><button>검색</button></form>}
+      </div>
+      {error && <p className="ledger-error" role="alert">{error}</p>}
+      {loading && <div className="ledger-loading">장부를 확인하고 있습니다…</div>}
+      {!loading && !detail && <CustomerList customers={customers} onSelect={(customerId) => setSelectedId(customerId)} />}
+      {!loading && detail && <CustomerDetailView detail={detail} refresh={() => void refresh()} />}
     </section>
   </div>;
 }
@@ -280,15 +193,15 @@ function PaymentFields({ method, setMethod, amount, setAmount, paidAt, setPaidAt
 }
 
 function PaymentForm({ customerId, onDone, onCancel }: { customerId: string; onDone: () => void; onCancel: () => void }) {
-  const [method, setMethod] = useState<PaymentMethod>("card"); const [amount, setAmount] = useState(""); const [paidAt, setPaidAt] = useState(localDateTime); const [payerName, setPayerName] = useState(""); const [payerPhone, setPayerPhone] = useState(""); const [payerRelation, setPayerRelation] = useState(""); const [memo, setMemo] = useState(""); const [adminPassword, setAdminPassword] = useState(""); const [error, setError] = useState(""); const [saving, setSaving] = useState(false);
-  const save = async () => { setSaving(true); setError(""); try { const response = await fetch("/api/customer-ledger/transactions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "payment", customerAccountId: customerId, method, amount: Number(amount), paidAt: new Date(paidAt).toISOString(), payerName, payerPhone, payerRelation, memo, adminPassword, idempotencyKey: crypto.randomUUID() }) }); const data = await response.json() as { error?: string }; if (!response.ok) throw new Error(data.error || "결제를 등록하지 못했습니다."); onDone(); } catch (caught) { setError(caught instanceof Error ? caught.message : "결제를 등록하지 못했습니다."); } finally { setSaving(false); } };
-  return <section className="ledger-editor"><h3>고객 결제 등록</h3><PaymentFields {...{ method, setMethod, amount, setAmount, paidAt, setPaidAt, payerName, setPayerName, payerPhone, setPayerPhone, payerRelation, setPayerRelation, memo, setMemo }} /><label><span>관리자 패스워드 · 저장 시 재확인</span><input type="password" value={adminPassword} onChange={(event) => setAdminPassword(event.target.value)} /></label>{error && <p className="payment-error" role="alert">{error}</p>}<div><button onClick={onCancel}>취소</button><button className="task-primary" disabled={saving || !amount || !adminPassword} onClick={() => void save()}>{saving ? "저장 중…" : "결제 등록"}</button></div></section>;
+  const [method, setMethod] = useState<PaymentMethod>("card"); const [amount, setAmount] = useState(""); const [paidAt, setPaidAt] = useState(localDateTime); const [payerName, setPayerName] = useState(""); const [payerPhone, setPayerPhone] = useState(""); const [payerRelation, setPayerRelation] = useState(""); const [memo, setMemo] = useState(""); const [error, setError] = useState(""); const [saving, setSaving] = useState(false);
+  const save = async () => { setSaving(true); setError(""); try { const response = await fetch("/api/customer-ledger/transactions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "payment", customerAccountId: customerId, method, amount: Number(amount), paidAt: new Date(paidAt).toISOString(), payerName, payerPhone, payerRelation, memo, idempotencyKey: crypto.randomUUID() }) }); const data = await response.json() as { error?: string }; if (!response.ok) throw new Error(data.error || "결제를 등록하지 못했습니다."); onDone(); } catch (caught) { setError(caught instanceof Error ? caught.message : "결제를 등록하지 못했습니다."); } finally { setSaving(false); } };
+  return <section className="ledger-editor"><h3>고객 결제 등록</h3><PaymentFields {...{ method, setMethod, amount, setAmount, paidAt, setPaidAt, payerName, setPayerName, payerPhone, setPayerPhone, payerRelation, setPayerRelation, memo, setMemo }} />{error && <p className="payment-error" role="alert">{error}</p>}<div><button onClick={onCancel}>취소</button><button className="task-primary" disabled={saving || !amount} onClick={() => void save()}>{saving ? "저장 중…" : "결제 등록"}</button></div></section>;
 }
 
 function CorrectionForm({ customerId, transaction, onDone, onCancel }: { customerId: string; transaction: LedgerTransaction; onDone: () => void; onCancel: () => void }) {
-  const [replace, setReplace] = useState(true); const [reason, setReason] = useState(""); const [method, setMethod] = useState<PaymentMethod>(transaction.method || "card"); const [amount, setAmount] = useState(String(transaction.amount)); const [paidAt, setPaidAt] = useState(localDateTime); const [payerName, setPayerName] = useState(transaction.payerName || ""); const [payerPhone, setPayerPhone] = useState(transaction.payerPhone || ""); const [payerRelation, setPayerRelation] = useState(transaction.payerRelation || ""); const [memo, setMemo] = useState(transaction.memo); const [adminPassword, setAdminPassword] = useState(""); const [error, setError] = useState(""); const [saving, setSaving] = useState(false);
-  const save = async () => { setSaving(true); setError(""); try { const response = await fetch("/api/customer-ledger/transactions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "correction", customerAccountId: customerId, originalTransactionId: transaction.id, reason, adminPassword, idempotencyKey: crypto.randomUUID(), replacement: replace ? { method, amount: Number(amount), paidAt: new Date(paidAt).toISOString(), payerName, payerPhone, payerRelation, memo } : null }) }); const data = await response.json() as { error?: string }; if (!response.ok) throw new Error(data.error || "결제를 정정하지 못했습니다."); onDone(); } catch (caught) { setError(caught instanceof Error ? caught.message : "결제를 정정하지 못했습니다."); } finally { setSaving(false); } };
-  return <section className="ledger-editor"><h3>결제 기록 정정</h3><p>원본 {methodLabel[transaction.method || "card"]} {won(transaction.amount)} 기록은 보존되고 상쇄 기록이 추가됩니다.</p><label><span>정정 사유</span><input value={reason} onChange={(event) => setReason(event.target.value)} /></label><label className="ledger-check"><input type="checkbox" checked={replace} onChange={(event) => setReplace(event.target.checked)} /> 올바른 결제를 이어서 등록</label>{replace && <PaymentFields {...{ method, setMethod, amount, setAmount, paidAt, setPaidAt, payerName, setPayerName, payerPhone, setPayerPhone, payerRelation, setPayerRelation, memo, setMemo }} />}<label><span>관리자 패스워드 · 저장 시 재확인</span><input type="password" value={adminPassword} onChange={(event) => setAdminPassword(event.target.value)} /></label>{error && <p className="payment-error" role="alert">{error}</p>}<div><button onClick={onCancel}>취소</button><button className="task-primary" disabled={saving || !reason || !adminPassword} onClick={() => void save()}>{saving ? "저장 중…" : "정정 기록 저장"}</button></div></section>;
+  const [replace, setReplace] = useState(true); const [reason, setReason] = useState(""); const [method, setMethod] = useState<PaymentMethod>(transaction.method || "card"); const [amount, setAmount] = useState(String(transaction.amount)); const [paidAt, setPaidAt] = useState(localDateTime); const [payerName, setPayerName] = useState(transaction.payerName || ""); const [payerPhone, setPayerPhone] = useState(transaction.payerPhone || ""); const [payerRelation, setPayerRelation] = useState(transaction.payerRelation || ""); const [memo, setMemo] = useState(transaction.memo); const [error, setError] = useState(""); const [saving, setSaving] = useState(false);
+  const save = async () => { setSaving(true); setError(""); try { const response = await fetch("/api/customer-ledger/transactions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "correction", customerAccountId: customerId, originalTransactionId: transaction.id, reason, idempotencyKey: crypto.randomUUID(), replacement: replace ? { method, amount: Number(amount), paidAt: new Date(paidAt).toISOString(), payerName, payerPhone, payerRelation, memo } : null }) }); const data = await response.json() as { error?: string }; if (!response.ok) throw new Error(data.error || "결제를 정정하지 못했습니다."); onDone(); } catch (caught) { setError(caught instanceof Error ? caught.message : "결제를 정정하지 못했습니다."); } finally { setSaving(false); } };
+  return <section className="ledger-editor"><h3>결제 기록 정정</h3><p>원본 {methodLabel[transaction.method || "card"]} {won(transaction.amount)} 기록은 보존되고 상쇄 기록이 추가됩니다.</p><label><span>정정 사유</span><input value={reason} onChange={(event) => setReason(event.target.value)} /></label><label className="ledger-check"><input type="checkbox" checked={replace} onChange={(event) => setReplace(event.target.checked)} /> 올바른 결제를 이어서 등록</label>{replace && <PaymentFields {...{ method, setMethod, amount, setAmount, paidAt, setPaidAt, payerName, setPayerName, payerPhone, setPayerPhone, payerRelation, setPayerRelation, memo, setMemo }} />}{error && <p className="payment-error" role="alert">{error}</p>}<div><button onClick={onCancel}>취소</button><button className="task-primary" disabled={saving || !reason} onClick={() => void save()}>{saving ? "저장 중…" : "정정 기록 저장"}</button></div></section>;
 }
 
 function ConsultationForm({ customerId, orders, onDone, onCancel }: { customerId: string; orders: LedgerOrder[]; onDone: () => void; onCancel: () => void }) {
@@ -298,7 +211,7 @@ function ConsultationForm({ customerId, orders, onDone, onCancel }: { customerId
 }
 
 function ApplyConsultationForm({ customerId, consultation, onDone, onCancel }: { customerId: string; consultation: Consultation; onDone: () => void; onCancel: () => void }) {
-  const [ledgerLabel, setLedgerLabel] = useState(""); const [transferAmount, setTransferAmount] = useState("0"); const [applicationMemo, setApplicationMemo] = useState(""); const [adminPassword, setAdminPassword] = useState(""); const [error, setError] = useState(""); const [saving, setSaving] = useState(false);
-  const save = async () => { setSaving(true); setError(""); try { const response = await fetch("/api/customer-ledger/consultations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "apply", customerAccountId: customerId, consultationId: consultation.id, ledgerLabel, transferAmount: Number(transferAmount), applicationMemo, adminPassword }) }); const data = await response.json() as { error?: string }; if (!response.ok) throw new Error(data.error || "장부 분리를 적용하지 못했습니다."); onDone(); } catch (caught) { setError(caught instanceof Error ? caught.message : "장부 분리를 적용하지 못했습니다."); } finally { setSaving(false); } };
-  return <section className="ledger-editor"><h3>상담 내용 장부에 적용</h3><p>{consultation.note}</p><label><span>새 장부 표시명 · 선택</span><input value={ledgerLabel} onChange={(event) => setLedgerLabel(event.target.value)} placeholder="예: 가족 대리결제 분리" /></label><label><span>새 장부로 이관할 입금액</span><input type="number" min="0" value={transferAmount} onChange={(event) => setTransferAmount(event.target.value)} /></label><label><span>상담 후 적용 내용</span><textarea value={applicationMemo} onChange={(event) => setApplicationMemo(event.target.value)} /></label><label><span>관리자 패스워드 · 적용 시 재확인</span><input type="password" value={adminPassword} onChange={(event) => setAdminPassword(event.target.value)} /></label>{error && <p className="payment-error" role="alert">{error}</p>}<div><button onClick={onCancel}>취소</button><button className="task-primary" disabled={saving || !applicationMemo.trim() || !adminPassword} onClick={() => void save()}>{saving ? "적용 중…" : "장부 분리 적용"}</button></div></section>;
+  const [ledgerLabel, setLedgerLabel] = useState(""); const [transferAmount, setTransferAmount] = useState("0"); const [applicationMemo, setApplicationMemo] = useState(""); const [error, setError] = useState(""); const [saving, setSaving] = useState(false);
+  const save = async () => { setSaving(true); setError(""); try { const response = await fetch("/api/customer-ledger/consultations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "apply", customerAccountId: customerId, consultationId: consultation.id, ledgerLabel, transferAmount: Number(transferAmount), applicationMemo }) }); const data = await response.json() as { error?: string }; if (!response.ok) throw new Error(data.error || "장부 분리를 적용하지 못했습니다."); onDone(); } catch (caught) { setError(caught instanceof Error ? caught.message : "장부 분리를 적용하지 못했습니다."); } finally { setSaving(false); } };
+  return <section className="ledger-editor"><h3>상담 내용 장부에 적용</h3><p>{consultation.note}</p><label><span>새 장부 표시명 · 선택</span><input value={ledgerLabel} onChange={(event) => setLedgerLabel(event.target.value)} placeholder="예: 가족 대리결제 분리" /></label><label><span>새 장부로 이관할 입금액</span><input type="number" min="0" value={transferAmount} onChange={(event) => setTransferAmount(event.target.value)} /></label><label><span>상담 후 적용 내용</span><textarea value={applicationMemo} onChange={(event) => setApplicationMemo(event.target.value)} /></label>{error && <p className="payment-error" role="alert">{error}</p>}<div><button onClick={onCancel}>취소</button><button className="task-primary" disabled={saving || !applicationMemo.trim()} onClick={() => void save()}>{saving ? "적용 중…" : "장부 분리 적용"}</button></div></section>;
 }

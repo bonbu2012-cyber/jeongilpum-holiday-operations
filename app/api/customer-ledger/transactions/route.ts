@@ -1,10 +1,6 @@
-import {
-  customerLedgerEnv,
-  requireCustomerLedgerSession,
-  verifyCustomerLedgerAdminPassword,
-  withCustomerLedgerSession,
-} from "../../../lib/customer-ledger-auth";
+import { customerLedgerEnv } from "../../../lib/customer-ledger-db";
 import { normalizeCustomerPhone } from "../../../lib/customer-ledger-domain";
+import { OPERATOR_ACTOR, requireOperatorApi } from "../../../lib/operator-session";
 
 type PaymentInput = {
   method?: "card" | "cash" | "bank_transfer";
@@ -22,7 +18,6 @@ type Payload = PaymentInput & {
   originalTransactionId?: string;
   reason?: string;
   replacement?: PaymentInput | null;
-  adminPassword?: string;
   idempotencyKey?: string;
 };
 
@@ -70,8 +65,8 @@ async function accountExists(customerAccountId: string) {
 }
 
 export async function POST(request: Request) {
-  const access = await requireCustomerLedgerSession(request);
-  if ("response" in access) return access.response;
+  const denied = await requireOperatorApi();
+  if (denied) return denied;
   try {
     const payload = await request.json() as Payload;
     const customerAccountId = clean(payload.customerAccountId);
@@ -79,14 +74,6 @@ export async function POST(request: Request) {
     if (!customerAccountId || !idempotencyKey || !await accountExists(customerAccountId)) {
       return Response.json({ error: "고객 장부와 중복방지 정보를 확인해주세요." }, { status: 400 });
     }
-    const password = await verifyCustomerLedgerAdminPassword(clean(payload.adminPassword));
-    if (password.configurationMissing) {
-      return Response.json({ error: "고객 장부 관리자 비밀번호 설정이 필요합니다." }, { status: 503 });
-    }
-    if (!password.ok) {
-      return Response.json({ error: "관리자 비밀번호가 올바르지 않습니다." }, { status: 403 });
-    }
-
     const now = new Date().toISOString();
     if (payload.action === "payment") {
       const checked = validatedPayment(payload);
@@ -109,7 +96,7 @@ export async function POST(request: Request) {
           checked.value.payerRelation,
           checked.value.memo,
           idempotencyKey,
-          access.user.userId,
+          OPERATOR_ACTOR,
           now,
         ),
         customerLedgerEnv.DB.prepare(`
@@ -119,11 +106,11 @@ export async function POST(request: Request) {
           crypto.randomUUID(),
           customerAccountId,
           JSON.stringify({ paymentId, method: checked.value.method, amount: checked.value.amount }),
-          access.user.userId,
+          OPERATOR_ACTOR,
           now,
         ),
       ]);
-      return withCustomerLedgerSession(Response.json({ ok: true, paymentId }, { status: 201 }), access.user.userId);
+      return Response.json({ ok: true, paymentId }, { status: 201 });
     }
 
     if (payload.action === "correction") {
@@ -167,7 +154,7 @@ export async function POST(request: Request) {
           reason,
           original.id,
           `${idempotencyKey}:reversal`,
-          access.user.userId,
+          OPERATOR_ACTOR,
           now,
         ),
       ];
@@ -189,7 +176,7 @@ export async function POST(request: Request) {
           replacement.value.memo,
           original.id,
           `${idempotencyKey}:replacement`,
-          access.user.userId,
+          OPERATOR_ACTOR,
           now,
         ));
       }
@@ -202,18 +189,18 @@ export async function POST(request: Request) {
         JSON.stringify({ paymentId: original.id, method: original.method, amount: original.amount }),
         JSON.stringify({ reversalId, replacementId }),
         reason,
-        access.user.userId,
+        OPERATOR_ACTOR,
         now,
       ));
       await customerLedgerEnv.DB.batch(statements);
-      return withCustomerLedgerSession(Response.json({ ok: true, reversalId, replacementId }, { status: 201 }), access.user.userId);
+      return Response.json({ ok: true, reversalId, replacementId }, { status: 201 });
     }
 
     return Response.json({ error: "결제 처리 종류를 확인해주세요." }, { status: 400 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "";
     if (message.includes("idx_customer_ledger_transactions_idempotency") || message.includes("UNIQUE")) {
-      return withCustomerLedgerSession(Response.json({ ok: true, duplicate: true }), access.user.userId);
+      return Response.json({ ok: true, duplicate: true });
     }
     return Response.json({ error: "결제정보를 저장하지 못했습니다." }, { status: 500 });
   }

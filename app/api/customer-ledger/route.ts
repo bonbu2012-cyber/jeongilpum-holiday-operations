@@ -1,9 +1,6 @@
-import {
-  customerLedgerEnv,
-  requireCustomerLedgerSession,
-  withCustomerLedgerSession,
-} from "../../lib/customer-ledger-auth";
+import { customerLedgerEnv } from "../../lib/customer-ledger-db";
 import { customerBalances } from "../../lib/customer-ledger-domain";
+import { requireOperatorApi } from "../../lib/operator-session";
 
 type AccountSummaryRow = {
   id: string;
@@ -266,8 +263,8 @@ async function accountDetail(customerAccountId: string) {
 }
 
 export async function GET(request: Request) {
-  const access = await requireCustomerLedgerSession(request);
-  if ("response" in access) return access.response;
+  const denied = await requireOperatorApi();
+  if (denied) return denied;
   try {
     const params = new URL(request.url).searchParams;
     const customerAccountId = params.get("customerId")?.trim() ?? "";
@@ -275,7 +272,7 @@ export async function GET(request: Request) {
       ? await accountDetail(customerAccountId)
       : { customers: await listAccounts(params.get("q")?.trim() ?? "") };
     if (!response) return Response.json({ error: "고객 장부를 찾을 수 없습니다." }, { status: 404 });
-    return withCustomerLedgerSession(Response.json(response), access.user.userId);
+    return Response.json(response, { headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } });
   } catch {
     return Response.json({ error: "고객 장부를 불러오지 못했습니다." }, { status: 500 });
   }
