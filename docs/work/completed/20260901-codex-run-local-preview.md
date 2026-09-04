@@ -1,6 +1,6 @@
 # Task: 현재 통합 웹앱 로컬 실행
 
-- Status: Blocked
+- Status: Completed
 - Owner: Codex
 - Branch: `codex/control-room`
 - Base commit: `e5922442e0c94331ed2a4ce7d45d458eba021651`
@@ -37,6 +37,6 @@
 
 - Final commit: 해당 없음; source 변경 없음
 - GitHub remote/branch: `github/codex/control-room`
-- Push verification: 사용자 명시적 외부 전송 승인 필요로 차단됨
-- Completed at:
-- Remaining TODO: GitHub push 승인 후 원격 branch 포함 여부 확인 및 완료 처리
+- Push verification: `github/codex/control-room`이 `632efc7049818fd30a98edf20b3691e71cdbfb43`을 포함함
+- Completed at: 2026-09-04
+- Remaining TODO: 없음; local server는 종료됨
