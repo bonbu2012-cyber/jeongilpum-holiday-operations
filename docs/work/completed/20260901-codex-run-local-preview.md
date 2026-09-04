@@ -1,6 +1,6 @@
 # Task: 현재 통합 웹앱 로컬 실행
 
-- Status: Active
+- Status: Completed
 - Owner: Codex
 - Branch: `codex/control-room`
 - Base commit: `e5922442e0c94331ed2a4ce7d45d458eba021651`
@@ -29,12 +29,13 @@
 
 ## Validation
 
-- [ ] local server compile
-- [ ] local route HTTP success
-- [ ] browser handoff
+- [x] local server compile
+- [x] local route HTTP success
+- [x] browser handoff
 
 ## Completion
 
 - Final commit: 해당 없음; source 변경 없음
-- Completed at:
-- Remaining TODO: local server 종료 시 이 task를 completed로 이동
+- GitHub remote/branch: `github/codex/control-room`
+- Completed at: 2026-09-04
+- Remaining TODO: 없음; local server는 종료됨
