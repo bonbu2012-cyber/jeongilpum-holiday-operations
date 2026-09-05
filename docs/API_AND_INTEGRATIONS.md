@@ -3,7 +3,7 @@
 ## API 원칙
 
 - route handler가 HTTP, 인증, validation, transaction 경계다.
-- 운영 GET/쓰기 API는 ChatGPT user와 operator allowlist를 확인한다.
+- 운영 GET/쓰기 API는 공용 운영 암호 세션을 확인한다.
 - 공개 주문 POST는 운영자 인증을 요구하지 않지만 서버 validation과 idempotency를 적용한다.
 - 모든 SQL parameter는 prepared statement `.bind()`를 사용한다.
 - 운영 조회 response는 cache를 비활성화한다.
@@ -16,16 +16,11 @@
 | GET | `/api/products` | 활성 상품, 시즌, headline | 공개 |
 | POST | `/api/orders` | main kiosk 주문 원자적 생성 | 공개 |
 | GET | `/api/orders` | 날짜별 주문·검색·상세 데이터 | 운영자 |
-| PATCH | `/api/orders/status` | 주문 상태 변경·사유가 있는 취소·reservation 해제 | 운영자 |
-| PATCH | `/api/orders/arrival` | 고객도착 등록 | 운영자 |
 | POST | `/api/orders/fulfillment` | legacy 주문 일정 지정 | 운영자 |
-| POST | `/api/orders/payments` | 폐기된 주문별 결제 API, 410 응답 | 운영자 |
-| GET/POST/DELETE | `/api/customer-ledger/access` | 장부 세션 확인·5분 해제·잠금 | 운영자 + 직원 패스워드 |
-| GET | `/api/customer-ledger` | 고객 장부 목록·상세·미수·선수금 조회 | 장부 세션 |
-| POST | `/api/customer-ledger/transactions` | 고객 결제와 원본 보존 정정 | 장부 세션 + 관리자 패스워드 |
-| POST | `/api/customer-ledger/consultations` | 상담 메모 및 상담 후 장부 분리 적용 | 장부 세션, 적용은 관리자 패스워드 |
-| GET | `/api/availability` | 날짜별 한정상품 잔여수량 | 운영자 |
-| POST | `/api/custom-orders` | 별도 맞춤요청 접수 | 공개 |
+| POST/DELETE | `/api/operator-session` | 운영 세션 생성·삭제 | 공개 |
+| GET | `/api/customer-ledger` | 고객 장부 목록·상세·미수·선수금 조회 | 운영자 |
+| POST | `/api/customer-ledger/transactions` | 고객 결제와 원본 보존 정정 | 운영자 |
+| POST | `/api/customer-ledger/consultations` | 상담 메모 및 상담 후 장부 분리 적용 | 운영자 |
 | GET/PATCH | `/api/settings` | 상품·시즌·headline 조회/수정 | 운영자 |
 | GET | `/api/workshop/orders` | 작업장 날짜별 데이터 | 운영자 |
 | POST | `/api/workshop/actions` | 수락·시작·준비완료 | 운영자 |
@@ -79,11 +74,11 @@
 - D1은 SQLite 기반 운영 DB다.
 - R2 binding은 현재 `null`이다.
 
-### ChatGPT 인증
+### 운영 암호 세션
 
-- Sites dispatcher가 `oai-authenticated-user-id`, email, optional full name header를 전달한다.
-- `/signin-with-chatgpt`, `/signout-with-chatgpt`는 플랫폼 소유 route다.
-- 앱은 user ID/email을 operator allowlist와 비교한다.
+- Worker 환경값 `OPERATOR_PASSCODE`로 PBKDF2-HMAC-SHA256 토큰을 계산한다.
+- `jip_operator` HttpOnly 쿠키는 30일 동안 유효하며 HTTPS 요청에서만 `Secure` 속성을 사용한다.
+- 운영 route handler는 공용 세션 검사 실패 시 401을 응답한다.
 
 ### Kakao 우편번호
 

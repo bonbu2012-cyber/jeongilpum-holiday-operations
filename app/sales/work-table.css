@@ -1,0 +1,276 @@
+.sales-work-table {
+  width: min(100%, 1480px);
+  min-height: 100svh;
+  margin: 0 auto;
+  padding-bottom: clamp(76px, 11vw, 108px);
+  background: var(--paper);
+}
+
+.sales-work-table__main {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+  padding: 12px clamp(12px, 2vw, 28px) 24px;
+}
+
+.sales-work-table__section {
+  min-width: 0;
+}
+
+.sales-work-table__dashboard {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-height: 40px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--paper);
+}
+
+.sales-work-table__filter-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+}
+
+.sales-work-table__filter-divider + .sales-work-table__filter-group {
+  gap: 10px;
+}
+
+.sales-work-table__filter-divider + .sales-work-table__filter-group .sales-work-table__filter-button + .sales-work-table__filter-button::before {
+  content: "›" / "";
+  position: absolute;
+  top: 50%;
+  left: -5px;
+  transform: translate(-50%, -50%);
+  color: var(--muted);
+  pointer-events: none;
+  user-select: none;
+  speak: never;
+}
+
+.sales-work-table__filter-button {
+  display: inline-flex;
+  position: relative;
+  min-height: 30px;
+  padding: 4px 8px;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-body);
+  line-height: var(--leading-tight);
+  cursor: pointer;
+}
+
+.sales-work-table__filter-button span {
+  color: var(--muted);
+}
+
+.sales-work-table__filter-button b {
+  color: var(--wine);
+  font-weight: var(--weight-strong);
+}
+
+.sales-work-table__filter-button:hover {
+  border-color: var(--line);
+  background: var(--badge-neutral-background);
+}
+
+.sales-work-table__filter-button[aria-pressed="true"] {
+  border-color: var(--wine);
+  background: var(--badge-wine-background);
+  color: var(--wine);
+}
+
+.sales-work-table__filter-button[aria-pressed="true"] span {
+  color: var(--wine);
+}
+
+.sales-work-table__filter-button:focus-visible {
+  outline: 2px solid var(--wine);
+  outline-offset: 2px;
+}
+
+.sales-work-table__filter-divider {
+  width: 1px;
+  height: 20px;
+  margin-inline: 2px;
+  background: var(--line);
+}
+
+.sales-work-table__section {
+  min-height: 80svh;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.sales-work-table__bulk-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px 12px;
+  width: 100%;
+}
+
+.sales-work-table__bulk-action-groups {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(15rem, 1fr) minmax(17rem, 1.15fr) minmax(24rem, 1.5fr);
+  gap: 8px;
+}
+
+.sales-work-table__bulk-action {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 6px;
+}
+
+.sales-work-table__bulk-action--payment {
+  grid-template-columns: minmax(8rem, 1fr) minmax(8rem, 1fr) auto;
+}
+
+.sales-work-table__bulk-immediate-actions {
+  display: flex;
+  align-items: end;
+  gap: 6px;
+  padding-left: 12px;
+  border-left: 1px solid var(--line);
+}
+
+.sales-work-table .ui-data-table tbody tr.sales-work-table__row--payment-due > :is(td, th) {
+  background: var(--badge-amber-background);
+}
+
+.sales-work-table .ui-data-table tbody tr.sales-work-table__row--payment-due > :is(td, th):first-child {
+  box-shadow: inset 3px 0 0 var(--badge-amber-foreground);
+}
+
+.sales-work-table .ui-data-table tbody tr.sales-work-table__row--urgent > :is(td, th) {
+  background: var(--badge-wine-background);
+}
+
+.sales-work-table .ui-data-table tbody tr.sales-work-table__row--urgent > :is(td, th):first-child {
+  box-shadow: inset 3px 0 0 var(--badge-wine-foreground);
+}
+
+.sales-work-table .ui-data-table tbody tr.sales-work-table__row--soon > :is(td, th) {
+  background: var(--badge-neutral-background);
+}
+
+.sales-work-table__overage {
+  color: #9b312a;
+  font-weight: var(--weight-strong);
+}
+
+.sales-work-table__actions {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(76px, 1fr);
+  align-items: center;
+  justify-content: flex-start;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.sales-work-table__actions .ui-button {
+  min-width: 76px;
+  min-height: 40px;
+}
+
+.sales-work-table__error,
+.sales-work-table__warning {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-body);
+}
+
+.sales-work-table__balance {
+  color: #9b312a;
+  font-weight: var(--weight-strong);
+}
+
+.sales-work-table__order-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 5px;
+}
+
+.sales-work-table__editor,
+.sales-work-table__payment-editor {
+  display: grid;
+  gap: 14px;
+}
+
+.sales-work-table__editor-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.sales-work-table__editor-wide {
+  grid-column: 1 / -1;
+}
+
+.sales-work-table__payment-editor p {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: var(--weight-body);
+}
+
+.sales-work-table__payment-editor p strong {
+  color: var(--wine);
+  font-weight: var(--weight-strong);
+}
+
+@media (max-width: 1180px) {
+  .sales-work-table__bulk-action-groups {
+    grid-template-columns: repeat(2, minmax(15rem, 1fr));
+  }
+
+  .sales-work-table__bulk-action--payment {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 900px) {
+  .sales-work-table__main {
+    padding-inline: 12px;
+  }
+
+}
+
+@media (max-width: 640px) {
+  .sales-work-table__bulk-actions,
+  .sales-work-table__bulk-action-groups,
+  .sales-work-table__bulk-action,
+  .sales-work-table__bulk-action--payment {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sales-work-table__bulk-action--payment {
+    grid-column: auto;
+  }
+
+  .sales-work-table__bulk-immediate-actions {
+    justify-content: flex-end;
+    padding-top: 8px;
+    padding-left: 0;
+    border-top: 1px solid var(--line);
+    border-left: 0;
+  }
+
+  .sales-work-table__editor-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

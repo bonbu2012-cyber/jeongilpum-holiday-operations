@@ -20,14 +20,14 @@
 ## Claimed paths
 
 - `app/api/orders/route.ts` (독점 claim)
-- `app/lib/local-preview-auth.ts`
+- 이전 로컬 개발 인증 모듈
 - `tests/onsite-sales.test.mjs`
 - `docs/work/active/20260901-codex-onsite-local-completion.md`
 - `docs/work/completed/20260901-codex-onsite-local-completion.md`
 
 ## Shared contracts
 
-- 운영 Sites의 현장판매는 `getChatGPTUser()`와 `isOperator()`를 계속 통과해야 한다.
+- 운영 Sites의 현장판매는 당시 운영 인증 검사를 계속 통과해야 한다.
 - 로컬 예외는 빌드 시 development이고 요청 origin이 HTTP loopback일 때만 허용한다.
 - 로컬 기록의 actor id는 PII가 아닌 고정 식별자를 사용한다.
 

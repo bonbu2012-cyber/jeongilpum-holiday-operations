@@ -328,30 +328,6 @@ test("conditional reservation plus CHECK allows only one concurrent order at 29 
   await rm(directory, { recursive: true, force: true });
 });
 
-test("cancellation batch releases its limited-product reservation", async () => {
-  const [database, statusApi] = await Promise.all([
-    migratedDatabase(),
-    read("app/api/orders/status/route.ts"),
-  ]);
-  insertOrder(database, "cancel-limit");
-  insertItem(database, "cancel-limit", "cancel-item");
-  reserveLimited(database, "cancel-reservation", "cancel-limit", "cancel-item");
-  database.exec("BEGIN IMMEDIATE");
-  database.prepare("UPDATE orders SET order_status='cancelled' WHERE id='cancel-limit'").run();
-  database.prepare("UPDATE product_daily_reservations SET status='released',released_at=? WHERE order_id=? AND status='active'")
-    .run("2026-09-02T00:00:00.000Z", "cancel-limit");
-  database.exec("COMMIT");
-  const row = database.prepare("SELECT status,released_at FROM product_daily_reservations WHERE id='cancel-reservation'").get();
-  assert.equal(row.status, "released");
-  assert.ok(row.released_at);
-  assert.match(statusApi, /x\.status==="cancelled"/);
-  assert.match(statusApi, /UPDATE product_daily_reservations SET status='released'/);
-  assert.match(statusApi, /cancelReasonType/);
-  assert.match(statusApi, /"test","customer_cancelled","custom"/);
-  assert.match(statusApi, /INSERT INTO order_events[\s\S]*reason/);
-  database.close();
-});
-
 test("0006 groups the same name and phone into one unallocated customer ledger", async () => {
   const database = await preLedgerDatabase();
   insertOrder(database, "customer-order-1", 300_000);
@@ -377,10 +353,7 @@ test("0006 groups the same name and phone into one unallocated customer ledger",
 });
 
 test("payment correction preserves the original and uses reversal plus optional replacement", async () => {
-  const [database, transactionApi] = await Promise.all([
-    migratedDatabase(),
-    read("app/api/customer-ledger/transactions/route.ts"),
-  ]);
+  const database = await migratedDatabase();
   const now = "2026-09-01T10:00:00.000Z";
   database.prepare("INSERT INTO customer_accounts(id,normalized_name,normalized_phone,display_name,display_phone,created_at,updated_at) VALUES('customer','테스트 고객','01012345678','테스트 고객','01012345678',?,?)").run(now, now);
   database.prepare("INSERT INTO customer_ledger_transactions(id,customer_account_id,type,method,amount,transacted_at,memo,idempotency_key,recorded_by,created_at) VALUES('original','customer','payment','cash',100000,?,'','original-key','operator',?)").run(now, now);
@@ -393,35 +366,15 @@ test("payment correction preserves the original and uses reversal plus optional 
     () => database.prepare("INSERT INTO customer_ledger_transactions(id,customer_account_id,type,amount,transacted_at,memo,related_transaction_id,idempotency_key,recorded_by,created_at) VALUES('duplicate-reversal','customer','reversal',100000,?,'중복','original','duplicate-reversal-key','operator',?)").run(now, now),
     /idx_customer_ledger_transactions_reversal_once|UNIQUE constraint failed/,
   );
-  assert.doesNotMatch(transactionApi, /UPDATE customer_ledger_transactions|DELETE FROM customer_ledger_transactions/);
-  assert.match(transactionApi, /related_transaction_id/);
-  assert.match(transactionApi, /verifyCustomerLedgerAdminPassword/);
   database.close();
 });
 
-test("customer ledger is double-password protected, expires after five minutes, and stays out of workshop", async () => {
-  const [sales, detail, ledger, auth, access, transactions, legacyPaymentApi, workshop, availabilityApi] = await Promise.all([
+test("customer ledger uses the shared operator session and stays out of workshop", async () => {
+  const [sales, session, workshop] = await Promise.all([
     read("app/components/SalesApp.tsx"),
-    read("app/components/SalesOrderDetail.tsx"),
-    read("app/components/CustomerLedgerApp.tsx"),
-    read("app/lib/customer-ledger-auth.ts"),
-    read("app/api/customer-ledger/access/route.ts"),
-    read("app/api/customer-ledger/transactions/route.ts"),
-    read("app/api/orders/payments/route.ts"),
+    read("app/lib/operator-session.ts"),
     read("app/components/WorkshopApp.tsx"),
-    read("app/api/availability/route.ts"),
   ]);
-  for (const label of ["고객 결제·미수 장부", "현재 미수금", "현재 선수금", "결제 등록", "결제 기록 정정", "상담 메모"]) {
-    assert.match(ledger + sales + detail, new RegExp(label));
-  }
-  for (const method of ["card", "cash", "bank_transfer"]) assert.match(transactions, new RegExp(method));
-  assert.match(auth, /const SESSION_SECONDS = 5 \* 60/);
-  assert.match(auth, /HttpOnly; Secure; SameSite=Strict/);
-  assert.match(access, /verifyCustomerLedgerEmployeePassword/);
-  assert.match(transactions, /verifyCustomerLedgerAdminPassword/);
-  assert.match(ledger, /5 \* 60 \* 1000/);
-  assert.match(legacyPaymentApi, /status: 410/);
+  assert.match(session, /OPERATOR_PASSCODE/);
   assert.doesNotMatch(workshop, /고객 결제·미수|결제누계|결제수단|외상 처리/);
-  assert.match(availabilityApi, /dailyLimit/);
-  assert.match(availabilityApi, /remainingQuantity/);
 });

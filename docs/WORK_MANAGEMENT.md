@@ -43,7 +43,7 @@ YYYYMMDD-<owner-or-agent>-<short-task>.md
 
 ```text
 app/components/SalesOrderDetail.tsx
-app/api/orders/payments/route.ts
+app/api/orders/status/route.ts
 tests/commerce.test.mjs
 ```
 

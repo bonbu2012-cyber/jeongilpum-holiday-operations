@@ -1,129 +1,1069 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { useEffect, useState } from "react";
+import { FolderPlus, ImageOff, Pencil, Plus, Save, Trash2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import AppNav from "./AppNav";
+import {
+  Badge,
+  Button,
+  DataTable,
+  Field,
+  FieldInput,
+  FieldSelect,
+  FieldTextarea,
+  Modal,
+  OperationsPageHeader,
+  Toolbar,
+  useResource,
+  type DataTableColumn,
+} from "../ui";
+import { parseIntegerInput } from "../lib/input-format";
 
-type EditableProduct = {
-  id:string; category:string; code:string; name:string; subtitle:string; description:string;
-  price:number; customerDisplayWeight:string|null; imageUrl:string|null; badge:string|null;
-  displayOrder:number; active:boolean; version:number; updatedAt:string|null;
+type CatalogProduct = {
+  id: string;
+  category: string;
+  name: string;
+  subtitle: string;
+  description: string;
+  price: number;
+  customerDisplayWeight: string | null;
+  imageUrl: string | null;
+  badge: string | null;
+  dailyLimit: number | null;
+  reservedQuantity: number;
 };
-type EditableAppSetting = { value:string; version:string; updatedAt:string|null };
-type EditableSeason = {
-  id:string; name:string; holidayDate:string; salesStartDate:string; salesEndDate:string;
-  active:boolean; version:number; updatedAt:string|null;
+
+type CatalogResponse = {
+  products?: CatalogProduct[];
 };
 
-export default function SettingsApp(){
-  const[products,setProducts]=useState<EditableProduct[]>([]);
-  const[seasons,setSeasons]=useState<EditableSeason[]>([]);
-  const[headline,setHeadline]=useState<EditableAppSetting>({value:"좋은 선물을 골라주세요",version:"",updatedAt:null});
-  const[loading,setLoading]=useState(true);
-  const[error,setError]=useState("");
-  const[notice,setNotice]=useState("");
-  const[saving,setSaving]=useState("");
+type ProductRevision = {
+  id: string;
+  active: boolean;
+  sortOrder: number;
+  version: string;
+};
 
-  const load=async()=>{
-    try{
-      const response=await fetch("/api/settings",{cache:"no-store"});
-      const data=await response.json() as {products?:EditableProduct[];seasons?:EditableSeason[];appSettings?:{kioskHeadline?:EditableAppSetting};error?:string};
-      if(!response.ok)throw new Error(data.error);
-      setProducts(data.products??[]);
-      setSeasons(data.seasons??[]);
-      if(data.appSettings?.kioskHeadline)setHeadline(data.appSettings.kioskHeadline);
-      setError("");
-    }catch(caught){setError(caught instanceof Error?caught.message:"설정을 불러오지 못했습니다.")}
-    finally{setLoading(false)}
-  };
-  useEffect(()=>{const frame=requestAnimationFrame(()=>{void load()});return()=>cancelAnimationFrame(frame)},[]);
+type ProductRecord = {
+  id: string;
+  category: string;
+  name: string;
+  subtitle: string;
+  description: string;
+  price: number;
+  displayWeight: string | null;
+  imageUrl: string | null;
+  badge: string | null;
+  dailyLimit: number | null;
+  sortOrder: number;
+  active: boolean;
+  version: string;
+  reservedQuantity: number;
+};
 
-  const updateProduct=(id:string,key:keyof EditableProduct,value:string|number|boolean|null)=>{
-    setProducts(current=>current.map(item=>item.id===id?{...item,[key]:value}:item));
+type CategoryRecord = {
+  id: string;
+  name: string;
+  sortOrder: number;
+  version: string;
+  productCount: number;
+};
+
+type SettingsResponse = {
+  productRevisions?: ProductRevision[];
+  inactiveProducts?: ProductRecord[];
+  categories?: CategoryRecord[];
+};
+
+type ProductDraft = {
+  category: string;
+  name: string;
+  subtitle: string;
+  description: string;
+  price: string;
+  displayWeight: string;
+  badge: string;
+  imageUrl: string;
+  active: boolean;
+  dailyLimit: string;
+  version: string;
+};
+
+type BulkAction = "daily-limit" | "category" | "active" | null;
+
+const won = (value: number) => `${value.toLocaleString("ko-KR")}원`;
+
+type DailyLimitStatus = "unlimited" | "sold_out" | "limited";
+type RemainingStatus = "unlimited" | "sold_out" | "low" | "available";
+type VisibilityStatus = "visible" | "hidden";
+
+const DAILY_LIMIT_LABELS: Record<DailyLimitStatus, string> = {
+  unlimited: "무제한",
+  sold_out: "세트",
+  limited: "세트",
+};
+
+const DAILY_LIMIT_TONES: Record<DailyLimitStatus, import("../ui").BadgeTone> = {
+  unlimited: "neutral",
+  sold_out: "danger",
+  limited: "amber",
+};
+
+const REMAINING_LABELS: Record<RemainingStatus, string> = {
+  unlimited: "무제한",
+  sold_out: "세트",
+  low: "세트",
+  available: "세트",
+};
+
+const REMAINING_TONES: Record<RemainingStatus, import("../ui").BadgeTone> = {
+  unlimited: "neutral",
+  sold_out: "danger",
+  low: "amber",
+  available: "green",
+};
+
+const VISIBILITY_LABELS: Record<VisibilityStatus, string> = {
+  visible: "노출",
+  hidden: "숨김",
+};
+
+const VISIBILITY_TONES: Record<VisibilityStatus, import("../ui").BadgeTone> = {
+  visible: "green",
+  hidden: "neutral",
+};
+
+function parsedInteger(value: string) {
+  return parseIntegerInput(value);
+}
+
+function dailyLimitStatus(dailyLimit: number | null): DailyLimitStatus {
+  if (dailyLimit === null) return "unlimited";
+  return dailyLimit === 0 ? "sold_out" : "limited";
+}
+
+function dailyLimitLabel(dailyLimit: number | null) {
+  const status = dailyLimitStatus(dailyLimit);
+  return status === "unlimited"
+    ? DAILY_LIMIT_LABELS[status]
+    : `${dailyLimit?.toLocaleString("ko-KR")}${DAILY_LIMIT_LABELS[status]}`;
+}
+
+function remainingStatus(dailyLimit: number | null, reservedQuantity: number): RemainingStatus {
+  if (dailyLimit === null) return "unlimited";
+  const remaining = Math.max(0, dailyLimit - reservedQuantity);
+  if (remaining === 0) return "sold_out";
+  return remaining <= dailyLimit * 0.25 ? "low" : "available";
+}
+
+function remainingLabel(dailyLimit: number | null, reservedQuantity: number) {
+  const status = remainingStatus(dailyLimit, reservedQuantity);
+  if (status === "unlimited") return REMAINING_LABELS[status];
+  return `${Math.max(0, (dailyLimit ?? 0) - reservedQuantity).toLocaleString("ko-KR")}${REMAINING_LABELS[status]}`;
+}
+
+function draftFor(product: ProductRecord): ProductDraft {
+  return {
+    category: product.category,
+    name: product.name,
+    subtitle: product.subtitle,
+    description: product.description,
+    price: String(product.price),
+    displayWeight: product.displayWeight ?? "",
+    badge: product.badge ?? "",
+    imageUrl: product.imageUrl ?? "",
+    active: product.active,
+    dailyLimit: product.dailyLimit === null ? "" : String(product.dailyLimit),
+    version: product.version,
   };
-  const updateSeason=(id:string,key:keyof EditableSeason,value:string|boolean)=>{
-    setSeasons(current=>current.map(item=>item.id===id?{...item,[key]:value}:item));
+}
+
+function emptyDraft(category: string): ProductDraft {
+  return {
+    category,
+    name: "",
+    subtitle: "",
+    description: "",
+    price: "",
+    displayWeight: "",
+    badge: "",
+    imageUrl: "",
+    active: true,
+    dailyLimit: "",
+    version: "",
+  };
+}
+
+function productRows(catalog: CatalogResponse | null, settings: SettingsResponse | null) {
+  const revisions = new Map((settings?.productRevisions ?? []).map((item) => [item.id, item]));
+  const activeProducts = (catalog?.products ?? []).flatMap((product) => {
+    const revision = revisions.get(product.id);
+    if (!revision || !revision.active) return [];
+    return [{
+      id: product.id,
+      category: product.category,
+      name: product.name,
+      subtitle: product.subtitle,
+      description: product.description,
+      price: product.price,
+      displayWeight: product.customerDisplayWeight,
+      imageUrl: product.imageUrl,
+      badge: product.badge,
+      dailyLimit: product.dailyLimit,
+      sortOrder: revision.sortOrder,
+      active: revision.active,
+      version: revision.version,
+      reservedQuantity: product.reservedQuantity,
+    }];
+  });
+
+  return [...activeProducts, ...(settings?.inactiveProducts ?? [])]
+    .sort((left, right) => left.sortOrder - right.sortOrder || left.name.localeCompare(right.name, "ko-KR"));
+}
+
+function orderedProducts(
+  products: ProductRecord[],
+  categories: CategoryRecord[],
+  categoryOrder: Record<string, string[]>,
+) {
+  const categoryIndexes = new Map(categories.map((category, index) => [category.name, index]));
+
+  return [...products].sort((left, right) => {
+    if (left.category !== right.category) {
+      const leftIndex = categoryIndexes.get(left.category);
+      const rightIndex = categoryIndexes.get(right.category);
+      return (leftIndex ?? categories.length) - (rightIndex ?? categories.length)
+        || left.category.localeCompare(right.category, "ko-KR");
+    }
+
+    const order = categoryOrder[left.category];
+    if (order) {
+      const leftIndex = order.indexOf(left.id);
+      const rightIndex = order.indexOf(right.id);
+      return (leftIndex < 0 ? Number.MAX_SAFE_INTEGER : leftIndex) - (rightIndex < 0 ? Number.MAX_SAFE_INTEGER : rightIndex);
+    }
+
+    return left.sortOrder - right.sortOrder || left.name.localeCompare(right.name, "ko-KR");
+  });
+}
+
+function withCategoryOverrides(products: ProductRecord[], categoryAssignment: Record<string, string>) {
+  if (!Object.keys(categoryAssignment).length) return products;
+  return products.map((product) => {
+    const category = categoryAssignment[product.id];
+    return category && category !== product.category ? { ...product, category } : product;
+  });
+}
+
+function productGroups(products: ProductRecord[]) {
+  const groups = new Map<string, ProductRecord[]>();
+  for (const product of products) {
+    const group = groups.get(product.category) ?? [];
+    group.push(product);
+    groups.set(product.category, group);
+  }
+
+  return [...groups.entries()].map(([category, rows]) => ({ category, rows }));
+}
+
+async function settingsMutation(method: "PATCH" | "POST", payload: Record<string, unknown>, fallback: string) {
+  const response = await fetch("/api/settings", {
+    method,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const data = await response.json().catch(() => null) as { error?: string; removal?: string } | null;
+  if (!response.ok) throw new Error(data?.error ?? fallback);
+  return data;
+}
+
+export default function SettingsApp() {
+  const [query, setQuery] = useState("");
+  const [editing, setEditing] = useState<ProductRecord | null>(null);
+  const [draft, setDraft] = useState<ProductDraft | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [reordering, setReordering] = useState(false);
+  const [draggedProductId, setDraggedProductId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [categoryOrder, setCategoryOrder] = useState<Record<string, string[]>>({});
+  const [categoryAssignment, setCategoryAssignment] = useState<Record<string, string>>({});
+  const [bulkAction, setBulkAction] = useState<BulkAction>(null);
+  const [bulkDailyLimit, setBulkDailyLimit] = useState("");
+  const [bulkCategory, setBulkCategory] = useState("");
+  const [bulkActive, setBulkActive] = useState<"visible" | "hidden">("visible");
+  const [deletingProduct, setDeletingProduct] = useState<ProductRecord | null>(null);
+  const [categoriesOpen, setCategoriesOpen] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [categoryDrafts, setCategoryDrafts] = useState<Record<string, string>>({});
+  const [inlineCategoryEdit, setInlineCategoryEdit] = useState<CategoryRecord | null>(null);
+  const [inlineCategoryName, setInlineCategoryName] = useState("");
+  const [inlineCategorySaving, setInlineCategorySaving] = useState(false);
+  const inlineCategoryInput = useRef<HTMLInputElement>(null);
+  const [deletingCategory, setDeletingCategory] = useState<CategoryRecord | null>(null);
+  const [notice, setNotice] = useState("");
+  const {
+    data: catalog,
+    error: catalogError,
+    loading: catalogLoading,
+    reload: reloadCatalog,
+  } = useResource<CatalogResponse>("/api/products", 2500);
+  const {
+    data: settings,
+    error: settingsError,
+    loading: settingsLoading,
+    reload: reloadSettings,
+  } = useResource<SettingsResponse>("/api/settings", 2500);
+  const categories = settings?.categories ?? [];
+  const categoryNames = categories.map((category) => category.name);
+  const selectedBulkCategory = categoryNames.includes(bulkCategory) ? bulkCategory : categoryNames[0] ?? "";
+  const products = orderedProducts(withCategoryOverrides(productRows(catalog, settings), categoryAssignment), categories, categoryOrder);
+  const normalizedQuery = query.trim().toLocaleLowerCase("ko-KR");
+  const visibleProducts = normalizedQuery
+    ? products.filter((product) => `${product.name} ${product.subtitle} ${product.category}`.toLocaleLowerCase("ko-KR").includes(normalizedQuery))
+    : products;
+  const selectedProducts = products.filter((product) => selectedIds.includes(product.id));
+  const loading = catalogLoading || settingsLoading;
+  const error = catalogError ?? settingsError;
+
+  useEffect(() => {
+    if (!inlineCategoryEdit) return;
+    inlineCategoryInput.current?.focus();
+    inlineCategoryInput.current?.select();
+  }, [inlineCategoryEdit]);
+
+  const reload = async () => {
+    await Promise.all([reloadCatalog(), reloadSettings()]);
   };
 
-  const saveHeadline=async()=>{
-    setSaving("kiosk_headline");setNotice("");
-    try{
-      const response=await fetch("/api/settings",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({type:"app_setting",key:"kiosk_headline",value:headline.value,expectedVersion:headline.version})});
-      const data=await response.json() as {version?:string;updatedAt?:string;value?:string;error?:string};
-      if(!response.ok)throw new Error(data.error);
-      setHeadline(current=>({...current,value:data.value??current.value,version:data.version??current.version,updatedAt:data.updatedAt??current.updatedAt}));
-      setNotice("키오스크 상단 문구를 저장했습니다.");
-    }catch(caught){setNotice(caught instanceof Error?caught.message:"상단 문구를 저장하지 못했습니다.")}
-    finally{setSaving("")}
-  };
-  const saveProduct=async(item:EditableProduct)=>{
-    setSaving(item.id);setNotice("");
-    try{
-      const response=await fetch("/api/settings",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({type:"product",...item,expectedVersion:item.version})});
-      const data=await response.json() as {version?:number;updatedAt?:string;error?:string};
-      if(!response.ok)throw new Error(data.error);
-      setProducts(current=>current.map(product=>product.id===item.id?{...product,version:data.version??product.version+1,updatedAt:data.updatedAt??product.updatedAt}:product));
-      setNotice(item.name+" 상품 설정을 저장했습니다.");
-    }catch(caught){setNotice(caught instanceof Error?caught.message:"상품 설정을 저장하지 못했습니다.")}
-    finally{setSaving("")}
+  const openEditor = (product: ProductRecord) => {
+    setEditing(product);
+    setDraft(draftFor(product));
   };
 
-  const saveSeason=async(item:EditableSeason)=>{
-    setSaving(item.id);setNotice("");
-    try{
-      const response=await fetch("/api/settings",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({type:"season",...item,expectedVersion:item.version})});
-      const data=await response.json() as {version?:number;updatedAt?:string;error?:string};
-      if(!response.ok)throw new Error(data.error);
-      setSeasons(current=>current.map(season=>season.id===item.id?{...season,version:data.version??season.version+1,updatedAt:data.updatedAt??season.updatedAt}:season));
-      setNotice("판매 일정을 저장했습니다.");
-    }catch(caught){setNotice(caught instanceof Error?caught.message:"판매 일정을 저장하지 못했습니다.")}
-    finally{setSaving("")}
+  const openCreate = () => {
+    if (!categoryNames[0]) {
+      setNotice("상품을 추가하려면 카테고리를 먼저 등록해주세요.");
+      return;
+    }
+    setEditing(null);
+    setDraft(emptyDraft(categoryNames[0]));
   };
 
-  return <main className="settings-app">
-    <header className="settings-header"><a href="/kiosk"><img className="settings-brand-logo" src="/jeongilpum-logo.png" alt="정일품 정육식당 로고"/><span>정일품 정육식당 설정<small>운영자 전용</small></span></a></header>
-    <AppNav current="settings"/>
-    <section className="settings-intro"><small>APP SETTINGS</small><h1>앱에서 바로 수정하세요</h1><p>저장한 상품 정보와 판매 일정은 키오스크에 즉시 반영됩니다.</p></section>
-    {loading&&<div className="settings-loading">설정을 불러오고 있습니다…</div>}
-    {error&&<div className="access-error"><b>설정 화면에 연결할 수 없습니다</b><span>{error}</span><a href="/signin-with-chatgpt?return_to=/settings">운영자 로그인</a></div>}
-    {!loading&&!error&&<>
-      <section className="settings-section">
-        <div className="settings-title"><div><small>KIOSK MESSAGE</small><h2>메인 상단 문구</h2></div><p>저장하면 고객 키오스크를 다시 열거나 새로고침할 때 반영됩니다.</p></div>
-        <article className="app-setting-editor">
-          <label><span>상단 안내 문구</span><input value={headline.value} onChange={event=>setHeadline(current=>({...current,value:event.target.value}))} placeholder="좋은 선물을 골라주세요"/></label>
-          <button onClick={saveHeadline} disabled={saving==="kiosk_headline"||!headline.value.trim()}>{saving==="kiosk_headline"?"저장 중…":"상단 문구 저장"}</button>
-        </article>
+  const closeEditor = () => {
+    if (saving) return;
+    setEditing(null);
+    setDraft(null);
+  };
+
+  const updateDraft = <Key extends keyof ProductDraft>(key: Key, value: ProductDraft[Key]) => {
+    setDraft((current) => current ? { ...current, [key]: value } : current);
+  };
+
+  const clearPendingMove = (categoryNamesToClear: string[], productIds: string[] = []) => {
+    setCategoryOrder((current) => {
+      const next = { ...current };
+      for (const category of categoryNamesToClear) delete next[category];
+      return next;
+    });
+    if (!productIds.length) return;
+    setCategoryAssignment((current) => {
+      const next = { ...current };
+      for (const id of productIds) delete next[id];
+      return next;
+    });
+  };
+
+  const resetPendingMoves = () => {
+    setCategoryOrder({});
+    setCategoryAssignment({});
+  };
+
+  const runReorder = async (action: () => Promise<void>, rollback: () => void, errorFallback: string) => {
+    setReordering(true);
+    setNotice("");
+    try {
+      await action();
+      await reload();
+    } catch (caught) {
+      setNotice(caught instanceof Error ? caught.message : errorFallback);
+    } finally {
+      rollback();
+      setReordering(false);
+      setDraggedProductId(null);
+    }
+  };
+
+  const persistOrder = (category: string, rows: ProductRecord[]) => runReorder(
+    () => settingsMutation("PATCH", {
+      type: "product-reorder",
+      category,
+      items: rows.map((product) => ({ id: product.id, expectedVersion: product.version })),
+    }, "상품 순서를 저장하지 못했습니다.").then(() => undefined),
+    () => clearPendingMove([category]),
+    "상품 순서를 저장하지 못했습니다.",
+  );
+
+  const persistCategoryMove = (source: ProductRecord, targetCategory: string, orderedRows: ProductRecord[]) => runReorder(
+    async () => {
+      await settingsMutation("PATCH", {
+        type: "product-bulk",
+        action: "category",
+        items: [{ id: source.id, expectedVersion: source.version }],
+        category: targetCategory,
+      }, "카테고리를 변경하지 못했습니다.");
+      const [nextCatalog, nextSettings] = await Promise.all([reloadCatalog(), reloadSettings()]);
+      const refreshedById = new Map(
+        productRows(nextCatalog ?? null, nextSettings ?? null).map((product) => [product.id, product]),
+      );
+      const items = orderedRows
+        .map((product) => refreshedById.get(product.id))
+        .filter((product): product is ProductRecord => Boolean(product))
+        .map((product) => ({ id: product.id, expectedVersion: product.version }));
+      await settingsMutation("PATCH", { type: "product-reorder", category: targetCategory, items }, "상품 순서를 저장하지 못했습니다.");
+    },
+    () => clearPendingMove([source.category, targetCategory], [source.id]),
+    "카테고리를 변경하지 못했습니다.",
+  );
+
+  const relocateProduct = (sourceId: string, targetCategory: string, targetId: string | null) => {
+    if (reordering) return;
+    const source = products.find((product) => product.id === sourceId);
+    if (!source) return;
+    if (source.category === targetCategory && sourceId === targetId) return;
+
+    const destinationRows = products.filter((product) => product.category === targetCategory && product.id !== sourceId);
+    const targetIndex = targetId ? destinationRows.findIndex((product) => product.id === targetId) : -1;
+    const nextRows = [...destinationRows];
+    nextRows.splice(targetIndex < 0 ? nextRows.length : targetIndex, 0, source);
+    setCategoryOrder((current) => ({ ...current, [targetCategory]: nextRows.map((product) => product.id) }));
+
+    if (source.category === targetCategory) {
+      void persistOrder(targetCategory, nextRows);
+      return;
+    }
+
+    setCategoryAssignment((current) => ({ ...current, [sourceId]: targetCategory }));
+    void persistCategoryMove(source, targetCategory, nextRows);
+  };
+
+  const stepProduct = (productId: string, direction: -1 | 1) => {
+    const source = products.find((product) => product.id === productId);
+    if (!source) return;
+    const categoryRows = products.filter((product) => product.category === source.category);
+    const target = categoryRows[categoryRows.findIndex((product) => product.id === productId) + direction];
+    if (!target) return;
+    relocateProduct(productId, source.category, target.id);
+  };
+
+  const saveProduct = async () => {
+    if (!draft) return;
+    const price = parsedInteger(draft.price);
+    const dailyLimit = draft.dailyLimit.trim() ? parsedInteger(draft.dailyLimit) : null;
+
+    if (price === null || (draft.dailyLimit.trim() && dailyLimit === null)) {
+      setNotice("가격과 한정수량은 0 이상의 정수로 입력해주세요.");
+      return;
+    }
+
+    setSaving(true);
+    setNotice("");
+    try {
+      if (editing) {
+        await settingsMutation("PATCH", {
+          type: "product",
+          id: editing.id,
+          expectedVersion: draft.version,
+          category: draft.category,
+          name: draft.name,
+          subtitle: draft.subtitle,
+          description: draft.description,
+          price,
+          displayWeight: draft.displayWeight,
+          badge: draft.badge,
+          imageUrl: draft.imageUrl,
+          sortOrder: editing.sortOrder,
+          active: draft.active,
+          dailyLimit,
+        }, "상품을 저장하지 못했습니다.");
+      } else {
+        await settingsMutation("POST", {
+          type: "product",
+          category: draft.category,
+          name: draft.name,
+          subtitle: draft.subtitle,
+          description: draft.description,
+          price,
+          displayWeight: draft.displayWeight,
+          badge: draft.badge,
+          imageUrl: draft.imageUrl,
+          active: draft.active,
+          dailyLimit,
+        }, "상품을 추가하지 못했습니다.");
+      }
+      await reload();
+      setNotice(`${draft.name.trim()} 상품을 ${editing ? "저장" : "추가"}했습니다.`);
+      setEditing(null);
+      setDraft(null);
+    } catch (caught) {
+      setNotice(caught instanceof Error ? caught.message : "상품을 저장하지 못했습니다.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deleteProduct = async () => {
+    if (!deletingProduct) return;
+    setSaving(true);
+    setNotice("");
+    try {
+      const result = await settingsMutation("PATCH", {
+        type: "product-delete",
+        id: deletingProduct.id,
+        expectedVersion: deletingProduct.version,
+      }, "상품을 삭제하지 못했습니다.");
+      await reload();
+      setSelectedIds((current) => current.filter((id) => id !== deletingProduct.id));
+      setEditing(null);
+      setDraft(null);
+      setDeletingProduct(null);
+      setNotice(
+        result?.removal === "history-preserved"
+          ? `${deletingProduct.name} 상품을 목록에서 삭제했습니다. 주문 이력은 보존됩니다.`
+          : `${deletingProduct.name} 상품을 삭제했습니다.`,
+      );
+    } catch (caught) {
+      setNotice(caught instanceof Error ? caught.message : "상품을 삭제하지 못했습니다.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const saveBulkAction = async () => {
+    if (!bulkAction || !selectedProducts.length) return;
+    const dailyLimit = bulkDailyLimit.trim() ? parsedInteger(bulkDailyLimit) : null;
+    if (bulkAction === "daily-limit" && bulkDailyLimit.trim() && dailyLimit === null) {
+      setNotice("한정수량은 0 이상의 정수로 입력해주세요.");
+      return;
+    }
+    if (bulkAction === "category" && !selectedBulkCategory) {
+      setNotice("카테고리를 선택해주세요.");
+      return;
+    }
+
+    setSaving(true);
+    setNotice("");
+    try {
+      await settingsMutation("PATCH", {
+        type: "product-bulk",
+        action: bulkAction,
+        items: selectedProducts.map((product) => ({ id: product.id, expectedVersion: product.version })),
+        ...(bulkAction === "daily-limit" ? { dailyLimit } : {}),
+        ...(bulkAction === "category" ? { category: selectedBulkCategory } : {}),
+        ...(bulkAction === "active" ? { active: bulkActive === "visible" } : {}),
+      }, "선택한 상품을 변경하지 못했습니다.");
+      await reload();
+      setSelectedIds([]);
+      setBulkAction(null);
+      setNotice(`${selectedProducts.length}개 상품을 변경했습니다.`);
+    } catch (caught) {
+      setNotice(caught instanceof Error ? caught.message : "선택한 상품을 변경하지 못했습니다.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const createCategory = async () => {
+    const name = newCategoryName.trim();
+    if (!name) {
+      setNotice("카테고리 이름을 입력해주세요.");
+      return;
+    }
+
+    setSaving(true);
+    setNotice("");
+    try {
+      await settingsMutation("PATCH", { type: "category-create", name }, "카테고리를 추가하지 못했습니다.");
+      await reload();
+      resetPendingMoves();
+      setNewCategoryName("");
+      setNotice(`${name} 카테고리를 추가했습니다.`);
+    } catch (caught) {
+      setNotice(caught instanceof Error ? caught.message : "카테고리를 추가하지 못했습니다.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const persistCategoryName = async (category: CategoryRecord, name: string) => {
+    await settingsMutation("PATCH", {
+      type: "category-update",
+      id: category.id,
+      expectedVersion: category.version,
+      name,
+    }, "카테고리 이름을 저장하지 못했습니다.");
+    await reload();
+    resetPendingMoves();
+  };
+
+  const clearCategoryDraft = (categoryId: string) => {
+    setCategoryDrafts((current) => {
+      const next = { ...current };
+      delete next[categoryId];
+      return next;
+    });
+  };
+
+  const saveCategory = async (category: CategoryRecord) => {
+    const name = (categoryDrafts[category.id] ?? category.name).trim();
+    if (!name) {
+      setNotice("카테고리 이름을 입력해주세요.");
+      return;
+    }
+    if (name === category.name) return;
+
+    setSaving(true);
+    setNotice("");
+    try {
+      await persistCategoryName(category, name);
+      clearCategoryDraft(category.id);
+      setNotice(`${category.name} 카테고리를 ${name}(으)로 변경했습니다.`);
+    } catch (caught) {
+      setNotice(caught instanceof Error ? caught.message : "카테고리 이름을 저장하지 못했습니다.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const openInlineCategoryEditor = (category: CategoryRecord) => {
+    if (saving || inlineCategorySaving) return;
+    setInlineCategoryEdit(category);
+    setInlineCategoryName(category.name);
+    setNotice("");
+  };
+
+  const closeInlineCategoryEditor = () => {
+    if (inlineCategorySaving) return;
+    setInlineCategoryEdit(null);
+    setInlineCategoryName("");
+  };
+
+  const saveInlineCategory = async () => {
+    if (!inlineCategoryEdit || inlineCategorySaving) return;
+    const category = inlineCategoryEdit;
+    const name = inlineCategoryName.trim();
+
+    if (!name) {
+      closeInlineCategoryEditor();
+      setNotice("카테고리 이름을 입력해주세요.");
+      return;
+    }
+    if (name === category.name) {
+      closeInlineCategoryEditor();
+      return;
+    }
+
+    setInlineCategorySaving(true);
+    setNotice("");
+    try {
+      await persistCategoryName(category, name);
+      clearCategoryDraft(category.id);
+      setNotice(`${category.name} 카테고리를 ${name}(으)로 변경했습니다.`);
+    } catch (caught) {
+      setNotice(caught instanceof Error ? caught.message : "카테고리 이름을 저장하지 못했습니다.");
+    } finally {
+      setInlineCategoryEdit(null);
+      setInlineCategoryName("");
+      setInlineCategorySaving(false);
+    }
+  };
+
+  const deleteCategory = async () => {
+    if (!deletingCategory) return;
+    setSaving(true);
+    setNotice("");
+    try {
+      await settingsMutation("PATCH", {
+        type: "category-delete",
+        id: deletingCategory.id,
+        expectedVersion: deletingCategory.version,
+      }, "카테고리를 삭제하지 못했습니다.");
+      await reload();
+      resetPendingMoves();
+      setDeletingCategory(null);
+      setNotice(`${deletingCategory.name} 카테고리를 삭제했습니다.`);
+    } catch (caught) {
+      setNotice(caught instanceof Error ? caught.message : "카테고리를 삭제하지 못했습니다.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const columns: DataTableColumn<ProductRecord>[] = [
+    {
+      id: "thumbnail",
+      header: "사진",
+      cell: (product) => {
+        return <span className="settings-product-thumb">
+          {product.imageUrl
+            ? <img src={product.imageUrl} alt={`${product.name} 상품 사진`} />
+            : <ImageOff size={16} aria-hidden="true" />}
+        </span>;
+      },
+      width: "64px",
+      align: "center",
+    },
+    {
+      id: "name",
+      header: "이름",
+      cell: (product) => <span className="settings-product-name"><b>{product.name}</b>{product.subtitle ? <small>{product.subtitle}</small> : null}</span>,
+      width: "250px",
+    },
+    {
+      id: "price",
+      header: "가격",
+      cell: (product) => won(product.price),
+      width: "120px",
+      align: "right",
+    },
+    {
+      id: "daily-limit",
+      header: "한정수량",
+      cell: (product) => {
+        const status = dailyLimitStatus(product.dailyLimit);
+        return <Badge tone={DAILY_LIMIT_TONES[status]}>{dailyLimitLabel(product.dailyLimit)}</Badge>;
+      },
+      width: "120px",
+      align: "center",
+    },
+    {
+      id: "remaining",
+      header: "잔여",
+      cell: (product) => {
+        const status = remainingStatus(product.dailyLimit, product.reservedQuantity);
+        return <Badge tone={REMAINING_TONES[status]}>{remainingLabel(product.dailyLimit, product.reservedQuantity)}</Badge>;
+      },
+      width: "105px",
+      align: "center",
+    },
+    {
+      id: "active",
+      header: "노출",
+      cell: (product) => {
+        const status: VisibilityStatus = product.active ? "visible" : "hidden";
+        return <Badge tone={VISIBILITY_TONES[status]}>{VISIBILITY_LABELS[status]}</Badge>;
+      },
+      width: "90px",
+      align: "center",
+    },
+  ];
+
+  const bulkTitle = bulkAction === "daily-limit"
+    ? "한정수량 일괄 설정"
+    : bulkAction === "category"
+      ? "카테고리 일괄 변경"
+      : "노출 상태 일괄 변경";
+  const categoryColumns: DataTableColumn<CategoryRecord>[] = [
+    {
+      id: "name",
+      header: "카테고리",
+      cell: (category) => {
+        const categoryName = categoryDrafts[category.id] ?? category.name;
+        return (
+          <input
+            className="ui-field__control"
+            aria-label={`${category.name} 카테고리 이름`}
+            value={categoryName}
+            onChange={(event) => setCategoryDrafts((current) => ({ ...current, [category.id]: event.target.value }))}
+          />
+        );
+      },
+    },
+    {
+      id: "product-count",
+      header: "상품",
+      cell: (category) => <span style={{ color: "var(--muted)" }}>{category.productCount}개</span>,
+      width: "84px",
+    },
+    {
+      id: "actions",
+      header: "관리",
+      cell: (category) => {
+        const categoryName = categoryDrafts[category.id] ?? category.name;
+        return (
+          <span style={{ display: "inline-flex", gap: "8px" }}>
+            <Button variant="ghost" size="sm" onClick={() => void saveCategory(category)} disabled={saving || categoryName.trim() === category.name}>이름 저장</Button>
+            <Button variant="danger" size="sm" leadingIcon={<Trash2 />} onClick={() => setDeletingCategory(category)} disabled={saving}>삭제</Button>
+          </span>
+        );
+      },
+      width: "210px",
+      align: "right",
+    },
+  ];
+
+  return <div className="settings-app">
+    <OperationsPageHeader title="정일품 상품 설정" description="상품 관리" href="/settings" />
+    <AppNav current="settings" />
+    <main className="settings-main">
+      <section className="settings-section settings-toolbar">
+        <Toolbar
+          search={{
+            value: query,
+            onChange: setQuery,
+            placeholder: "상품명, 부제, 카테고리 검색",
+            label: "상품 검색",
+          }}
+          actions={(
+            <>
+              <Button variant="ghost" size="sm" leadingIcon={<FolderPlus />} onClick={() => setCategoriesOpen(true)}>카테고리 관리</Button>
+              <Button size="sm" leadingIcon={<Plus />} disabled={!categoryNames.length} onClick={openCreate}>새 상품 추가</Button>
+            </>
+          )}
+        />
       </section>
-      <section className="settings-section">
-        <div className="settings-title"><div><small>SEASON</small><h2>판매 일정</h2></div><p>현재 운영 중인 명절 예약 기간입니다.</p></div>
-        {seasons.map(item=><article className="season-editor" key={item.id}>
-          <label><span>시즌명</span><input value={item.name} onChange={e=>updateSeason(item.id,"name",e.target.value)}/></label>
-          <label><span>명절 날짜</span><input type="date" value={item.holidayDate} onChange={e=>updateSeason(item.id,"holidayDate",e.target.value)}/></label>
-          <label><span>판매 시작</span><input type="date" value={item.salesStartDate} onChange={e=>updateSeason(item.id,"salesStartDate",e.target.value)}/></label>
-          <label><span>판매 종료</span><input type="date" value={item.salesEndDate} onChange={e=>updateSeason(item.id,"salesEndDate",e.target.value)}/></label>
-          <label className="settings-toggle"><input type="checkbox" checked={item.active} onChange={e=>updateSeason(item.id,"active",e.target.checked)}/><span>현재 시즌으로 사용</span></label>
-          <button onClick={()=>saveSeason(item)} disabled={saving===item.id}>{saving===item.id?"저장 중…":"판매 일정 저장"}</button>
-        </article>)}
-      </section>
-      <section className="settings-section">
-        <div className="settings-title"><div><small>PRODUCTS</small><h2>상품 관리</h2></div><p>가격은 숫자로 입력하고, 사진 URL은 준비된 뒤 추가할 수 있습니다.</p></div>
-        <div className="product-editors">{products.map(item=><article className="product-editor" key={item.id}>
-          <header><div><small>{item.code}</small><h3>{item.name}</h3></div><label className="settings-toggle"><input type="checkbox" checked={item.active} onChange={e=>updateProduct(item.id,"active",e.target.checked)}/><span>{item.active?"노출 중":"숨김"}</span></label></header>
-          <div className="editor-grid">
-            <label><span>상품명</span><input value={item.name} onChange={e=>updateProduct(item.id,"name",e.target.value)}/></label>
-            <label><span>카테고리</span><select value={item.category} onChange={e=>updateProduct(item.id,"category",e.target.value)}>{["진공세트","프리미엄","LA갈비","뼈세트","O'meat"].map(category=><option key={category}>{category}</option>)}</select></label>
-            <label><span>가격</span><input type="number" min="1" value={item.price} onChange={e=>updateProduct(item.id,"price",Number(e.target.value))}/></label>
-            <label><span>노출 순서</span><input type="number" value={item.displayOrder} onChange={e=>updateProduct(item.id,"displayOrder",Number(e.target.value))}/></label>
-            <label><span>구성·중량</span><input value={item.customerDisplayWeight??""} onChange={e=>updateProduct(item.id,"customerDisplayWeight",e.target.value)}/></label>
-            <label><span>배지</span><input value={item.badge??""} onChange={e=>updateProduct(item.id,"badge",e.target.value)} placeholder="예: BEST"/></label>
-            <label className="wide"><span>한 줄 설명</span><input value={item.subtitle} onChange={e=>updateProduct(item.id,"subtitle",e.target.value)}/></label>
-            <label className="wide"><span>상세 설명</span><textarea value={item.description} onChange={e=>updateProduct(item.id,"description",e.target.value)}/></label>
-            <label className="wide"><span>제품 사진 URL</span><input value={item.imageUrl??""} onChange={e=>updateProduct(item.id,"imageUrl",e.target.value)} placeholder="https://..."/></label>
+      {selectedProducts.length ? <section className="settings-section">
+        <div className="settings-bulk-actions" aria-label="선택 상품 일괄 처리">
+          <strong>{selectedProducts.length}개 선택</strong>
+          <div>
+            <Button variant="ghost" size="sm" onClick={() => setBulkAction("daily-limit")}>한정수량 일괄 설정</Button>
+            <Button variant="ghost" size="sm" onClick={() => setBulkAction("category")}>카테고리 변경</Button>
+            <Button variant="ghost" size="sm" onClick={() => setBulkAction("active")}>노출 / 숨김 전환</Button>
           </div>
-          <button className="save-product" onClick={()=>saveProduct(item)} disabled={saving===item.id}>{saving===item.id?"저장 중…":"이 상품 저장"}</button>
-        </article>)}</div>
-      </section>
-    </>}
-    {notice&&<div className="ops-toast" role="status">{notice}<button onClick={()=>setNotice("")} aria-label="알림 닫기">×</button></div>}
-  </main>;
+        </div>
+      </section> : null}
+      {loading && !catalog && !settings ? <div className="settings-loading">상품을 불러오고 있습니다.</div> : null}
+      {error ? <div className="access-error" role="alert"><b>상품 관리 화면에 연결할 수 없습니다</b><span>{error.message}</span></div> : null}
+      {!error && (catalog || settings) ? <section className="settings-section">
+        <DataTable
+          columns={columns}
+          groups={productGroups(visibleProducts).map(({ category, rows }) => {
+            const categoryRecord = categories.find((item) => item.name === category);
+            const editingInline = inlineCategoryEdit?.id === categoryRecord?.id;
+            return {
+              id: category,
+              header: <div className="settings-category-heading">
+                <div className="settings-category-heading__title">
+                  {editingInline ? <div className="settings-category-heading__form">
+                    <input
+                      aria-label={`${category} 카테고리 이름`}
+                      disabled={inlineCategorySaving}
+                      ref={inlineCategoryInput}
+                      value={inlineCategoryName}
+                      onChange={(event) => setInlineCategoryName(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Escape") {
+                          event.preventDefault();
+                          closeInlineCategoryEditor();
+                          return;
+                        }
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          void saveInlineCategory();
+                        }
+                      }}
+                    />
+                    <Button
+                      aria-label={`${category} 카테고리 이름 저장`}
+                      className="settings-category-heading__edit"
+                      disabled={inlineCategorySaving}
+                      iconOnly
+                      leadingIcon={<Save />}
+                      size="sm"
+                      title="카테고리 이름 저장"
+                      variant="ghost"
+                      onClick={() => void saveInlineCategory()}
+                    />
+                  </div> : <>
+                    <h2>{category}</h2>
+                    {categoryRecord ? <Button
+                      aria-label={`${category} 카테고리 이름 수정`}
+                      className="settings-category-heading__edit"
+                      disabled={saving || inlineCategorySaving}
+                      iconOnly
+                      leadingIcon={<Pencil />}
+                      size="sm"
+                      title="카테고리 이름 수정"
+                      variant="ghost"
+                      onClick={() => openInlineCategoryEditor(categoryRecord)}
+                    /> : null}
+                  </>}
+                </div>
+                <span>{rows.length}개</span>
+              </div>,
+              rows,
+            };
+          })}
+          getRowId={(product) => product.id}
+          onRowClick={openEditor}
+          onRowDragOver={(product, event) => {
+            if (draggedProductId && draggedProductId !== product.id) event.preventDefault();
+          }}
+          onRowDrop={(product, event) => {
+            event.preventDefault();
+            const sourceId = event.dataTransfer.getData("text/plain") || draggedProductId;
+            if (sourceId) relocateProduct(sourceId, product.category, product.id);
+          }}
+          onGroupDragOver={(group, event) => {
+            if (draggedProductId) event.preventDefault();
+          }}
+          onGroupDrop={(group, event) => {
+            event.preventDefault();
+            const sourceId = event.dataTransfer.getData("text/plain") || draggedProductId;
+            if (sourceId) relocateProduct(sourceId, group.id, null);
+          }}
+          onRowDragHandleStart={(product, event) => {
+            event.stopPropagation();
+            event.dataTransfer.effectAllowed = "move";
+            event.dataTransfer.setData("text/plain", product.id);
+            setDraggedProductId(product.id);
+          }}
+          onRowDragHandleEnd={() => setDraggedProductId(null)}
+          onRowDragHandleKeyDown={(product, event) => {
+            event.stopPropagation();
+            if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+            event.preventDefault();
+            stepProduct(product.id, event.key === "ArrowUp" ? -1 : 1);
+          }}
+          rowDragHandleDisabled={() => reordering}
+          getRowDragHandleLabel={(product) => `${product.name} 순서 이동, 화살표 키로 같은 카테고리 내에서 이동`}
+          selectedIds={selectedIds}
+          onSelectedIdsChange={setSelectedIds}
+          emptyMessage="검색 조건에 맞는 상품이 없습니다."
+          ariaLabel="상품 목록"
+        />
+      </section> : null}
+    </main>
+    <Modal
+      open={Boolean(draft)}
+      title={editing ? `${editing.name} 수정` : "새 상품 추가"}
+      onClose={closeEditor}
+      footer={<>
+        {editing ? <Button variant="danger" leadingIcon={<Trash2 />} onClick={() => setDeletingProduct(editing)} disabled={saving}>삭제</Button> : null}
+        <Button variant="ghost" onClick={closeEditor} disabled={saving}>취소</Button>
+        <Button leadingIcon={<Save />} onClick={() => void saveProduct()} disabled={saving}>{saving ? "저장 중" : editing ? "저장" : "추가"}</Button>
+      </>}
+    >
+      {draft ? <div className="settings-editor-grid">
+        <FieldInput id="product-name" label="이름" value={draft.name} onChange={(event) => updateDraft("name", event.target.value)} />
+        <FieldSelect id="product-category" label="카테고리" value={draft.category} onChange={(event) => updateDraft("category", event.target.value)}>
+          {categoryNames.map((category) => <option key={category} value={category}>{category}</option>)}
+        </FieldSelect>
+        <FieldInput id="product-price" label="가격" format="number" value={draft.price} onValueChange={(value) => updateDraft("price", value)} />
+        <FieldInput id="product-weight" label="중량" value={draft.displayWeight} onChange={(event) => updateDraft("displayWeight", event.target.value)} placeholder="예: 1.8kg" />
+        <FieldInput className="settings-editor-grid__wide" id="product-subtitle" label="부제" value={draft.subtitle} onChange={(event) => updateDraft("subtitle", event.target.value)} />
+        <FieldTextarea className="settings-editor-grid__wide" id="product-description" label="설명" value={draft.description} onChange={(event) => updateDraft("description", event.target.value)} />
+        <FieldInput id="product-badge" label="뱃지" value={draft.badge} onChange={(event) => updateDraft("badge", event.target.value)} placeholder="예: BEST" />
+        <FieldInput
+          id="product-daily-limit"
+          label="한정수량"
+          hint="비우면 무제한입니다."
+          value={draft.dailyLimit}
+          format="number"
+          onValueChange={(value) => updateDraft("dailyLimit", value)}
+        />
+        <FieldInput
+          className="settings-editor-grid__wide"
+          id="product-image-url"
+          label="이미지"
+          value={draft.imageUrl}
+          onChange={(event) => updateDraft("imageUrl", event.target.value)}
+          placeholder="/products/example.webp 또는 https://..."
+        />
+        <div className="settings-editor-grid__wide">
+          {draft.imageUrl.trim() ? <img
+            className="settings-image-preview"
+            src={draft.imageUrl.trim()}
+            alt={`${draft.name || editing?.name || "새 상품"} 이미지 미리보기`}
+          /> : <Badge tone="neutral">표시할 이미지가 없습니다.</Badge>}
+        </div>
+        <Field id="product-active" label="키오스크 노출">
+          <span className="settings-toggle">
+            <input id="product-active" type="checkbox" checked={draft.active} onChange={(event) => updateDraft("active", event.target.checked)} />
+            <span>{draft.active ? "노출" : "숨김"}</span>
+          </span>
+        </Field>
+      </div> : null}
+    </Modal>
+    <Modal
+      open={Boolean(deletingProduct)}
+      title="상품 삭제"
+      description="상품은 상품 관리와 키오스크 목록에서 제거됩니다. 주문, 작업, 패키지 이력이 있으면 해당 이력을 보존한 채 목록에서만 제거합니다."
+      onClose={() => {
+        if (!saving) setDeletingProduct(null);
+      }}
+      footer={<>
+        <Button variant="ghost" onClick={() => setDeletingProduct(null)} disabled={saving}>취소</Button>
+        <Button variant="danger" leadingIcon={<Trash2 />} onClick={() => void deleteProduct()} disabled={saving}>{saving ? "삭제 중" : "삭제"}</Button>
+      </>}
+    >
+      {deletingProduct ? <p className="settings-confirmation">{deletingProduct.name} 상품을 삭제하시겠습니까?</p> : null}
+    </Modal>
+    <Modal
+      open={Boolean(bulkAction)}
+      title={bulkTitle}
+      onClose={() => {
+        if (!saving) setBulkAction(null);
+      }}
+      footer={<><Button variant="ghost" onClick={() => setBulkAction(null)} disabled={saving}>취소</Button><Button onClick={() => void saveBulkAction()} disabled={saving}>{saving ? "저장 중" : "적용"}</Button></>}
+    >
+      {bulkAction === "daily-limit" ? <FieldInput
+        id="bulk-daily-limit"
+        label="한정수량"
+        hint="비우면 무제한입니다."
+        value={bulkDailyLimit}
+        format="number"
+        onValueChange={setBulkDailyLimit}
+      /> : null}
+      {bulkAction === "category" ? <FieldSelect id="bulk-category" label="카테고리" value={selectedBulkCategory} onChange={(event) => setBulkCategory(event.target.value)}>
+        {categoryNames.map((category) => <option key={category} value={category}>{category}</option>)}
+      </FieldSelect> : null}
+      {bulkAction === "active" ? <FieldSelect id="bulk-active" label="노출 상태" value={bulkActive} onChange={(event) => setBulkActive(event.target.value as "visible" | "hidden")}>
+        <option value="visible">노출</option>
+        <option value="hidden">숨김</option>
+      </FieldSelect> : null}
+    </Modal>
+    <Modal
+      open={categoriesOpen}
+      title="카테고리 관리"
+      onClose={() => {
+        if (!saving) setCategoriesOpen(false);
+      }}
+      footer={<Button variant="ghost" onClick={() => setCategoriesOpen(false)} disabled={saving}>닫기</Button>}
+    >
+      <div className="settings-category-manager">
+        <div className="settings-category-create">
+          <FieldInput
+            id="new-category-name"
+            label="새 카테고리 이름"
+            value={newCategoryName}
+            onChange={(event) => setNewCategoryName(event.target.value)}
+          />
+          <Button leadingIcon={<Plus />} onClick={() => void createCategory()} disabled={saving}>카테고리 추가</Button>
+        </div>
+        <DataTable
+          ariaLabel="카테고리 목록"
+          rows={categories}
+          columns={categoryColumns}
+          getRowId={(category) => category.id}
+          emptyMessage="등록된 카테고리가 없습니다."
+        />
+      </div>
+    </Modal>
+    <Modal
+      open={Boolean(deletingCategory)}
+      title="카테고리 삭제"
+      description="상품이 하나라도 남아 있으면 카테고리를 삭제할 수 없습니다."
+      onClose={() => {
+        if (!saving) setDeletingCategory(null);
+      }}
+      footer={<>
+        <Button variant="ghost" onClick={() => setDeletingCategory(null)} disabled={saving}>취소</Button>
+        <Button variant="danger" leadingIcon={<Trash2 />} onClick={() => void deleteCategory()} disabled={saving}>{saving ? "삭제 중" : "삭제"}</Button>
+      </>}
+    >
+      {deletingCategory ? <p className="settings-confirmation">{deletingCategory.name} 카테고리를 삭제하시겠습니까?</p> : null}
+    </Modal>
+    {notice ? <div className="ops-toast" role="status">{notice}<button onClick={() => setNotice("")} aria-label="알림 닫기">×</button></div> : null}
+  </div>;
 }

@@ -1,263 +1,484 @@
-/* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import AppNav from "./AppNav";
-import { assemblePackage, fetchWorkshopOrders, reassignCompletedPackage, runWorkshopAction } from "../lib/workshop-client";
 import {
-  aggregateWorkshopProducts,
-  arrivalTimingLabel,
-  dueSoonLabel,
-  filterWorkshopOrdersByProduct,
-  isWorkshopDueSoon,
-  pickupUrgency,
-  sortTimelineOrders,
-  sortWorkshopOrders,
-  summarizeWorkshopOrders,
-  workshopStatusLabel,
-  type WorkshopAction,
-  type WorkshopTab,
-} from "../lib/workshop-operations";
-import type { SubstituteCandidate, WorkshopOrder } from "../lib/workshop-types";
-import { operationalDateFromSearch } from "../lib/operational-date";
+  ClipboardList,
+  Factory,
+  Package,
+  Route,
+  ScanLine,
+} from "lucide-react";
+import { useState } from "react";
+import type { ReactNode } from "react";
+import type { DataTableColumn } from "../ui";
+import AppNav from "./AppNav";
+import {
+  Button,
+  DataTable,
+  DateRangeNavigator,
+  Modal,
+  OperationsPageHeader,
+  Tabs,
+  Toolbar,
+  useResource,
+} from "../ui";
+import {
+  workStatusLabel,
+  type WorkStatus,
+} from "../lib/work-status";
+import WorkItemEditor, {
+  toWorkItemChanges,
+  type EditableWorkItem,
+  type WorkItemDraft,
+} from "./WorkItemEditor";
+import WorkStatusSelect from "./WorkStatusSelect";
 import "../workshop-flow.css";
 
-const todayInSeoul = () => {
-  const parts = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
+type WorkItem = EditableWorkItem & {
+  deliveryMethod: "onsite_reservation" | "delivery";
+  address: string;
+  events: Array<{
+    id: string;
+    type: string;
+    fromValue: string | null;
+    toValue: string | null;
+    createdAt: string;
+  }>;
+};
+
+type ProductTotal = {
+  productId: string;
+  productName: string;
+  totalQuantity: number;
+  completedQuantity: number;
+  pendingQuantity: number;
+  dailyLimit: number | null;
+};
+
+type WorkshopResponse = {
+  onsite?: WorkItem[];
+  delivery?: WorkItem[];
+  products?: ProductTotal[];
+};
+
+type WorkshopTab = "onsite" | "delivery";
+
+const productTotalColumns: DataTableColumn<ProductTotal>[] = [
+  {
+    id: "product",
+    header: "상품",
+    cell: (product) => product.productName,
+    rowHeader: true,
+  },
+  {
+    id: "total",
+    header: "전체",
+    cell: (product) => `${product.totalQuantity.toLocaleString()}개`,
+  },
+  {
+    id: "completed",
+    header: "완료",
+    cell: (product) => `${product.completedQuantity.toLocaleString()}개`,
+  },
+  {
+    id: "pending",
+    header: "남은 작업",
+    cell: (product) => `${product.pendingQuantity.toLocaleString()}개`,
+  },
+  {
+    id: "daily-limit",
+    header: "일일 한도",
+    cell: (product) => (
+      product.dailyLimit === null
+        ? "미설정"
+        : `${product.dailyLimit.toLocaleString()}개${product.totalQuantity > product.dailyLimit ? " 초과" : ""}`
+    ),
+  },
+];
+
+function todayInSeoul() {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
   const value = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
   return `${value("year")}-${value("month")}-${value("day")}`;
-};
-const moveDate = (value: string, days: number) => {
-  const [year, month, day] = value.split("-").map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day + days));
-  return [date.getUTCFullYear(), String(date.getUTCMonth() + 1).padStart(2, "0"), String(date.getUTCDate()).padStart(2, "0")].join("-");
-};
-const dateHeading = (value: string) => {
-  const [year, month, day] = value.split("-").map(Number);
-  const weekday = ["일", "월", "화", "수", "목", "금", "토"][new Date(Date.UTC(year, month - 1, day)).getUTCDay()];
-  return `${year}년 ${month}월 ${day}일 (${weekday})`;
-};
-const nextDueLabel = (value: string | null) => !value ? "완료" : value.includes("T") ? value.slice(11, 16) : `[택배] ${value}`;
-const shortDateTime = (value: string) => new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(value));
-const eventLabel: Record<string, string> = {
-  order_submitted: "주문 접수",
-  status_changed: "주문 상태 변경",
-  CUSTOMER_ARRIVED: "고객 도착",
-  WORK_ACCEPTED: "작업 수락",
-  WORK_STARTED: "작업 시작",
-  WORK_COMPLETED: "상품 준비완료",
-  order_changed: "주문 변경",
-  order_updated: "주문 변경",
-  items_changed: "상품 변경",
-  fulfillment_changed: "수령방법 변경",
-  schedule_changed: "일정 변경",
-  change_acknowledged: "변경 확인",
-  fulfillment_assigned: "수령 일정 지정",
-  PACKAGE_REASSIGNED: "대체 완성품 재배정",
-};
+}
+
+function formatTime(value: string) {
+  return value.slice(11, 16);
+}
+
+function workItemGroups(items: WorkItem[], orderByTime: boolean) {
+  const byProduct = new Map<string, WorkItem[]>();
+  for (const item of items) {
+    const rows = byProduct.get(item.productName) ?? [];
+    rows.push(item);
+    byProduct.set(item.productName, rows);
+  }
+
+  const grouped = [...byProduct.entries()].map(([productName, rows]) => {
+    const sortedRows = [...rows].sort((left, right) => left.dueAt.localeCompare(right.dueAt) || left.id.localeCompare(right.id));
+    return { productName, rows: sortedRows };
+  });
+
+  grouped.sort((left, right) => {
+    if (orderByTime) {
+      return (left.rows[0]?.dueAt ?? "").localeCompare(right.rows[0]?.dueAt ?? "");
+    }
+    return left.productName.localeCompare(right.productName, "ko-KR", { numeric: true });
+  });
+
+  return grouped.map(({ productName, rows }) => ({
+    id: productName,
+    header: `${productName} · ${rows.reduce((total, item) => total + item.quantity, 0).toLocaleString()}개 · ${rows.length}건`,
+    rows,
+  }));
+}
 
 export default function WorkshopApp() {
-  const [orders, setOrders] = useState<WorkshopOrder[]>([]);
-  const [selectedDate, setSelectedDate] = useState(todayInSeoul);
-  const [tab, setTab] = useState<WorkshopTab>("timeline");
-  const [selectedOrder, setSelectedOrder] = useState<WorkshopOrder | null>(null);
-  const [productFilterId, setProductFilterId] = useState<string | null>(null);
-  const [showCompleted, setShowCompleted] = useState(false);
-  const [showAllTimeline, setShowAllTimeline] = useState(false);
-  const [error, setError] = useState("");
+  const [date, setDate] = useState(todayInSeoul);
+  const [tab, setTab] = useState<WorkshopTab>("onsite");
+  const [onsite, setOnsite] = useState<WorkItem[]>([]);
+  const [delivery, setDelivery] = useState<WorkItem[]>([]);
+  const [products, setProducts] = useState<ProductTotal[]>([]);
+  const [selected, setSelected] = useState<WorkItem | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkActionModalOpen, setBulkActionModalOpen] = useState(false);
+  const [bulkStatus, setBulkStatus] = useState<WorkStatus>("confirmed");
+  const [busyIds, setBusyIds] = useState<string[]>([]);
   const [notice, setNotice] = useState("");
-  const [refreshing, setRefreshing] = useState(false);
-  const [busyOrderId, setBusyOrderId] = useState("");
-  const [busyPackageId, setBusyPackageId] = useState("");
-  const [busyAssemblyId, setBusyAssemblyId] = useState("");
-  const [lastSync, setLastSync] = useState("");
-  const requestSequence = useRef(0);
+  const [error, setError] = useState("");
+  const { reload } = useResource<WorkshopResponse>(
+    `/api/workshop/orders?date=${encodeURIComponent(date)}`,
+    2500,
+    {
+      onData: (data) => {
+        const nextOnsite = data.onsite ?? [];
+        const nextDelivery = data.delivery ?? [];
+        const nextItems = [...nextOnsite, ...nextDelivery];
+        setOnsite(nextOnsite);
+        setDelivery(nextDelivery);
+        setProducts(data.products ?? []);
+        setSelectedIds((current) => current.filter((id) => nextItems.some((item) => item.id === id)));
+        setSelected((current) => {
+          if (!current) return null;
+          return nextItems.find((item) => item.id === current.id) ?? null;
+        });
+        setError("");
+      },
+      onError: (resourceError) => setError(resourceError.message || "작업 목록을 불러오지 못했습니다."),
+    },
+  );
 
-  useEffect(() => {
-    const queryDate = operationalDateFromSearch(window.location.search);
-    if (queryDate) setSelectedDate(queryDate);
-  }, []);
-
-  const load = useCallback(async (silent = false) => {
-    const requestId = ++requestSequence.current;
-    if (!silent) setRefreshing(true);
-    try {
-      const result = await fetchWorkshopOrders(selectedDate);
-      if (requestId !== requestSequence.current) return;
-      setOrders(result);
-      setSelectedOrder((current) => current ? result.find((order) => order.id === current.id) ?? current : null);
-      setError("");
-      setLastSync(new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(new Date()));
-    } catch (caught) {
-      if (requestId === requestSequence.current) setError(caught instanceof Error ? caught.message : "작업 목록을 불러오지 못했습니다.");
-    } finally {
-      if (requestId === requestSequence.current) setRefreshing(false);
-    }
-  }, [selectedDate]);
-
-  useEffect(() => {
-    const frame = requestAnimationFrame(() => void load());
-    const timer = setInterval(() => void load(true), 2500);
-    const sync = () => void load(true);
-    window.addEventListener("focus", sync);
-    window.addEventListener("online", sync);
-    return () => {
-      cancelAnimationFrame(frame);
-      clearInterval(timer);
-      window.removeEventListener("focus", sync);
-      window.removeEventListener("online", sync);
-    };
-  }, [load]);
-
-  const perform = async (order: WorkshopOrder, action: WorkshopAction) => {
-    setBusyOrderId(order.id);
-    try {
-      const result = await runWorkshopAction(order, action);
-      setNotice(result.alreadyApplied ? "이미 처리된 작업입니다. 최신 상태를 불러왔습니다." : action === "accept" ? "작업을 수락했습니다." : action === "start" ? "작업을 시작했습니다." : "상품 준비완료로 표시했습니다.");
-      await load();
-    } catch (caught) {
-      setNotice(caught instanceof Error ? caught.message : "작업 상태를 변경하지 못했습니다.");
-      await load(true);
-    } finally {
-      setBusyOrderId("");
-    }
+  const openDetail = (item: WorkItem) => {
+    setSelected(item);
   };
 
-  const performReassignment = async (order: WorkshopOrder, candidate: SubstituteCandidate) => {
-    setBusyPackageId(candidate.packageId);
+  const updateWorkStatuses = async (
+    items: WorkItem[],
+    status: WorkStatus,
+    successMessage = `${workStatusLabel(status)} 상태로 변경했습니다.`,
+  ) => {
+    const targets = items.filter((item) => item.workStatus !== status && !busyIds.includes(item.id));
+    if (!targets.length) {
+      setNotice("변경할 작업이 없습니다.");
+      return;
+    }
+
+    setBusyIds((current) => [...new Set([...current, ...targets.map((item) => item.id)])]);
+    setError("");
+    setNotice("");
+
     try {
-      const result = await reassignCompletedPackage(order, candidate);
-      setNotice(result.alreadyApplied ? "이미 적용된 재배정입니다. 최신 상태를 불러왔습니다." : "대체 완성품을 적용했습니다. 두 주문의 생산 현황을 다시 계산했습니다.");
-      await load();
+      const response = await fetch("/api/work-items/bulk", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "status",
+          workStatus: status,
+          items: targets.map((item) => ({
+            id: item.id,
+            expectedVersion: item.version,
+          })),
+          idempotencyKey: crypto.randomUUID(),
+        }),
+      });
+      const data = await response.json().catch(() => null) as { error?: string };
+      if (!response.ok) throw new Error(data?.error || "작업 상태를 변경하지 못했습니다.");
+      await reload({ silent: true });
+      setSelectedIds((current) => current.filter((id) => !targets.some((item) => item.id === id)));
+      setNotice(targets.length === 1 ? successMessage : `${targets.length}개 작업 상태를 ${workStatusLabel(status)}으로 변경했습니다.`);
     } catch (caught) {
-      setNotice(caught instanceof Error ? caught.message : "대체 완성품을 적용하지 못했습니다.");
-      await load(true);
+      setError(caught instanceof Error ? caught.message : "작업 상태를 변경하지 못했습니다.");
     } finally {
-      setBusyPackageId("");
+      setBusyIds((current) => current.filter((id) => !targets.some((item) => item.id === id)));
     }
   };
 
-  const performAssembly = async (order: WorkshopOrder, productId: string, itemId: string, nextSequence: number) => {
-    setBusyAssemblyId(itemId);
+  const saveWorkItem = async (item: EditableWorkItem, draft: WorkItemDraft) => {
+    const response = await fetch("/api/work-items", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: item.id,
+        expectedVersion: item.version,
+        changes: toWorkItemChanges(draft),
+      }),
+    });
+    const data = await response.json().catch(() => null) as { error?: string } | null;
+    if (!response.ok) throw new Error(data?.error ?? "작업 행을 저장하지 못했습니다.");
+    setSelected(null);
+    setNotice("작업 행을 저장했습니다.");
+    await reload({ silent: true });
+  };
+
+  const deleteWorkItem = async (item: WorkItem) => {
     try {
-      const result = await assemblePackage(order.id, productId, `${order.id}:${itemId}:${nextSequence}`);
-      setNotice(result.alreadyApplied ? "이미 조립된 선물세트입니다." : `${result.packageCode ?? "선물세트"} 조립을 완료했습니다.`);
-      await load();
+      const response = await fetch("/api/work-items", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: item.id, expectedVersion: item.version }),
+      });
+      const data = await response.json().catch(() => null) as { error?: string } | null;
+      if (!response.ok) throw new Error(data?.error ?? "작업 행을 삭제하지 못했습니다.");
+      setSelected(null);
+      setNotice("작업 행을 삭제했습니다.");
+      await reload({ silent: true });
     } catch (caught) {
-      setNotice(caught instanceof Error ? caught.message : "선물세트를 조립하지 못했습니다.");
-      await load(true);
-    } finally { setBusyAssemblyId(""); }
-  };
-  const now = new Date();
-  const summary = summarizeWorkshopOrders(orders);
-  const products = aggregateWorkshopProducts(orders);
-  const filteredOrders = filterWorkshopOrdersByProduct(orders, productFilterId);
-  const incomplete = filteredOrders.filter((order) => order.status !== "ready");
-  const urgent = sortWorkshopOrders(incomplete.filter((order) => order.customerArrived || isWorkshopDueSoon(order, now)), now);
-  const timelineSource = showAllTimeline ? filteredOrders : incomplete;
-  const timeline = sortTimelineOrders(timelineSource.filter((order) => !urgent.some((urgentOrder) => urgentOrder.id === order.id)));
-  const completed = sortTimelineOrders(filteredOrders.filter((order) => order.status === "ready"));
-  const selectedProduct = products.find((product) => product.productId === productFilterId);
-
-  const selectProduct = (productId: string) => {
-    setProductFilterId((current) => current === productId ? null : productId);
-    setTab("timeline");
+      setError(caught instanceof Error ? caught.message : "작업 행을 삭제하지 못했습니다.");
+    }
   };
 
-  return <div className="workshop-app">
-    <header className="workshop-header">
-      <a href="/workshop" className="workshop-brand"><img className="operations-brand-logo" src="/jeongilpum-logo.png" alt="정일품 정육식당 로고"/><span>정일품 작업장<small>DIGITAL WORK WHITEBOARD</small></span></a>
-      <button className="workshop-sync" onClick={() => void load()} disabled={refreshing}>{refreshing ? "동기화 중…" : "지금 새로고침"}</button>
-    </header>
-    <AppNav current="workshop" />
+  const duplicateWorkItem = async (item: WorkItem) => {
+    try {
+      const response = await fetch("/api/work-items", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sourceId: item.id, expectedVersion: item.version }),
+      });
+      const data = await response.json().catch(() => null) as { error?: string } | null;
+      if (!response.ok) throw new Error(data?.error ?? "작업 행을 복제하지 못했습니다.");
+      setSelected(null);
+      setNotice("작업 행을 복제했습니다.");
+      await reload({ silent: true });
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "작업 행을 복제하지 못했습니다.");
+    }
+  };
 
-    <main className="workshop-main">
-      <section className="workshop-date-toolbar" aria-label="작업 기준일 선택">
-        <button onClick={() => setSelectedDate(moveDate(selectedDate, -1))}>← 이전날</button>
-        <div><small>{selectedDate === todayInSeoul() ? "오늘 생산판" : "선택 날짜 생산판"}</small><h1>{dateHeading(selectedDate)}</h1><span>방문수령일·택배 발송일 기준 · 최근 동기화 {lastSync || "준비 중"}</span></div>
-        <button onClick={() => setSelectedDate(moveDate(selectedDate, 1))}>다음날 →</button>
-        <label><span>달력</span><input type="date" value={selectedDate} onChange={(event) => { setSelectedDate(event.target.value); setProductFilterId(null); }} /></label>
-      </section>
+  const statusColumn: DataTableColumn<WorkItem> = {
+    id: "status",
+    header: "작업 상태",
+    cell: (item) => {
+      const isBusy = busyIds.includes(item.id);
+      return (
+        <WorkStatusSelect
+          id={`workshop-work-status-${item.id}`}
+          label={<span className="sr-only">작업 상태</span>}
+          value={item.workStatus}
+          disabled={isBusy}
+          onClick={(event) => event.stopPropagation()}
+          onChange={(status) => void updateWorkStatuses([item], status)}
+        />
+      );
+    },
+    sortValue: (item) => item.workStatus,
+    width: "164px",
+  };
 
-      {error && <div className="access-error workshop-error" role="alert"><b>작업 목록에 연결할 수 없습니다</b><span>{error}</span><a href="/signin-with-chatgpt?return_to=/workshop">작업자 로그인</a></div>}
+  const onsiteColumns: DataTableColumn<WorkItem>[] = [
+    {
+      id: "time",
+      header: "예약 시각",
+      cell: (item) => <strong>{formatTime(item.dueAt)}</strong>,
+      sortValue: (item) => item.dueAt,
+      width: "112px",
+    },
+    {
+      id: "product",
+      header: "상품",
+      cell: (item) => <span>{item.productName}</span>,
+      sortValue: (item) => item.productName,
+    },
+    {
+      id: "quantity",
+      header: "수량",
+      cell: (item) => <strong>{item.quantity.toLocaleString()}개</strong>,
+      sortValue: (item) => item.quantity,
+      align: "right",
+      width: "96px",
+    },
+    statusColumn,
+  ];
 
-      <section className="workshop-summary" aria-label="오늘 작업 요약">
-        <div><small>전체 주문</small><b>{summary.total}</b></div>
-        <div><small>작업대기</small><b>{summary.waiting}</b></div>
-        <div><small>수락완료</small><b>{summary.accepted}</b></div>
-        <div><small>작업중</small><b>{summary.inProgress}</b></div>
-        <div><small>준비완료</small><b>{summary.completed}</b></div>
-        <div className={summary.arrived ? "attention" : ""}><small>고객도착</small><b>{summary.arrived}</b></div>
-        <div className={summary.changes ? "attention" : ""}><small>변경확인</small><b>{summary.changes}</b></div>
-      </section>
+  const deliveryColumns: DataTableColumn<WorkItem>[] = [
+    {
+      id: "product",
+      header: "상품",
+      cell: (item) => <span>{item.productName}</span>,
+      sortValue: (item) => item.productName,
+    },
+    {
+      id: "quantity",
+      header: "수량",
+      cell: (item) => <strong>{item.quantity.toLocaleString()}개</strong>,
+      sortValue: (item) => item.quantity,
+      align: "right",
+      width: "96px",
+    },
+    {
+      id: "address",
+      header: "배송지",
+      cell: (item) => item.address || "주소 미입력",
+      sortValue: (item) => item.address,
+    },
+    statusColumn,
+  ];
 
-      <ProductBoard products={products} selectedProductId={productFilterId} onSelect={selectProduct} />
+  const tabItems = [
+    { id: "onsite", label: "현장", count: onsite.length },
+    { id: "delivery", label: "택배", count: delivery.length },
+  ];
 
-      <nav className="workshop-tabs" aria-label="작업장 보기">
-        <button className={tab === "timeline" ? "active" : ""} onClick={() => setTab("timeline")}>타임라인</button>
-        <button className={tab === "products" ? "active" : ""} onClick={() => setTab("products")}>상품별</button>
-        <button className={tab === "completed" ? "active" : ""} onClick={() => setTab("completed")}>완료</button>
-      </nav>
+  const activeRows = tab === "onsite" ? onsite : delivery;
+  const activeColumns = tab === "onsite" ? onsiteColumns : deliveryColumns;
+  const selectedWorkItems = activeRows.filter((item) => selectedIds.includes(item.id));
+  const selectedBusy = selectedWorkItems.some((item) => busyIds.includes(item.id));
 
-      {productFilterId && <div className="workshop-filter-chip"><b>{selectedProduct?.name ?? "선택 상품"}</b> 포함 주문만 표시 중 <button onClick={() => setProductFilterId(null)}>필터 해제 ×</button></div>}
+  const runBulkAction = async () => {
+    await updateWorkStatuses(selectedWorkItems, bulkStatus);
+    setBulkActionModalOpen(false);
+  };
 
-      {tab === "timeline" && <>
-        {urgent.length > 0 && <TimelineSection title="긴급" description="고객도착 또는 30분 이내 방문 예정" orders={urgent} onSelect={setSelectedOrder} onAction={perform} busyOrderId={busyOrderId} now={now} urgent />}
-        <section className="whiteboard-section">
-          <header><div><small>TIME ORDER</small><h2>시간대별 작업 타임라인</h2></div><button onClick={() => setShowAllTimeline((value) => !value)}>{showAllTimeline ? "미완료만 보기" : "전체 보기"}</button></header>
-          <TimelineRows orders={timeline} onSelect={setSelectedOrder} onAction={perform} busyOrderId={busyOrderId} now={now} empty="선택 조건의 작업 주문이 없습니다." />
+  return (
+    <div className="workshop-app">
+      <OperationsPageHeader title="정일품 작업장" description="작업 관리" href="/workshop" />
+      <AppNav current="workshop" />
+
+      <main className="workshop-main">
+        <section className="workshop-date-toolbar" aria-label="작업 기준일 선택">
+          <Toolbar
+            filters={
+              <DateRangeNavigator
+                ariaLabel="작업 기준일"
+                dateFrom={date}
+                dateFromId="workshop-date"
+                dateFromLabel={<span className="sr-only">작업일</span>}
+                onChange={(dateFrom) => {
+                  setDate(dateFrom);
+                  setSelectedIds([]);
+                  setBulkActionModalOpen(false);
+                }}
+              />
+            }
+            selectionCount={selectedWorkItems.length || undefined}
+            actions={selectedWorkItems.length ? (
+              <Button
+                leadingIcon={<ClipboardList size={16} />}
+                onClick={() => setBulkActionModalOpen(true)}
+              >
+                선택 작업 처리
+              </Button>
+            ) : null}
+          />
         </section>
-        <section className="completed-fold"><header><div><small>COMPLETED</small><h2>준비완료 {completed.length}건</h2></div><button onClick={() => setShowCompleted((value) => !value)}>{showCompleted ? "접기 ↑" : "펼치기 ↓"}</button></header>{showCompleted && <TimelineRows orders={completed} onSelect={setSelectedOrder} onAction={perform} busyOrderId={busyOrderId} now={now} empty="준비완료 주문이 없습니다." />}</section>
-      </>}
 
-      {tab === "products" && <section className="product-focus-panel"><h2>상품별 주문 필터</h2><p>위 생산량 표에서 상품명을 선택하면 해당 상품이 포함된 주문만 타임라인에 표시됩니다.</p>{selectedProduct && <button onClick={() => setTab("timeline")}>{selectedProduct.name} 주문 타임라인 보기 →</button>}</section>}
+        {error ? <section className="workshop-message workshop-message--error" role="alert">{error}</section> : null}
+        {notice ? <section className="workshop-message" role="status">{notice}</section> : null}
 
-      {tab === "completed" && <section className="whiteboard-section"><header><div><small>READY</small><h2>준비완료 주문</h2></div></header><TimelineRows orders={completed} onSelect={setSelectedOrder} onAction={perform} busyOrderId={busyOrderId} now={now} empty="선택 날짜의 준비완료 주문이 없습니다." /></section>}
-    </main>
+        <section className="workshop-product-summary" aria-label="상품별 작업량">
+          {products.length ? (
+            <DataTable
+              ariaLabel="상품별 작업 수량"
+              rows={products}
+              columns={productTotalColumns}
+              getRowId={(product) => product.productId}
+            />
+          ) : <p className="workshop-empty">집계할 상품 작업이 없습니다.</p>}
+        </section>
 
-    {selectedOrder && <WorkshopDetail order={selectedOrder} onClose={() => setSelectedOrder(null)} onAction={perform} onReassign={performReassignment} onAssemble={performAssembly} busy={busyOrderId === selectedOrder.id} busyPackageId={busyPackageId} busyAssemblyId={busyAssemblyId} />}
-    {notice && <div className="ops-toast" role="status">{notice}<button onClick={() => setNotice("")} aria-label="알림 닫기">×</button></div>}
-  </div>;
+        <div className="workshop-tab-bar">
+          <Tabs
+            ariaLabel="작업장 보기"
+            items={tabItems}
+            value={tab}
+            onValueChange={(value) => {
+              setTab(value as WorkshopTab);
+              setSelectedIds([]);
+              setBulkActionModalOpen(false);
+            }}
+          />
+        </div>
+
+        <section className="workshop-work-list">
+          <DataTable
+            key={tab}
+            ariaLabel={tab === "onsite" ? "현장 작업" : "택배 작업"}
+            rows={activeRows}
+            columns={activeColumns}
+            getRowId={(item) => item.id}
+            onRowClick={openDetail}
+            groups={workItemGroups(activeRows, tab === "onsite")}
+            selectedIds={selectedIds}
+            onSelectedIdsChange={setSelectedIds}
+            emptyMessage={tab === "onsite" ? "현장 작업이 없습니다." : "택배 작업이 없습니다."}
+          />
+        </section>
+
+        <nav className="workshop-utility-links" aria-label="작업장 부가 기능">
+          <UtilityLink href="/workshop/production" icon={<Factory size={18} />} label="생산관리" />
+          <UtilityLink href="/workshop/production#skin-packs" icon={<Package size={18} />} label="스킨팩" />
+          <UtilityLink href="/workshop/production#traceability" icon={<ScanLine size={18} />} label="이력추적" />
+          <UtilityLink href="/workshop/packages" icon={<Route size={18} />} label="패키지" />
+        </nav>
+      </main>
+
+      {selected ? (
+        <WorkItemEditor
+          key={`${selected.id}-${selected.version}`}
+          item={selected}
+          description={`${selected.orderNo} · ${selected.buyerName} · ${selected.buyerPhone}`}
+          onClose={() => setSelected(null)}
+          onSave={saveWorkItem}
+          onDelete={() => void deleteWorkItem(selected)}
+          onDuplicate={() => void duplicateWorkItem(selected)}
+        />
+      ) : null}
+
+      <Modal
+        open={bulkActionModalOpen}
+        title="선택 작업 처리"
+        description={selectedWorkItems.length ? `${selectedWorkItems.length}개 작업을 선택했습니다.` : "선택한 작업이 없습니다."}
+        onClose={() => setBulkActionModalOpen(false)}
+        footer={(
+          <>
+            <Button variant="ghost" onClick={() => setBulkActionModalOpen(false)}>닫기</Button>
+            <Button disabled={selectedBusy} onClick={() => void runBulkAction()}>
+              {selectedBusy ? "처리 중" : "상태 변경"}
+            </Button>
+          </>
+        )}
+      >
+        <section className="workshop-action-summary">
+          <WorkStatusSelect
+            id="workshop-bulk-status"
+            label="변경할 작업 상태"
+            value={bulkStatus}
+            onChange={setBulkStatus}
+          />
+        </section>
+      </Modal>
+    </div>
+  );
 }
 
-function ProductBoard({ products, selectedProductId, onSelect }: { products: ReturnType<typeof aggregateWorkshopProducts>; selectedProductId: string | null; onSelect: (productId: string) => void }) {
-  return <section className="production-board"><header><div><small>PRODUCTION TOTAL</small><h2>오늘 상품별 생산량</h2></div><p>실제 주문수량과 package 완료 근거만 사용</p></header>{products.length ? <div className="production-table-wrap"><table><thead><tr><th>상품</th><th>총 필요</th><th>완료</th><th>남음</th><th>가장 빠른 시간</th></tr></thead><tbody>{products.map((product) => <tr key={product.productId} className={selectedProductId === product.productId ? "selected" : ""}><td><button onClick={() => onSelect(product.productId)}>{product.name}</button></td><td>{product.total}</td><td>{product.completed}</td><td><b>{product.remaining}</b></td><td><strong>{nextDueLabel(product.nextDueAt)}</strong></td></tr>)}</tbody></table></div> : <div className="workshop-empty">선택 날짜의 생산 대상이 없습니다.</div>}</section>;
-}
-
-function TimelineSection({ title, description, orders, onSelect, onAction, busyOrderId, now, urgent = false }: { title: string; description: string; orders: WorkshopOrder[]; onSelect: (order: WorkshopOrder) => void; onAction: (order: WorkshopOrder, action: WorkshopAction) => Promise<void>; busyOrderId: string; now: Date; urgent?: boolean }) {
-  return <section className={`whiteboard-section ${urgent ? "urgent-board" : ""}`}><header><div><small>PRIORITY</small><h2>{title} {orders.length}건</h2></div><p>{description}</p></header><TimelineRows orders={orders} onSelect={onSelect} onAction={onAction} busyOrderId={busyOrderId} now={now} empty="긴급 주문이 없습니다." /></section>;
-}
-
-function TimelineRows({ orders, onSelect, onAction, busyOrderId, now, empty }: { orders: WorkshopOrder[]; onSelect: (order: WorkshopOrder) => void; onAction: (order: WorkshopOrder, action: WorkshopAction) => Promise<void>; busyOrderId: string; now: Date; empty: string }) {
-  if (!orders.length) return <div className="workshop-empty">{empty}</div>;
-  return <div className="timeline-list">{orders.map((order) => <TimelineRow key={order.id} order={order} onSelect={onSelect} onAction={onAction} busy={busyOrderId === order.id} now={now} />)}</div>;
-}
-
-function TimelineRow({ order, onSelect, onAction, busy, now }: { order: WorkshopOrder; onSelect: (order: WorkshopOrder) => void; onAction: (order: WorkshopOrder, action: WorkshopAction) => Promise<void>; busy: boolean; now: Date }) {
-  const action = order.status === "confirmed" ? order.workAcceptedAt ? "start" : "accept" : order.status === "in_progress" ? "complete" : null;
-  const actionText = action === "accept" ? "작업 수락" : action === "start" ? "작업 시작" : "상품 준비완료";
-  const due = dueSoonLabel(order, now);
-  const urgency = pickupUrgency(order, now);
-  return <article className={`timeline-row ${order.status === "ready" ? "ready" : ""} ${order.customerArrived && order.status !== "ready" ? "arrived" : ""}`}>
-    <div className="completion-mark" aria-label={order.status === "ready" ? "준비완료" : "미완료"}>{order.status === "ready" ? "✓" : "☐"}</div>
-    <div className="timeline-time">{order.fulfillmentType === "pickup" ? <><b>{order.pickupAt?.slice(11, 16) ?? "--:--"}</b><small>방문</small></> : <><b>[택배]</b><small>{order.shipDate} 발송</small></>}</div>
-    <div className="timeline-customer"><button onClick={() => onSelect(order)}>{order.buyerName}</button><small>{order.orderNo}</small></div>
-    <div className="timeline-products">{order.items.map((item) => <span key={item.id}>{item.name} <b>×{item.quantity}</b></span>)}{order.packageTotal > 0 && <small>{order.packageCompleted} / {order.packageTotal} package 완료</small>}</div>
-    <div className="timeline-flags">{order.customerArrived && order.status !== "ready" && <b className="arrival-badge">{arrivalTimingLabel(order.arrivalOffsetMinutes)}</b>}{due && <b className={`urgency-${urgency?.level}`}>{due}</b>}{order.substituteCandidates.length > 0 && <b className="substitute-badge">대체 완성품 {order.substituteCandidates.length}</b>}{order.hasUnacknowledgedChange && <b className={order.changeSeverity === "after_start" ? "strong-change" : ""}>{order.changeSeverity === "after_start" ? "작업 후 변경 확인 필요" : "변경"}</b>}</div>
-    <div className="timeline-status"><strong>{order.status === "ready" ? "✓ 준비완료" : workshopStatusLabel(order)}</strong>{order.workAcceptedAt && order.status === "confirmed" && <small>{shortDateTime(order.workAcceptedAt)} 수락</small>}</div>
-    <div className="timeline-action">{action ? <button disabled={busy} onClick={() => void onAction(order, action)}>{busy ? "처리 중…" : actionText}</button> : <button className="detail-only" onClick={() => onSelect(order)}>상세보기</button>}</div>
-  </article>;
-}
-
-function WorkshopDetail({ order, onClose, onAction, onReassign, onAssemble, busy, busyPackageId, busyAssemblyId }: { order: WorkshopOrder; onClose: () => void; onAction: (order: WorkshopOrder, action: WorkshopAction) => Promise<void>; onReassign: (order: WorkshopOrder, candidate: SubstituteCandidate) => Promise<void>; onAssemble: (order: WorkshopOrder, productId: string, itemId: string, nextSequence: number) => Promise<void>; busy: boolean; busyPackageId: string; busyAssemblyId: string }) {
-  const action = order.status === "confirmed" ? order.workAcceptedAt ? "start" : "accept" : order.status === "in_progress" ? "complete" : null;
-  return <div className="workshop-drawer-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><aside className="workshop-drawer" role="dialog" aria-modal="true" aria-label={`${order.orderNo} 작업 상세`}><header><div><small>{order.orderNo}</small><h2>{order.status === "ready" ? "✓ " : "☐ "}{order.buyerName}</h2></div><button onClick={onClose} aria-label="작업 상세 닫기">×</button></header>
-    <section className="workshop-detail-grid"><p><span>수령방법</span><b>{order.fulfillmentType === "pickup" ? "방문수령" : "택배발송"}</b></p><p><span>작업 기준일정</span><b>{order.scheduleLabel}</b></p><p><span>작업상태</span><b>{workshopStatusLabel(order)}</b></p><p><span>고객상태</span><b>{order.customerArrived ? arrivalTimingLabel(order.arrivalOffsetMinutes) : "도착 전"}</b>{order.actualArrivedAt && <small>실제 {shortDateTime(order.actualArrivedAt)}</small>}</p>{order.workAcceptedAt && <p><span>작업 수락</span><b>{shortDateTime(order.workAcceptedAt)}</b><small>담당 {order.workAcceptedBy ?? "운영자"}</small></p>}{order.workStartedAt && <p><span>작업 시작</span><b>{shortDateTime(order.workStartedAt)}</b></p>}</section>
-    <section className="workshop-detail-items"><h3>작업 상품</h3><p className="assembly-priority">조기도착 시에도 먼저 가용 스킨팩 조립을 시도하고, 부족할 때만 아래 대체 완성품을 사용합니다.</p>{order.items.map((item) => <div key={item.id}><b>{item.name}</b><span>× {item.quantity}</span><small>{item.packageCompleted} / {item.quantity} 세트 조립</small>{item.packageTotal < item.quantity && <button className="assemble-package" disabled={Boolean(busyAssemblyId)} onClick={() => void onAssemble(order, item.productId, item.id, item.packageTotal + 1)}>{busyAssemblyId === item.id ? "조립 중…" : "가용 스킨팩으로 1세트 조립"}</button>}</div>)}</section>
-    {order.packages.length > 0 && <section className="workshop-detail-packages"><h3>개별 패키지</h3><p>조립에 사용된 스킨팩·이력·중량과 패키지 QR을 조회합니다.</p>{order.packages.map((value) => <a key={value.id} href={"/workshop/packages/" + encodeURIComponent(value.packageCode)}><span><b>{value.productName}</b><small>{value.packageCode}</small></span><strong>{value.packageStatus} →</strong></a>)}</section>}
-    {order.substituteCandidates.length > 0 && <section className="workshop-substitutes"><h3>대체 가능한 완성품</h3><p>조기도착 고객에게 같은 날 더 늦은 주문의 동일 완성품을 1:1 맞교환합니다.</p>{order.substituteCandidates.map((candidate) => <div key={candidate.packageId}><span><b>{candidate.productName} · {candidate.packageCode}</b><small>{candidate.sourceOrderNo} · {candidate.sourcePickupAt.slice(11, 16)} 예약분</small></span><button disabled={Boolean(busyPackageId)} onClick={() => void onReassign(order, candidate)}>{busyPackageId === candidate.packageId ? "재배정 중…" : "대체 완성품 적용"}</button></div>)}</section>}
-    {order.note && <section className="workshop-detail-note"><h3>작업 요청사항</h3><p>{order.note}</p></section>}
-    <section className="workshop-detail-history"><h3>작업·변경 이력</h3>{order.events.length ? <ol>{order.events.map((event) => <li key={event.id}><b>{eventLabel[event.type] ?? event.type}</b><time>{new Date(event.createdAt).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })}</time>{event.reason && <small>{event.reason}</small>}</li>)}</ol> : <p>표시할 작업 이력이 없습니다.</p>}</section>
-    {action && <button className={`workshop-action ${action}`} disabled={busy} onClick={() => void onAction(order, action)}>{busy ? "처리 중…" : action === "accept" ? "작업 수락" : action === "start" ? "작업 시작" : "상품 준비완료"}</button>}
-  </aside></div>;
+function UtilityLink({ href, icon, label }: { href: string; icon: ReactNode; label: string }) {
+  return (
+    <a href={href}>
+      <span aria-hidden="true">{icon}</span>
+      <span>{label}</span>
+    </a>
+  );
 }

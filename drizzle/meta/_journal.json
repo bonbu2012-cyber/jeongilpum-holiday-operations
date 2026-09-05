@@ -50,6 +50,27 @@
       "when": 1788145638576,
       "tag": "0006_hot_hercules",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1788329134914,
+      "tag": "0007_work-items-core",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1788356315674,
+      "tag": "0008_breezy_baron_strucker",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1788568739936,
+      "tag": "0009_damp_scorpion",
+      "breakpoints": true
     }
   ]
 }
