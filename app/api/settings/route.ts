@@ -1,6 +1,7 @@
 import { env } from "cloudflare:workers";
 import { getChatGPTUser } from "../../chatgpt-auth";
 import { DEFAULT_KIOSK_HEADLINE, parseStoredSetting } from "../../lib/app-settings";
+import { latestProductAvailability, parseProductSoldOut } from "../../lib/product-availability";
 
 type ProductRow = {
   id:string; category:string; code:string; name:string; subtitle:string; description:string;
@@ -16,6 +17,7 @@ type SeasonRow = {
   active:number; version:number; updated_at:string|null;
 };
 type AppSettingRow = { id:string; after_data:string|null; created_at:string };
+type ProductAvailabilityRow = { id:string; entity_id:string; after_data:string|null; created_at:string };
 type ProductPayload = {
   type:"product"; id:string; expectedVersion:number; category:string; name:string; subtitle:string;
   description:string; price:number; customerDisplayWeight?:string; imageUrl?:string; badge?:string;
@@ -27,7 +29,8 @@ type SeasonPayload = {
 };
 type AppSettingPayload = { type:"app_setting"; key:"kiosk_headline"; value:string; expectedVersion:string };
 type DailyLimitPayload = { type:"daily_limit"; productId:string; dailyLimit:number; expectedVersion:number|null };
-type Payload = ProductPayload | SeasonPayload | AppSettingPayload | DailyLimitPayload;
+type ProductAvailabilityPayload = { type:"product_availability"; productId:string; soldOut:boolean; expectedVersion:string };
+type Payload = ProductPayload | SeasonPayload | AppSettingPayload | DailyLimitPayload | ProductAvailabilityPayload;
 
 const runtimeEnv=env as typeof env&{DB:D1Database;OPERATOR_USER_IDS?:string;OPERATOR_EMAILS?:string};
 function configured(value:string|undefined){return(value??"").split(",").map(item=>item.trim()).filter(Boolean)}
@@ -46,13 +49,15 @@ export async function GET(){
   const auth=await authorize();
   if("error" in auth)return auth.error;
   try{
-    const[products,seasons,headline,dailyLimits]=await Promise.all([
+    const[products,seasons,headline,dailyLimits,availabilityEvents]=await Promise.all([
       runtimeEnv.DB.prepare("SELECT id,category,code,name,subtitle,description,price,customer_display_weight,image_url,badge,display_order,active,version,updated_at FROM products ORDER BY display_order,id").all<ProductRow>(),
       runtimeEnv.DB.prepare("SELECT id,name,holiday_date,sales_start_date,sales_end_date,active,version,updated_at FROM sales_seasons ORDER BY sales_start_date DESC").all<SeasonRow>(),
       runtimeEnv.DB.prepare("SELECT id,after_data,created_at FROM configuration_events WHERE entity_type='app_setting' AND entity_id='kiosk_headline' ORDER BY created_at DESC,id DESC LIMIT 1").first<AppSettingRow>(),
       runtimeEnv.DB.prepare("SELECT p.id AS product_id,p.code AS product_code,p.name AS product_name,l.daily_limit,l.schedule_basis,l.active,l.version,l.updated_at FROM products p LEFT JOIN product_daily_limits l ON l.product_id=p.id WHERE p.category='프리미엄' ORDER BY p.display_order,p.id").all<DailyLimitRow>(),
+      runtimeEnv.DB.prepare("SELECT id,entity_id,after_data,created_at FROM configuration_events WHERE entity_type='product_availability' ORDER BY created_at DESC,id DESC").all<ProductAvailabilityRow>(),
     ]);
-    return Response.json({products:products.results.map(product),seasons:seasons.results.map(season),dailyLimits:dailyLimits.results.map(row=>({productId:row.product_id,productCode:row.product_code,productName:row.product_name,dailyLimit:row.daily_limit??1,active:Boolean(row.active),version:row.version,updatedAt:row.updated_at})),appSettings:{kioskHeadline:{value:parseStoredSetting(headline?.after_data,DEFAULT_KIOSK_HEADLINE),version:headline?.id??"",updatedAt:headline?.created_at??null}}},{headers:{"Cache-Control":"no-store"}});
+    const availabilityByProduct=latestProductAvailability(availabilityEvents.results.map(row=>({id:row.id,entityId:row.entity_id,afterData:row.after_data})));
+    return Response.json({products:products.results.map(row=>{const availability=availabilityByProduct.get(row.id);return{...product(row),soldOut:availability?.soldOut??false,availabilityVersion:availability?.version??""}}),seasons:seasons.results.map(season),dailyLimits:dailyLimits.results.map(row=>({productId:row.product_id,productCode:row.product_code,productName:row.product_name,dailyLimit:row.daily_limit??1,active:Boolean(row.active),version:row.version,updatedAt:row.updated_at})),appSettings:{kioskHeadline:{value:parseStoredSetting(headline?.after_data,DEFAULT_KIOSK_HEADLINE),version:headline?.id??"",updatedAt:headline?.created_at??null}}},{headers:{"Cache-Control":"no-store"}});
   }catch(error){return Response.json({error:error instanceof Error?error.message:"설정을 불러오지 못했습니다."},{status:500})}
 }
 
@@ -85,6 +90,20 @@ export async function PATCH(request:Request){
         runtimeEnv.DB.prepare("INSERT INTO configuration_events(id,entity_type,entity_id,before_data,after_data,actor_id,created_at) VALUES(?,'product',?,?,?,?,?)").bind(crypto.randomUUID(),payload.id,JSON.stringify(product(current)),JSON.stringify(after),auth.user.userId,now),
       ]);
       return Response.json({ok:true,version:current.version+1,updatedAt:now});
+    }
+    if(payload.type==="product_availability"){
+      const target=await runtimeEnv.DB.prepare("SELECT id,name FROM products WHERE id=?").bind(payload.productId).first<{id:string;name:string}>();
+      if(!target)return Response.json({error:"상품을 찾을 수 없습니다."},{status:404});
+      const current=await runtimeEnv.DB.prepare("SELECT id,entity_id,after_data,created_at FROM configuration_events WHERE entity_type='product_availability' AND entity_id=? ORDER BY created_at DESC,id DESC LIMIT 1").bind(payload.productId).first<ProductAvailabilityRow>();
+      const currentVersion=current?.id??"";
+      if(currentVersion!==payload.expectedVersion)return Response.json({error:"다른 화면에서 먼저 품절 상태를 수정했습니다. 새로고침 후 다시 시도해주세요."},{status:409});
+      const soldOut=payload.soldOut===true;
+      const before={soldOut:parseProductSoldOut(current?.after_data)};
+      if(before.soldOut===soldOut)return Response.json({ok:true,version:currentVersion,updatedAt:current?.created_at??null,soldOut});
+      const id=crypto.randomUUID(),after={soldOut};
+      const result=await runtimeEnv.DB.prepare("INSERT INTO configuration_events(id,entity_type,entity_id,before_data,after_data,actor_id,created_at) SELECT ?,'product_availability',?,?,?,?,? WHERE COALESCE((SELECT id FROM configuration_events WHERE entity_type='product_availability' AND entity_id=? ORDER BY created_at DESC,id DESC LIMIT 1),'')=?").bind(id,payload.productId,JSON.stringify(before),JSON.stringify(after),auth.user.userId,now,payload.productId,payload.expectedVersion).run();
+      if(!result.meta.changes)return Response.json({error:"다른 화면에서 먼저 품절 상태를 수정했습니다. 새로고침 후 다시 시도해주세요."},{status:409});
+      return Response.json({ok:true,version:id,updatedAt:now,soldOut});
     }
     if(payload.type==="daily_limit"){
       const dailyLimit=Number(payload.dailyLimit);

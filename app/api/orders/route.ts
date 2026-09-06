@@ -1,5 +1,6 @@
 import { env } from "cloudflare:workers";
 import { getChatGPTUser } from "../../chatgpt-auth";
+import { latestProductAvailability } from "../../lib/product-availability";
 import {
   SALES_DATE_ORDERS_SQL,
   SALES_DATE_SEARCH_ORDERS_SQL,
@@ -53,6 +54,7 @@ type EventRow = {
   created_at: string;
 };
 type ProductRow = { id: string; name: string; price: number; active: number };
+type ProductAvailabilityRow = { id: string; entity_id: string; after_data: string | null };
 type SeasonRow = { id: string; sales_start_date: string; sales_end_date: string; active: number };
 type FulfillmentRow = {
   id: string;
@@ -612,7 +614,7 @@ export async function POST(request: Request) {
     let limitedProductIds = new Set<string>();
     if (productIds.length) {
       const placeholders = productIds.map(() => "?").join(",");
-      const [productResult, limitResult] = await Promise.all([
+      const [productResult, limitResult, availabilityResult] = await Promise.all([
         runtimeEnv.DB
           .prepare(`SELECT id,name,price,active FROM products WHERE id IN (${placeholders})`)
           .bind(...productIds)
@@ -621,10 +623,22 @@ export async function POST(request: Request) {
           .prepare(`SELECT product_id FROM product_daily_limits WHERE active=1 AND product_id IN (${placeholders})`)
           .bind(...productIds)
           .all<{ product_id: string }>(),
+        runtimeEnv.DB
+          .prepare(`SELECT id,entity_id,after_data FROM configuration_events WHERE entity_type='product_availability' AND entity_id IN (${placeholders}) ORDER BY created_at DESC,id DESC`)
+          .bind(...productIds)
+          .all<ProductAvailabilityRow>(),
       ]);
       productRows = productResult.results;
       limitedProductIds = new Set(limitResult.results.map((row) => row.product_id));
-      if (productRows.length !== productIds.length || productRows.some((product) => !product.active)) {
+      const availabilityByProduct = latestProductAvailability(availabilityResult.results.map((row) => ({
+        id: row.id,
+        entityId: row.entity_id,
+        afterData: row.after_data,
+      })));
+      if (
+        productRows.length !== productIds.length
+        || productRows.some((product) => !product.active || availabilityByProduct.get(product.id)?.soldOut)
+      ) {
         return Response.json(
           { error: "현재 주문할 수 없는 상품이 포함되어 있습니다." },
           { status: 409 },

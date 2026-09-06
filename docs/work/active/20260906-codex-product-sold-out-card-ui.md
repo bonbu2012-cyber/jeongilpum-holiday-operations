@@ -25,7 +25,9 @@ Production Version 28의 카드형 상품관리 화면에서 각 상품마다 `�
 - `app/api/products/route.ts`의 키오스크 품절 상태 응답
 - `app/api/orders/route.ts`의 품절 상품 주문 거부 검사
 - `app/components/KioskApp.tsx`의 품절 상품 선택 차단
+- `app/kiosk-flow.css`의 키오스크 품절 카드 스타일
 - `app/globals.css`의 상품 카드 품절 버튼 스타일
+- `app/lib/product-availability.ts`
 - `tests/product-sold-out-card.test.mjs`
 - `docs/work/active/20260906-codex-product-sold-out-card-ui.md`
 

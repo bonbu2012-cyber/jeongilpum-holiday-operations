@@ -9,6 +9,7 @@ import {
 } from "../../../db/schema";
 import { DEFAULT_KIOSK_HEADLINE, parseStoredSetting } from "../../lib/app-settings";
 import { resolveCatalogProductImageUrl } from "../../lib/catalog-product-images";
+import { latestProductAvailability } from "../../lib/product-availability";
 
 function todayInSeoul() {
   return new Intl.DateTimeFormat("en-CA", {
@@ -26,7 +27,7 @@ export async function GET(request: Request) {
       ? (url.searchParams.get("date") as string)
       : todayInSeoul();
     const db = getDb();
-    const [productRows, seasonRows, headlineRows] = await Promise.all([
+    const [productRows, seasonRows, headlineRows, availabilityRows] = await Promise.all([
       db
         .select({
           product: products,
@@ -69,6 +70,15 @@ export async function GET(request: Request) {
         )
         .orderBy(desc(configurationEvents.createdAt), desc(configurationEvents.id))
         .limit(1),
+      db
+        .select({
+          id: configurationEvents.id,
+          entityId: configurationEvents.entityId,
+          afterData: configurationEvents.afterData,
+        })
+        .from(configurationEvents)
+        .where(eq(configurationEvents.entityType, "product_availability"))
+        .orderBy(desc(configurationEvents.createdAt), desc(configurationEvents.id)),
     ]);
 
     const season = seasonRows[0];
@@ -81,14 +91,21 @@ export async function GET(request: Request) {
           salesEndDate: season.salesEndDate,
         }
       : null;
-    const productResponse = productRows.map(({ product, dailyLimit, reservedQuantity }) => ({
-      ...product,
-      imageUrl: resolveCatalogProductImageUrl(product.id, product.imageUrl),
-      dailyLimit,
-      reservedQuantity,
-      remainingQuantity: dailyLimit === null ? null : Math.max(0, dailyLimit - reservedQuantity),
-      availabilityDate,
-    }));
+    const availabilityByProduct = latestProductAvailability(availabilityRows);
+    const productResponse = productRows.map(({ product, dailyLimit, reservedQuantity }) => {
+      const soldOut = availabilityByProduct.get(product.id)?.soldOut ?? false;
+      return {
+        ...product,
+        imageUrl: resolveCatalogProductImageUrl(product.id, product.imageUrl),
+        dailyLimit,
+        reservedQuantity,
+        soldOut,
+        remainingQuantity: soldOut
+          ? 0
+          : dailyLimit === null ? null : Math.max(0, dailyLimit - reservedQuantity),
+        availabilityDate,
+      };
+    });
 
     return Response.json(
       { products: productResponse, activeSeason, appSettings: { kioskHeadline: parseStoredSetting(headlineRows[0]?.afterData, DEFAULT_KIOSK_HEADLINE) } },

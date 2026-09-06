@@ -9,7 +9,8 @@ import MoneyInput from "./MoneyInput";
 type EditableProduct = {
   id:string; category:string; code:string; name:string; subtitle:string; description:string;
   price:number; customerDisplayWeight:string|null; imageUrl:string|null; badge:string|null;
-  displayOrder:number; active:boolean; version:number; updatedAt:string|null;
+  displayOrder:number; active:boolean; soldOut:boolean; availabilityVersion:string;
+  version:number; updatedAt:string|null;
 };
 type EditableAppSetting = { value:string; version:string; updatedAt:string|null };
 type EditableDailyLimit = {
@@ -78,6 +79,19 @@ export default function SettingsApp(){
     }catch(caught){setNotice(caught instanceof Error?caught.message:"상품 설정을 저장하지 못했습니다.")}
     finally{setSaving("")}
   };
+  const toggleProductSoldOut=async(item:EditableProduct)=>{
+    const savingKey="product_availability:"+item.id;
+    setSaving(savingKey);setNotice("");
+    try{
+      const response=await fetch("/api/settings",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({type:"product_availability",productId:item.id,soldOut:!item.soldOut,expectedVersion:item.availabilityVersion})});
+      const data=await response.json() as {version?:string;updatedAt?:string;soldOut?:boolean;error?:string};
+      if(!response.ok)throw new Error(data.error);
+      const soldOut=data.soldOut??!item.soldOut;
+      setProducts(current=>current.map(product=>product.id===item.id?{...product,soldOut,availabilityVersion:data.version??product.availabilityVersion,updatedAt:data.updatedAt??product.updatedAt}:product));
+      setNotice(item.name+(soldOut?" 상품을 품절 처리했습니다.":" 상품 판매를 재개했습니다."));
+    }catch(caught){setNotice(caught instanceof Error?caught.message:"품절 상태를 변경하지 못했습니다.")}
+    finally{setSaving("")}
+  };
 
   const saveSeason=async(item:EditableSeason)=>{
     setSaving(item.id);setNotice("");
@@ -141,7 +155,7 @@ export default function SettingsApp(){
       </section>
       <section className="settings-section">
         <div className="settings-title"><div><small>PRODUCTS</small><h2>상품 관리</h2></div><p>가격은 숫자로 입력하고, 사진 URL은 준비된 뒤 추가할 수 있습니다.</p></div>
-        <div className="product-editors">{products.map(item=><article className="product-editor" key={item.id}>
+        <div className="product-editors">{products.map(item=>{const availabilityKey="product_availability:"+item.id;return <article className={item.soldOut?"product-editor sold-out":"product-editor"} key={item.id}>
           <header><div><small>{item.code}</small><h3>{productDisplayName(item)}</h3></div><label className="settings-toggle"><input type="checkbox" checked={item.active} onChange={e=>updateProduct(item.id,"active",e.target.checked)}/><span>{item.active?"노출 중":"숨김"}</span></label></header>
           <div className="editor-grid">
             <label><span>상품명</span><input value={item.name} onChange={e=>updateProduct(item.id,"name",e.target.value)}/></label>
@@ -154,8 +168,11 @@ export default function SettingsApp(){
             <label className="wide"><span>상세 설명</span><textarea value={item.description} onChange={e=>updateProduct(item.id,"description",e.target.value)}/></label>
             <label className="wide"><span>제품 사진 URL</span><input value={item.imageUrl??""} onChange={e=>updateProduct(item.id,"imageUrl",e.target.value)} placeholder="https://..."/></label>
           </div>
-          <button className="save-product" onClick={()=>saveProduct(item)} disabled={saving===item.id}>{saving===item.id?"저장 중…":"이 상품 저장"}</button>
-        </article>)}</div>
+          <div className="product-actions">
+            <button className={item.soldOut?"sold-out-toggle resume":"sold-out-toggle"} aria-pressed={item.soldOut} onClick={()=>toggleProductSoldOut(item)} disabled={saving===availabilityKey||saving===item.id}>{saving===availabilityKey?"변경 중…":item.soldOut?"판매 재개":"품절 처리"}</button>
+            <button className="save-product" onClick={()=>saveProduct(item)} disabled={saving===item.id||saving===availabilityKey}>{saving===item.id?"저장 중…":"이 상품 저장"}</button>
+          </div>
+        </article>})}</div>
       </section>
     </>}
     {notice&&<div className="ops-toast" role="status">{notice}<button onClick={()=>setNotice("")} aria-label="알림 닫기">×</button></div>}
