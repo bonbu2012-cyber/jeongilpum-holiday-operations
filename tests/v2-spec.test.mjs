@@ -137,12 +137,16 @@ test("custom order validates, preserves, and joins the main kiosk order",async()
  assert.match(custom,/orderDraft\.customItem/);
  assert.match(custom,/customStorageKey/);
  assert.match(custom,/sessionStorage\.setItem/);
- assert.match(custom,/맞춤주문은 20만원부터 가능합니다/);
+ assert.match(custom,/<span>1<\/span> 품명/);
+ assert.match(custom,/<span>2<\/span> 금액/);
+ assert.match(custom,/<span>3<\/span> 요청사항/);
+ assert.match(custom,/productName: draft\.productName\.trim\(\)/);
+ assert.match(custom,/amount,/);
  assert.match(custom,/type="submit"/);
  assert.match(kiosk,/custom-review-item/);
  assert.match(custom,/\/kiosk\?resume=cart/);
  assert.match(kiosk,/draftHydrated&&step!=="done"/);
- assert.match(ordersApi,/order_item_customizations/);
+ assert.match(ordersApi,/customizationJson: clean\(custom\.request\) \|\| null/);
 });
 
 test("sales date views exclude cancelled orders while search keeps history",async()=>{

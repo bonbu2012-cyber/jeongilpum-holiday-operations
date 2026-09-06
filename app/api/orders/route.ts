@@ -4,9 +4,12 @@ import { OPERATOR_ACTOR, requireOperatorApi } from "../../lib/operator-session";
 import { nextOrderNo, orderNumberPrefix } from "../../lib/order-number";
 
 type CustomItemPayload = {
+  productName?: string;
+  amount?: number;
+  request?: string;
+  // 기존 kiosk 초안과의 호환을 위해 이전 필드를 한시적으로 수용한다.
   budgetOption?: string;
   budgetAmount?: number;
-  request?: string;
 };
 
 type DeliveryMethod = "onsite_sale" | "onsite_reservation" | "delivery";
@@ -697,12 +700,13 @@ export async function POST(request: Request) {
       (item) => item.productId && Number.isInteger(item.quantity) && (item.quantity ?? 0) > 0,
     );
     const custom = payload.customItem;
-    const customAmount = Number(custom?.budgetAmount ?? 0);
+    const customName = clean(custom?.productName) || (clean(custom?.budgetOption) ? "맞춤주문" : "");
+    const customAmount = Number(custom?.amount ?? custom?.budgetAmount ?? 0);
     const customValid = Boolean(
       custom
-      && clean(custom.budgetOption)
+      && customName
       && Number.isInteger(customAmount)
-      && customAmount >= 200_000,
+      && customAmount > 0,
     );
     const buyer = fulfillmentType === "onsite" ? "현장판매 주문" : clean(payload.buyerName);
     const buyerPhone = fulfillmentType === "onsite" ? "" : normalizePhone(payload.buyerPhone ?? "");
@@ -716,7 +720,7 @@ export async function POST(request: Request) {
       return Response.json({ error: "주문자와 상품 정보를 확인해주세요." }, { status: 400 });
     }
     if (custom && !customValid) {
-      return Response.json({ error: "맞춤주문은 20만원 이상의 예산이 필요합니다." }, { status: 400 });
+      return Response.json({ error: "맞춤주문의 품명과 금액을 확인해주세요." }, { status: 400 });
     }
 
     let actor = "kiosk";
@@ -821,7 +825,7 @@ export async function POST(request: Request) {
     if (customValid && custom) {
       const workItem = buildWorkItem({
         productId: "custom-order",
-        productName: "맞춤주문",
+        productName: customName,
         unitPrice: customAmount,
         quantity: 1,
         deliveryMethod,

@@ -9,8 +9,8 @@ export type CategoryRailItem = {
 };
 
 export type CustomOrderDraftItem = {
-  budgetOption: string;
-  budgetAmount: number;
+  productName: string;
+  amount: number;
   request: string;
 };
 

@@ -5,47 +5,55 @@ import { FormattedInput } from "../ui";
 import { parseIntegerInput } from "../lib/input-format";
 import type { OrderDraft } from "./types";
 
-const budgetOptions = [
-  { label: "20만원대", amount: 200_000 },
-  { label: "25만원대", amount: 250_000 },
-  { label: "30만원대", amount: 300_000 },
-  { label: "40만원대", amount: 400_000 },
-  { label: "50만원 이상", amount: 500_000 },
-] as const;
-
 type Draft = {
-  budgetOption: string;
-  directAmount: string;
+  productName: string;
+  amount: string;
   request: string;
 };
 
 const initialDraft: Draft = {
-  budgetOption: "",
-  directAmount: "",
+  productName: "",
+  amount: "",
   request: "",
 };
 
 const customStorageKey = "jeongilpum-custom-order-draft";
 const kioskStorageKey = "jeongilpum-kiosk-draft";
 
-function selectedAmount(draft: Draft) {
-  if (draft.budgetOption === "금액 직접 입력") {
-    return parseIntegerInput(draft.directAmount) ?? 0;
-  }
-  return budgetOptions.find((option) => option.label === draft.budgetOption)?.amount ?? 0;
+type StoredCustomOrder = {
+  productName?: unknown;
+  amount?: unknown;
+  request?: unknown;
+  budgetOption?: unknown;
+  budgetAmount?: unknown;
+  directAmount?: unknown;
+};
+
+function normalizeDraft(value: unknown): Draft {
+  if (!value || typeof value !== "object") return initialDraft;
+  const item = value as StoredCustomOrder;
+  const legacyOption = typeof item.budgetOption === "string" ? item.budgetOption : "";
+  const legacyPreset = legacyOption.match(/^(\d+)만원/)?.[1];
+  const legacyAmount = Number(item.directAmount ?? 0) || (legacyPreset ? Number(legacyPreset) * 10_000 : 0);
+  const amount = Number(item.amount ?? item.budgetAmount ?? legacyAmount);
+  return {
+    productName: typeof item.productName === "string" ? item.productName : legacyOption || item.budgetAmount ? "맞춤주문" : "",
+    amount: Number.isFinite(amount) && amount > 0 ? String(amount) : "",
+    request: typeof item.request === "string" ? item.request : "",
+  };
 }
 
 export default function CustomOrderApp() {
   const [draft, setDraft] = useState<Draft>(initialDraft);
   const [hydrated, setHydrated] = useState(false);
-  const [errors, setErrors] = useState<{ budget?: string }>({});
+  const [errors, setErrors] = useState<{ productName?: string; amount?: string }>({});
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
       const saved = sessionStorage.getItem(customStorageKey);
       if (saved) {
         try {
-          setDraft({ ...initialDraft, ...(JSON.parse(saved) as Partial<Draft>) });
+          setDraft(normalizeDraft(JSON.parse(saved)));
         } catch {
           sessionStorage.removeItem(customStorageKey);
         }
@@ -53,13 +61,9 @@ export default function CustomOrderApp() {
         const kioskSaved = sessionStorage.getItem(kioskStorageKey);
         if (kioskSaved) {
           try {
-            const customItem = (JSON.parse(kioskSaved) as Partial<OrderDraft>).customItem;
+            const customItem = (JSON.parse(kioskSaved) as { customItem?: unknown }).customItem;
             if (customItem) {
-              setDraft({
-                budgetOption: customItem.budgetOption,
-                directAmount: customItem.budgetOption === "금액 직접 입력" ? String(customItem.budgetAmount) : "",
-                request: customItem.request ?? "",
-              });
+              setDraft(normalizeDraft(customItem));
             }
           } catch {
             setDraft(initialDraft);
@@ -77,17 +81,15 @@ export default function CustomOrderApp() {
 
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) => {
     setDraft((current) => ({ ...current, [key]: value }));
-    if (key === "budgetOption" || key === "directAmount") {
-      setErrors((current) => ({ ...current, budget: undefined }));
-    }
+    if (key === "productName" || key === "amount") setErrors((current) => ({ ...current, [key]: undefined }));
   };
 
   const complete = (event: React.FormEvent) => {
     event.preventDefault();
-    const amount = selectedAmount(draft);
+    const amount = parseIntegerInput(draft.amount) ?? 0;
     const nextErrors: typeof errors = {};
-    if (!draft.budgetOption) nextErrors.budget = "예산을 선택해주세요.";
-    else if (amount < 200_000) nextErrors.budget = "맞춤주문은 20만원부터 가능합니다.";
+    if (!draft.productName.trim()) nextErrors.productName = "품명을 입력해주세요.";
+    if (!Number.isInteger(amount) || amount <= 0) nextErrors.amount = "금액을 1원 이상 입력해주세요.";
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
 
@@ -101,8 +103,8 @@ export default function CustomOrderApp() {
       }
     }
     orderDraft.customItem = {
-      budgetOption: draft.budgetOption,
-      budgetAmount: amount,
+      productName: draft.productName.trim(),
+      amount,
       request: draft.request.trim(),
     };
     orderDraft.idempotencyKey = crypto.randomUUID();
@@ -120,51 +122,49 @@ export default function CustomOrderApp() {
       <section className="custom-hero">
         <small>CUSTOM ORDER</small>
         <h1>맞춤 주문</h1>
-        <p>예산과 요청사항을 알려주세요.</p>
+        <p>품명과 금액, 필요한 요청사항을 직접 입력해주세요.</p>
       </section>
       <form className="custom-form" onSubmit={complete} noValidate>
         <section>
-          <h2><span>1</span> 예산</h2>
-          <div className="choice-grid three">
-            {budgetOptions.map((option) => (
-              <button
-                type="button"
-                key={option.label}
-                className={draft.budgetOption === option.label ? "selected" : ""}
-                onClick={() => set("budgetOption", option.label)}
-              >
-                {option.label}
-              </button>
-            ))}
-            <button
-              type="button"
-              className={draft.budgetOption === "금액 직접 입력" ? "selected" : ""}
-              onClick={() => set("budgetOption", "금액 직접 입력")}
-            >
-              금액 직접 입력
-            </button>
-          </div>
-          {draft.budgetOption === "금액 직접 입력" && (
-            <label className="custom-wide" htmlFor="custom-order-direct-amount">
-              <span>직접 입력 금액</span>
-              <FormattedInput
-                id="custom-order-direct-amount"
-                format="number"
-                value={draft.directAmount}
-                aria-invalid={Boolean(errors.budget)}
-                onValueChange={(value) => set("directAmount", value)}
-                placeholder="200000"
-              />
-            </label>
-          )}
-          {errors.budget && <span className="field-error" role="alert">{errors.budget}</span>}
+          <h2><span>1</span> 품명</h2>
+          <label className="custom-wide" htmlFor="custom-order-product-name">
+            <span>품명</span>
+            <input
+              id="custom-order-product-name"
+              value={draft.productName}
+              aria-invalid={Boolean(errors.productName)}
+              onChange={(event) => set("productName", event.target.value)}
+              placeholder="예: 한우 맞춤 선물세트"
+            />
+          </label>
+          {errors.productName && <span className="field-error" role="alert">{errors.productName}</span>}
         </section>
 
         <section>
-          <h2><span>2</span> 요청사항 <small>(선택)</small></h2>
+          <h2><span>2</span> 금액</h2>
+          <label className="custom-wide" htmlFor="custom-order-amount">
+            <span>금액</span>
+            <FormattedInput
+              id="custom-order-amount"
+              format="number"
+              value={draft.amount}
+              aria-invalid={Boolean(errors.amount)}
+              onValueChange={(value) => set("amount", value)}
+              placeholder="금액을 입력해주세요"
+            />
+          </label>
+          {errors.amount && <span className="field-error" role="alert">{errors.amount}</span>}
+        </section>
+
+        <section>
+          <h2><span>3</span> 요청사항 <small>(선택)</small></h2>
           <label className="custom-wide">
             <span>요청사항</span>
-            <textarea value={draft.request} onChange={(event) => set("request", event.target.value)} />
+            <textarea
+              value={draft.request}
+              onChange={(event) => set("request", event.target.value)}
+              placeholder="구성, 부위, 포장 등 필요한 내용을 입력해주세요"
+            />
           </label>
         </section>
 

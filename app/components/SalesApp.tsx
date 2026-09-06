@@ -32,6 +32,7 @@ import {
   type WorkStatus,
 } from "../lib/work-status";
 import { formatWorkItemDateTime } from "./WorkItemHistory";
+import CustomOrderDetails from "./CustomOrderDetails";
 import SharedWorkItemEditor, {
   WorkItemFields as SharedWorkItemFields,
   toWorkItemChanges,
@@ -625,7 +626,9 @@ export default function SalesApp() {
     {
       id: "product",
       header: "상품",
-      cell: (item) => <><b>{item.productName}</b>{item.productDailyLimit !== null && item.productScheduledQuantity > item.productDailyLimit ? <small className="sales-work-table__overage">일일 수량 초과 {item.productScheduledQuantity}/{item.productDailyLimit}</small> : null}</>,
+      cell: (item) => <>{item.productId === "custom-order"
+        ? <CustomOrderDetails productName={item.productName} amount={item.unitPrice} request={item.customizationJson} />
+        : <b>{item.productName}</b>}{item.productDailyLimit !== null && item.productScheduledQuantity > item.productDailyLimit ? <small className="sales-work-table__overage">일일 수량 초과 {item.productScheduledQuantity}/{item.productDailyLimit}</small> : null}</>,
       sortValue: (item) => item.productName,
       exportValue: (item) => `${item.productName}${item.productDailyLimit !== null && item.productScheduledQuantity > item.productDailyLimit ? ` 일일 수량 초과 ${item.productScheduledQuantity}/${item.productDailyLimit}` : ""}`,
       cellLayout: "stacked",
