@@ -1,6 +1,6 @@
 # Task: 카드형 상품관리 품절 버튼
 
-- Status: Active
+- Status: Completed
 - Owner: Codex
 - Branch: `codex/product-sold-out-card-ui`
 - Base commit: `73126c9bb1c4a953453066e483a0012af3e7ad8a`
@@ -50,30 +50,31 @@ Production Version 28의 카드형 상품관리 화면에서 각 상품마다 `�
 
 ## Acceptance criteria
 
-- [ ] 각 상품 카드에 명확한 품절 상태 버튼이 보인다.
-- [ ] 품절 처리는 기존 한정수량을 변경하지 않고 감사 이벤트를 남긴다.
-- [ ] 품절 상품은 키오스크에서 클릭 및 장바구니 추가가 불가능하다.
-- [ ] 판매 재개 시 기존 한정수량 설정이 복원된다.
+- [x] 각 상품 카드에 명확한 품절 상태 버튼이 보인다.
+- [x] 품절 처리는 기존 한정수량을 변경하지 않고 감사 이벤트를 남긴다.
+- [x] 품절 상품은 키오스크에서 클릭 및 장바구니 추가가 불가능하다.
+- [x] 판매 재개 시 기존 한정수량 설정이 유지된다.
 
 ## Validation
 
-- [ ] lint
-- [ ] typecheck
-- [ ] related tests
-- [ ] full test
-- [ ] build
-- [ ] manual smoke, 해당 시
+- [x] lint — 전체 통과
+- [x] typecheck
+- [x] related tests — 3건 통과
+- [x] full test — 71건 통과
+- [x] build
+- [ ] manual smoke — Production 인증과 운영 데이터 변경이 필요한 버튼 클릭 검증은 미실행
 
 ## Integration notes
 
 - 충돌 해결 내용: Production 전용 분기로 active GitHub main 계열 작업과 파일 이력을 분리한다.
 - backward compatibility: 기존 `daily_limit` 액션과 프리미엄 한정 판매량 UI는 유지한다.
 - Production 설정/migration 필요사항: schema 변경 없음. 배포는 별도 사용자 요청이 필요하다.
+- as-built 문서: `docs/PAGES_AND_FEATURES.md`는 다른 active 작업들의 독점 claim 때문에 이번 branch에서 수정하지 않았다.
 
 ## Completion
 
-- Final commit:
-- GitHub remote/branch:
-- Push verification:
-- Completed at:
-- Remaining TODO:
+- Final implementation commit: `7693e6dcaed4a156dff3264d259640fc227c93bb`
+- GitHub remote/branch: `github/codex/product-sold-out-card-ui`
+- Push verification: implementation commit까지 local/remote 일치 확인
+- Completed at: 2026-09-06
+- Remaining TODO: 사용자 요청 시 Production에 배포하고 실제 운영 계정으로 품절 처리·판매 재개를 smoke test한다. 충돌 중인 문서 claim이 해제되면 `docs/PAGES_AND_FEATURES.md`에 통합한다.
