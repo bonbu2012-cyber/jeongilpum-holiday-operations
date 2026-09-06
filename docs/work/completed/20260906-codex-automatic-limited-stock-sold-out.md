@@ -1,6 +1,6 @@
 # Task: 한정수량 자동 품절 집계
 
-- Status: Active
+- Status: Completed
 - Owner: Codex
 - Branch: `codex/automatic-limited-stock-sold-out`
 - Base commit: `00cc40e5cefa77b1f98c7c267604906735477028`
@@ -47,28 +47,29 @@
 
 ## Acceptance criteria
 
-- [ ] 한정수량 카드에서 오늘 판매량과 남은 수량을 확인할 수 있다.
-- [ ] 판매량이 한도에 도달하면 `자동 품절`이 표시된다.
-- [ ] 키오스크의 기존 클릭 차단과 서버 한도 검사가 유지된다.
-- [ ] 취소된 주문 수량은 자동 집계에서 제외된다.
+- [x] 한정수량 카드에서 오늘 판매량과 남은 수량을 확인할 수 있다.
+- [x] 판매량이 한도에 도달하면 `자동 품절`이 표시된다.
+- [x] 키오스크의 기존 클릭 차단과 서버 한도 검사가 유지된다.
+- [x] 취소된 주문 수량은 자동 집계에서 제외된다.
 
 ## Validation
 
-- [ ] lint
-- [ ] typecheck
-- [ ] related tests
-- [ ] full test
-- [ ] build
+- [x] lint — 전체 통과
+- [x] typecheck
+- [x] related tests — 3건 통과
+- [x] full test — 71건 통과
+- [x] build
 
 ## Integration notes
 
 - backward compatibility: 기존 `daily_limit` 저장 계약과 수량 예약 테이블을 그대로 사용한다.
 - Production 설정/migration 필요사항: 없음. 배포는 별도 사용자 요청이 필요하다.
+- as-built 문서: `docs/PAGES_AND_FEATURES.md`는 다른 active 배포 작업의 claim 때문에 이번 branch에서 수정하지 않았다.
 
 ## Completion
 
-- Final implementation commit:
-- GitHub remote/branch:
-- Push verification:
-- Completed at:
-- Remaining TODO:
+- Final implementation commit: `a1a86d5d918db551ae1803b5d7b6d882f6bd6377`
+- GitHub remote/branch: `github/codex/automatic-limited-stock-sold-out`
+- Push verification: implementation commit까지 local/remote 일치 확인
+- Completed at: 2026-09-06
+- Remaining TODO: 사용자 요청 시 Sites Production에 배포한다. 문서 claim 해제 후 `docs/PAGES_AND_FEATURES.md`에 통합한다.
