@@ -3,6 +3,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 import { DEFAULT_KIOSK_HEADLINE } from "../lib/app-settings";
+import { isPastPickupTime } from "../lib/pickup-time";
 import { FormattedInput } from "../ui";
 import type { CategoryRailItem, OrderDraft, OrderRecord, Product, SeasonSchedule } from "./types";
 import AppNav from "./AppNav";
@@ -103,7 +104,10 @@ function ScheduleDateStep({type,value,minDate,maxDate,setValue,next}:{type:"pick
  return <div className="flow-card narrow"><div className="flow-heading"><small>{shipping?"택배발송":"방문수령"}</small><h1>{shipping?"상품을 발송할 날짜를 선택해주세요.":"방문 날짜를 선택해주세요."}</h1><p>{shipping?"택배사 사정에 따라 도착일은 달라질 수 있습니다.":"선택한 날짜에 맞춰 상품을 준비하겠습니다."}</p></div><Calendar value={value} minDate={minDate} maxDate={maxDate} onSelect={setValue}/>{value&&<div className="selected-schedule"><span>선택한 날짜</span><b>{koreanDate(value)}</b></div>}<button className="main-cta" disabled={!value} onClick={next}>{shipping?"결제방식 선택":"시간 선택"} <span>→</span></button></div>;
 }
 function PickupTime({draft,setDraft,next}:{draft:OrderDraft;setDraft:React.Dispatch<React.SetStateAction<OrderDraft>>;next:()=>void}){
- return <div className="flow-card narrow"><div className="flow-heading"><small>방문수령</small><h1>방문 시간을 선택해주세요.</h1><p>{koreanDate(draft.pickupDate)} · 08:00부터 21:00까지 30분 단위로 선택할 수 있습니다.</p></div><div className="pickup-time-grid">{pickupTimes.map(time=><button key={time} className={draft.pickupTime===time?"selected":""} onClick={()=>setDraft(current=>({...current,pickupTime:time,scheduleLabel:`${koreanDate(current.pickupDate)} · ${time}`}))}>{time}</button>)}</div><button className="main-cta" disabled={!draft.pickupTime} onClick={next}>결제방식 선택 <span>→</span></button></div>;
+ const[now,setNow]=useState<number|null>(null);
+ useEffect(()=>{const update=()=>setNow(Date.now());update();const timer=window.setInterval(update,30_000);return()=>window.clearInterval(timer)},[]);
+ const selectedTimeValid=Boolean(draft.pickupTime)&&(now===null||!isPastPickupTime(draft.pickupDate,draft.pickupTime,now));
+ return <div className="flow-card narrow"><div className="flow-heading"><small>방문수령</small><h1>방문 시간을 선택해주세요.</h1><p>{koreanDate(draft.pickupDate)} · 08:00부터 21:00까지 30분 단위로 선택할 수 있습니다.</p></div><div className="pickup-time-grid">{pickupTimes.map(time=>{const disabled=now!==null&&isPastPickupTime(draft.pickupDate,time,now);return <button key={time} disabled={disabled} className={draft.pickupTime===time?"selected":""} onClick={()=>setDraft(current=>({...current,pickupTime:time,scheduleLabel:`${koreanDate(current.pickupDate)} · ${time}`}))}>{time}</button>})}</div><button className="main-cta" disabled={!selectedTimeValid} onClick={next}>결제방식 선택 <span>→</span></button></div>;
 }
 function RecipientStep({draft,setDraft,next}:{draft:OrderDraft;setDraft:React.Dispatch<React.SetStateAction<OrderDraft>>;next:()=>void}){
  const valid=draft.recipientName.trim().length>0&&draft.recipientPhone.replace(/\D/g,"").length>=10;
