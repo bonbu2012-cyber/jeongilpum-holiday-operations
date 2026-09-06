@@ -1,6 +1,6 @@
 # Task: 상품 품절 처리와 키오스크 선택 차단
 
-- Status: Completed
+- Status: Active
 - Owner: Codex
 - Branch: `codex/product-sold-out`
 - Base commit: `a92d9dcfe2d6743f75a43c65fdd060b6a5bb0e28`
@@ -10,7 +10,7 @@
 
 ## Goal
 
-상품 관리에서 한정수량 0을 명확한 품절 상태로 설정·확인할 수 있고, 공개 키오스크에서는 품절 상품 카드와 수량 조작이 비활성화되어 장바구니에 새로 담기지 않게 한다.
+상품 관리에서 각 상품 행의 버튼으로 즉시 품절 처리하거나 판매를 재개할 수 있고, 공개 키오스크에서는 품절 상품 카드와 수량 조작이 비활성화되어 장바구니에 새로 담기지 않게 한다.
 
 ## Non-goals
 
@@ -44,6 +44,7 @@
 1. 기존 한정수량·잔여수량·주문 검증 계약을 확인한다.
 2. 상품 관리의 품절 표시/입력을 명확히 하고 키오스크 상품 선택을 차단한다.
 3. 관련 회귀 테스트와 문서를 갱신하고 전체 검사를 실행한다.
+4. 각 상품 행에 품절 처리·판매 재개 버튼을 추가하고 후속 검사를 실행한다.
 
 ## Acceptance criteria
 
@@ -52,6 +53,7 @@
 - [x] 품절 상품이 기존 session 초안에 있더라도 주문 가능 수량이 0으로 정리된다.
 - [x] 기존 활성/숨김, 한정수량, 주문 원자성 계약은 유지된다.
 - [x] 관련 문서가 갱신된다.
+- [ ] 각 상품 행에서 편집창을 열지 않고 품절 처리·판매 재개를 즉시 실행할 수 있다.
 
 ## Validation
 
@@ -68,10 +70,17 @@
 - backward compatibility: 새 DB/API field 없이 기존 `daily_limit`과 `remainingQuantity` 의미를 확장한다.
 - Production 설정/migration 필요사항: migration 없음; Production 배포는 별도 명시 요청이 있을 때만 진행한다.
 
-## Completion
+## Previous completion
 
 - Final implementation commit: `1a525d949f602d2b2c12986c13d104098e879721`
 - GitHub remote/branch: `github/codex/product-sold-out`
 - Push verification: 구현 commit에서 local/remote 일치 및 remote branch가 local HEAD를 포함함을 확인
 - Completed at: 2026-09-06
+
+## Follow-up completion
+
+- Final implementation commit:
+- GitHub remote/branch:
+- Push verification:
+- Completed at:
 - Remaining TODO: 기준 브랜치의 기존 lint 5건·전체 test 19건 실패를 별도 작업에서 정리하고, local D1을 정상 초기화한 뒤 브라우저 smoke를 수행한다. Production은 미배포.
