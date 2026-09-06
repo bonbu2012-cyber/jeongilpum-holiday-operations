@@ -3,7 +3,7 @@
 - Status: Active
 - Owner: Codex
 - Branch: `codex/product-sold-out`
-- Base commit: `a92d9dc6566bb38afe3ae967ea2e29ff0ef68884`
+- Base commit: `a92d9dcfe2d6743f75a43c65fdd060b6a5bb0e28`
 - Started at: 2026-09-06
 - Target environment: Local validation only
 - Related issue/spec: 사용자 요청 — 품절 상품을 키오스크 상품화면에서 선택할 수 없게 처리
@@ -22,6 +22,7 @@
 
 - `app/components/KioskApp.tsx`
 - `app/components/SettingsApp.tsx`
+- `app/lib/product-availability.ts`
 - `app/ui/kiosk.css`
 - `tests/product-sold-out.test.mjs`
 - `docs/PAGES_AND_FEATURES.md`
@@ -54,16 +55,16 @@
 
 ## Validation
 
-- [ ] lint
-- [ ] typecheck
-- [ ] focused tests
-- [ ] full test
-- [ ] build
-- [ ] local HTTP render
+- [ ] lint — 변경 파일 통과; 전체 lint는 기존 테스트 파일의 미사용 변수 5건으로 실패
+- [x] typecheck
+- [x] focused tests — 품절 판정·초안 수량 정리·UI 계약 3건 통과
+- [ ] full test — 47건 중 28건 통과, 기준 브랜치의 기존 회귀 테스트 19건 실패
+- [x] build
+- [ ] local HTTP render — dev compile 성공; 기존 local D1이 일부 migration만 적용된 상태라 `categories` table 누락으로 500
 
 ## Integration notes
 
-- 충돌 해결 내용:
+- 충돌 해결 내용: 최신 `github/main`에서 분기하고 기존 active claim과 겹치는 파일은 품절 관련 hunk만 수정했다.
 - backward compatibility: 새 DB/API field 없이 기존 `daily_limit`과 `remainingQuantity` 의미를 확장한다.
 - Production 설정/migration 필요사항: migration 없음; Production 배포는 별도 명시 요청이 있을 때만 진행한다.
 

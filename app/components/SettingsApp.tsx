@@ -101,7 +101,7 @@ type VisibilityStatus = "visible" | "hidden";
 
 const DAILY_LIMIT_LABELS: Record<DailyLimitStatus, string> = {
   unlimited: "무제한",
-  sold_out: "세트",
+  sold_out: "품절",
   limited: "세트",
 };
 
@@ -113,7 +113,7 @@ const DAILY_LIMIT_TONES: Record<DailyLimitStatus, import("../ui").BadgeTone> = {
 
 const REMAINING_LABELS: Record<RemainingStatus, string> = {
   unlimited: "무제한",
-  sold_out: "세트",
+  sold_out: "품절",
   low: "세트",
   available: "세트",
 };
@@ -146,7 +146,7 @@ function dailyLimitStatus(dailyLimit: number | null): DailyLimitStatus {
 
 function dailyLimitLabel(dailyLimit: number | null) {
   const status = dailyLimitStatus(dailyLimit);
-  return status === "unlimited"
+  return status === "unlimited" || status === "sold_out"
     ? DAILY_LIMIT_LABELS[status]
     : `${dailyLimit?.toLocaleString("ko-KR")}${DAILY_LIMIT_LABELS[status]}`;
 }
@@ -160,7 +160,7 @@ function remainingStatus(dailyLimit: number | null, reservedQuantity: number): R
 
 function remainingLabel(dailyLimit: number | null, reservedQuantity: number) {
   const status = remainingStatus(dailyLimit, reservedQuantity);
-  if (status === "unlimited") return REMAINING_LABELS[status];
+  if (status === "unlimited" || status === "sold_out") return REMAINING_LABELS[status];
   return `${Math.max(0, (dailyLimit ?? 0) - reservedQuantity).toLocaleString("ko-KR")}${REMAINING_LABELS[status]}`;
 }
 
@@ -836,7 +836,7 @@ export default function SettingsApp() {
         <div className="settings-bulk-actions" aria-label="선택 상품 일괄 처리">
           <strong>{selectedProducts.length}개 선택</strong>
           <div>
-            <Button variant="ghost" size="sm" onClick={() => setBulkAction("daily-limit")}>한정수량 일괄 설정</Button>
+            <Button variant="ghost" size="sm" onClick={() => setBulkAction("daily-limit")}>한정수량 / 품절 설정</Button>
             <Button variant="ghost" size="sm" onClick={() => setBulkAction("category")}>카테고리 변경</Button>
             <Button variant="ghost" size="sm" onClick={() => setBulkAction("active")}>노출 / 숨김 전환</Button>
           </div>
@@ -968,7 +968,7 @@ export default function SettingsApp() {
         <FieldInput
           id="product-daily-limit"
           label="한정수량"
-          hint="비우면 무제한입니다."
+          hint="비우면 무제한이고, 0이면 품절입니다."
           value={draft.dailyLimit}
           format="number"
           onValueChange={(value) => updateDraft("dailyLimit", value)}
@@ -1021,7 +1021,7 @@ export default function SettingsApp() {
       {bulkAction === "daily-limit" ? <FieldInput
         id="bulk-daily-limit"
         label="한정수량"
-        hint="비우면 무제한입니다."
+        hint="비우면 무제한이고, 0이면 품절입니다."
         value={bulkDailyLimit}
         format="number"
         onValueChange={setBulkDailyLimit}
