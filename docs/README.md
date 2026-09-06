@@ -14,7 +14,7 @@
 8. [배포 runbook](DEPLOYMENT_RUNBOOK.md)
 9. [기술 결정 기록](DECISIONS.md)
 10. [동시작업 관리](WORK_MANAGEMENT.md)
-11. [대량 택배 주문 엑셀 업로드](BULK_ORDER_IMPORT.md)
+11. [대량 주문 엑셀 업로드](BULK_ORDER_IMPORT.md)
 
 저장소 전체 작업 규칙은 루트의 [AGENTS.md](../AGENTS.md)를 우선 확인한다.
 
