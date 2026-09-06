@@ -5,11 +5,11 @@ import { arrivalOffsetMinutes, findSubstituteCandidates, WORKSHOP_DATE_ORDERS_SQ
 import type { WorkshopOrder } from "../../../lib/workshop-types";
 
 type OrderRow = { id: string; order_no: string; buyer_name_snapshot: string; order_status: OrderStatus; customer_note: string; version: number; submitted_at: string; fulfillment_id: string; fulfillment_type: "pickup" | "shipping"; pickup_at: string | null; ship_date: string | null; customer_arrived: number; fulfillment_note: string };
-type ItemRow = { id: string; order_id: string; product_id: string; product_name_snapshot: string; quantity: number };
+type ItemRow = { id: string; order_id: string; product_id: string; product_name_snapshot: string; sale_unit_price: number; quantity: number };
 type FulfillmentItemRow = { fulfillment_id: string; order_item_id: string; quantity: number };
 type PackageRow = { id: string; package_code: string; order_id: string; order_item_id: string | null; product_id: string; product_name_snapshot: string; package_status: string };
 type EventRow = { id: string; order_id: string; event_type: string; reason: string | null; after_data: string | null; actor_id: string | null; created_at: string };
-type CustomizationRow = { order_item_id: string };
+type CustomizationRow = { order_item_id: string; other_request: string };
 
 const runtimeEnv = env as typeof env & { DB: D1Database; OPERATOR_USER_IDS?: string; OPERATOR_EMAILS?: string };
 const isoDatePattern = /^\d{4}-\d{2}-\d{2}$/;
@@ -52,13 +52,13 @@ export async function GET(request: Request) {
     const placeholders = ids.map(() => "?").join(",");
     const fulfillmentPlaceholders = fulfillmentIds.map(() => "?").join(",");
     const [items, fulfillmentItems, packages, events, customizations] = await Promise.all([
-      runtimeEnv.DB.prepare(`SELECT id,order_id,product_id,product_name_snapshot,quantity FROM order_items WHERE order_id IN (${placeholders})`).bind(...ids).all<ItemRow>(),
+      runtimeEnv.DB.prepare(`SELECT id,order_id,product_id,product_name_snapshot,sale_unit_price,quantity FROM order_items WHERE order_id IN (${placeholders})`).bind(...ids).all<ItemRow>(),
       runtimeEnv.DB.prepare(`SELECT fulfillment_id,order_item_id,quantity FROM fulfillment_items WHERE fulfillment_id IN (${fulfillmentPlaceholders})`).bind(...fulfillmentIds).all<FulfillmentItemRow>(),
       runtimeEnv.DB.prepare(`SELECT id,package_code,order_id,order_item_id,product_id,product_name_snapshot,package_status FROM packages WHERE order_id IN (${placeholders}) AND package_status!='voided'`).bind(...ids).all<PackageRow>(),
       runtimeEnv.DB.prepare(`SELECT id,order_id,event_type,reason,after_data,actor_id,created_at FROM order_events WHERE order_id IN (${placeholders}) ORDER BY created_at DESC,id DESC`).bind(...ids).all<EventRow>(),
-      runtimeEnv.DB.prepare(`SELECT c.order_item_id FROM order_item_customizations c JOIN order_items i ON i.id=c.order_item_id WHERE i.order_id IN (${placeholders})`).bind(...ids).all<CustomizationRow>(),
+      runtimeEnv.DB.prepare(`SELECT c.order_item_id,c.other_request FROM order_item_customizations c JOIN order_items i ON i.id=c.order_item_id WHERE i.order_id IN (${placeholders})`).bind(...ids).all<CustomizationRow>(),
     ]);
-    const customizedItemIds = new Set(customizations.results.map((item) => item.order_item_id));
+    const customizationByItemId = new Map(customizations.results.map((item) => [item.order_item_id, item.other_request]));
     const orders: WorkshopOrder[] = result.results.map((order) => {
       const orderPackages = packages.results.filter((item) => item.order_id === order.id);
       const allOrderEvents = events.results.filter((event) => event.order_id === order.id);
@@ -95,10 +95,12 @@ export async function GET(request: Request) {
             id: item.id,
             productId: item.product_id,
             name: item.product_name_snapshot,
+            unitPrice: item.sale_unit_price,
             quantity: fulfillmentItem?.quantity ?? item.quantity,
+            request: customizationByItemId.get(item.id) ?? null,
             packageTotal: itemPackages.length,
             packageCompleted: itemPackages.filter((value) => value.package_status === "completed" || value.package_status === "handed_over").length,
-            hasCustomization: customizedItemIds.has(item.id),
+            hasCustomization: customizationByItemId.has(item.id),
           };
         }),
         packages: orderPackages.map((item) => ({ id: item.id, packageCode: item.package_code, productId: item.product_id, productName: item.product_name_snapshot, packageStatus: item.package_status })),

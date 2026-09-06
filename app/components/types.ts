@@ -1,12 +1,7 @@
 export type CustomOrderDraftItem = {
-  category: "진공세트" | "프리미엄" | "O'meat" | "LA갈비" | "뼈세트";
-  budgetOption: string;
-  budgetAmount: number;
-  desiredComposition: string;
-  preferredCut: string;
-  fatPreference: string;
-  packagingRequest: string;
-  otherRequest: string;
+  productName: string;
+  amount: number;
+  request: string;
 };
 
 export type Product = {

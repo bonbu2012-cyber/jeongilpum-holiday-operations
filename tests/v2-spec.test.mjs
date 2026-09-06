@@ -153,7 +153,7 @@ test("custom order validates, preserves, and joins the main kiosk order",async()
  assert.match(custom,/orderDraft\.customItem/);
  assert.match(custom,/customStorageKey/);
  assert.match(custom,/sessionStorage\.setItem/);
- assert.match(custom,/맞춤주문은 20만원부터 가능합니다/);
+ assert.match(custom,/금액을 1원 이상 입력해주세요/);
  assert.match(custom,/type="submit"/);
  assert.match(kiosk,/custom-review-item/);
  assert.match(custom,/\/kiosk\?resume=cart/);

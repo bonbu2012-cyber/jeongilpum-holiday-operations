@@ -16,6 +16,7 @@ import {
   type SalesFilter,
 } from "../lib/sales-operations";
 import AppNav from "./AppNav";
+import CustomOrderDetails from "./CustomOrderDetails";
 import CustomerLedgerApp from "./CustomerLedgerApp";
 import SalesOrderDetail, { type SchedulePayload, type StatusChangeOptions } from "./SalesOrderDetail";
 import "../operations-flow.css";
@@ -261,7 +262,7 @@ function OrderTable({ orders, onSelect, history = false }: { orders: OrderRecord
       return <tr key={order.id} className={[order.customerArrived && !isTerminalOrder(order) ? "arrived" : "", order.status === "cancelled" ? "cancelled" : ""].filter(Boolean).join(" ")} tabIndex={0} onClick={() => onSelect(order)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") onSelect(order); }}>
         <td>{order.fulfillmentId ? scheduleTime(order) : "미지정"}</td>
         <td><b>{order.buyerName}</b><small>{order.orderNo}</small></td>
-        <td>{order.items.map((item) => item.name).join(", ") || "-"}</td>
+        <td>{order.items.length ? order.items.map((item, index) => <span key={item.id}>{item.productId === "custom-order" ? <CustomOrderDetails productName={item.name} amount={item.unitPrice} request={item.customization?.request} /> : item.name}{index < order.items.length - 1 ? ", " : ""}</span>) : "-"}</td>
         <td>{order.items.reduce((sum, item) => sum + item.quantity, 0)}</td>
         <td>{order.fulfillmentId ? (order.fulfillmentType === "onsite" ? "현장" : order.fulfillmentType === "pickup" ? "방문" : "택배") : "기존"}</td>
         <td><span className={"sales-work-state " + order.status}>{history && order.status === "cancelled" ? "취소" : workStatusLabel(order)}</span>{progress && <small>{progress}</small>}</td>

@@ -107,6 +107,9 @@ type CustomerLedgerSummaryRow = {
   net_received: number;
 };
 type CustomItemPayload = {
+  productName?: string;
+  amount?: number;
+  request?: string;
   category?: string;
   budgetOption?: string;
   budgetAmount?: number;
@@ -143,7 +146,7 @@ const runtimeEnv = env as typeof env & {
   OPERATOR_EMAILS?: string;
 };
 const isoDatePattern = /^\d{4}-\d{2}-\d{2}$/;
-const customCategories = new Set(["진공세트", "프리미엄", "O'meat", "LA갈비", "뼈세트"]);
+
 const fulfillmentTypes = new Set(["onsite", "pickup", "shipping"]);
 const paymentMethods = new Set(["card", "cash", "bank_transfer"]);
 const orderChangeEventTypes = new Set(["order_changed", "order_updated", "items_changed", "fulfillment_changed", "schedule_changed"]);
@@ -422,14 +425,9 @@ async function serializeOrders(rows: OrderRow[]) {
             unitPrice: item.sale_unit_price,
             customization: customization
               ? {
-                  category: customization.category,
-                  budgetOption: customization.budget_option,
-                  budgetAmount: item.sale_unit_price,
-                  desiredComposition: customization.desired_composition,
-                  preferredCut: customization.preferred_cut,
-                  fatPreference: customization.fat_preference,
-                  packagingRequest: customization.packaging_request,
-                  otherRequest: customization.other_request,
+                  productName: item.product_name_snapshot,
+                  amount: item.sale_unit_price,
+                  request: [customization.desired_composition, customization.preferred_cut, customization.fat_preference, customization.packaging_request, customization.other_request].filter(Boolean).join(" · "),
                 }
               : null,
           };
@@ -525,14 +523,10 @@ export async function POST(request: Request) {
       (item) => item.productId && Number.isInteger(item.quantity) && (item.quantity ?? 0) > 0,
     );
     const custom = payload.customItem;
-    const customAmount = Number(custom?.budgetAmount ?? 0);
-    const customValid = Boolean(
-      custom
-      && customCategories.has(clean(custom.category))
-      && clean(custom.budgetOption)
-      && Number.isInteger(customAmount)
-      && customAmount >= 200_000,
-    );
+    const customName = clean(custom?.productName) || clean(custom?.category);
+    const customAmount = Number(custom?.amount ?? custom?.budgetAmount ?? 0);
+    const customRequest = clean(custom?.request) || [custom?.desiredComposition, custom?.preferredCut, custom?.fatPreference, custom?.packagingRequest, custom?.otherRequest].map((value) => clean(value)).filter(Boolean).join(" · ");
+    const customValid = Boolean(custom && customName && Number.isInteger(customAmount) && customAmount > 0);
     if (
       !idempotencyKey
       || (fulfillmentType !== "onsite" && (!buyer || phone.length < 10))
@@ -542,7 +536,7 @@ export async function POST(request: Request) {
       return Response.json({ error: "주문자와 상품 정보를 확인해주세요." }, { status: 400 });
     }
     if (custom && !customValid) {
-      return Response.json({ error: "맞춤주문은 카테고리와 20만원 이상의 예산이 필요합니다." }, { status: 400 });
+      return Response.json({ error: "맞춤주문 품명과 1원 이상의 금액을 확인해주세요." }, { status: 400 });
     }
     let onsiteActorId: string | null = null;
     if (fulfillmentType === "onsite") {
@@ -668,7 +662,7 @@ export async function POST(request: Request) {
     const customOrderItem = customValid && custom
       ? {
           id: crypto.randomUUID(),
-          product: { id: "custom-order", name: `맞춤주문 · ${clean(custom.category)}`, price: customAmount },
+          product: { id: "custom-order", name: customName, price: customAmount },
           quantity: 1,
           lineTotal: customAmount,
         }
@@ -801,13 +795,13 @@ export async function POST(request: Request) {
           .bind(
             crypto.randomUUID(),
             customOrderItem.id,
-            clean(custom.category),
-            clean(custom.budgetOption),
-            clean(custom.desiredComposition),
-            clean(custom.preferredCut),
-            clean(custom.fatPreference),
-            clean(custom.packagingRequest),
-            clean(custom.otherRequest),
+            customName,
+            "직접입력",
+            "",
+            "",
+            "",
+            "",
+            customRequest,
             now,
           ),
       );

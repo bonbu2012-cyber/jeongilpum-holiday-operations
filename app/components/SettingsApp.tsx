@@ -4,6 +4,7 @@
 import { useEffect, useState } from "react";
 import { productDisplayName } from "../lib/product-display-name";
 import AppNav from "./AppNav";
+import MoneyInput from "./MoneyInput";
 
 type EditableProduct = {
   id:string; category:string; code:string; name:string; subtitle:string; description:string;
@@ -145,7 +146,7 @@ export default function SettingsApp(){
           <div className="editor-grid">
             <label><span>상품명</span><input value={item.name} onChange={e=>updateProduct(item.id,"name",e.target.value)}/></label>
             <label><span>카테고리</span><select value={item.category} onChange={e=>updateProduct(item.id,"category",e.target.value)}>{["진공세트","프리미엄","LA갈비","뼈세트","O'meat"].map(category=><option key={category}>{category}</option>)}</select></label>
-            <label><span>가격</span><input type="number" min="1" value={item.price} onChange={e=>updateProduct(item.id,"price",Number(e.target.value))}/></label>
+            <MoneyInput label="가격" min="1" value={item.price} onValueChange={value=>updateProduct(item.id,"price",Number(value))}/>
             <label><span>노출 순서</span><input type="number" value={item.displayOrder} onChange={e=>updateProduct(item.id,"displayOrder",Number(e.target.value))}/></label>
             <label><span>구성·중량</span><input value={item.customerDisplayWeight??""} onChange={e=>updateProduct(item.id,"customerDisplayWeight",e.target.value)}/></label>
             <label><span>배지</span><input value={item.badge??""} onChange={e=>updateProduct(item.id,"badge",e.target.value)} placeholder="예: BEST"/></label>

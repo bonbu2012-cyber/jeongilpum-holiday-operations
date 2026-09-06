@@ -4,7 +4,9 @@ export type WorkshopItem = {
   id: string;
   productId: string;
   name: string;
+  unitPrice: number;
   quantity: number;
+  request: string | null;
   packageTotal: number;
   packageCompleted: number;
   hasCustomization: boolean;

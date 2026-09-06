@@ -222,12 +222,12 @@ test("custom order integrates into the main order draft and persists custom fiel
     read("app/components/KioskApp.tsx"),
     read("app/api/orders/route.ts"),
   ]);
-  for (const category of ["진공세트", "프리미엄", "O'meat", "LA갈비", "뼈세트"]) {
-    assert.match(custom, new RegExp(category.replace("'", "\\'")));
-  }
-  assert.match(custom, /맞춤주문은 20만원부터 가능합니다/);
+  assert.match(custom, /productName/);
+  assert.match(custom, /<MoneyInput/);
+  assert.match(custom, /request/);
+  assert.match(custom, /금액을 1원 이상 입력해주세요/);
   assert.match(kiosk, /custom-review-item/);
-  assert.match(api, /customAmount >= 200_000/);
+  assert.match(api, /customAmount > 0/);
 
   const database = await migratedDatabase();
   insertOrder(database, "custom-persist", 200_000);

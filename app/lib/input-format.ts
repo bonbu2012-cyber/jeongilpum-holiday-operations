@@ -1,0 +1,67 @@
+export function rawInputValue(value: string) {
+  return value.replace(/\D/g, "");
+}
+
+export function formatNumberInput(value: string | number) {
+  return rawInputValue(String(value)).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
+export function parseIntegerInput(value: string) {
+  const digits = rawInputValue(value);
+  if (!digits) return null;
+  const parsed = Number(digits);
+  return Number.isSafeInteger(parsed) ? parsed : null;
+}
+
+const KOREAN_DIGITS = ["", "일", "이", "삼", "사", "오", "육", "칠", "팔", "구"] as const;
+const KOREAN_SMALL_UNITS = ["천", "백", "십", ""] as const;
+const KOREAN_LARGE_UNITS = ["", "만", "억", "조"] as const;
+
+function koreanNumberGroup(value: number) {
+  return String(value)
+    .padStart(4, "0")
+    .split("")
+    .map((digit, index) => {
+      const numericDigit = Number(digit);
+      if (!numericDigit) return "";
+      const unit = KOREAN_SMALL_UNITS[index];
+      const digitText = numericDigit === 1 && unit ? "" : KOREAN_DIGITS[numericDigit];
+      return `${digitText}${unit}`;
+    })
+    .join("");
+}
+
+export function koreanWonText(value: string | number) {
+  const amount = typeof value === "number" ? value : parseIntegerInput(value);
+  if (amount === null || !Number.isSafeInteger(amount) || amount < 0) return "";
+  if (amount === 0) return "영원";
+
+  const groups: string[] = [];
+  let remaining = amount;
+  let unitIndex = 0;
+  while (remaining > 0) {
+    const group = remaining % 10_000;
+    if (group) groups.unshift(`${koreanNumberGroup(group)}${KOREAN_LARGE_UNITS[unitIndex]}`);
+    remaining = Math.floor(remaining / 10_000);
+    unitIndex += 1;
+  }
+  return `${groups.join("")}원`;
+}
+
+export function isPastPickupTime(date: string, time: string, now = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(now);
+  const value = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
+  const today = `${value("year")}-${value("month")}-${value("day")}`;
+  if (date !== today) return false;
+
+  const [hour, minute] = time.split(":").map(Number);
+  return hour * 60 + minute <= Number(value("hour")) * 60 + Number(value("minute"));
+}
