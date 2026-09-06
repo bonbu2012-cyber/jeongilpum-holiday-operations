@@ -1,6 +1,6 @@
 # Task: 상품 품절 처리와 키오스크 선택 차단
 
-- Status: Active
+- Status: Completed
 - Owner: Codex
 - Branch: `codex/product-sold-out`
 - Base commit: `a92d9dcfe2d6743f75a43c65fdd060b6a5bb0e28`
@@ -80,8 +80,8 @@
 
 ## Follow-up completion
 
-- Final implementation commit:
-- GitHub remote/branch:
-- Push verification:
-- Completed at:
+- Final implementation commit: `89463119cb84a112850d5f34f2a44c0b63e5bae2`
+- GitHub remote/branch: `github/codex/product-sold-out`
+- Push verification: 후속 구현 commit에서 local/remote 일치 및 remote branch가 local HEAD를 포함함을 확인
+- Completed at: 2026-09-06
 - Remaining TODO: 기준 브랜치의 기존 lint 5건·전체 test 19건 실패를 별도 작업에서 정리하고, local D1을 정상 초기화한 뒤 브라우저 smoke를 수행한다. Production은 미배포.
