@@ -1,6 +1,6 @@
 # Task: 상품 품절 기능 Production 배포
 
-- Status: Active
+- Status: Completed
 - Owner: Codex
 - Branch: `codex/product-sold-out-card-ui`
 - Base commit: `73126c9bb1c4a953453066e483a0012af3e7ad8a` (Sites Version 28)
@@ -42,15 +42,18 @@
 - [x] related tests — 3건 통과
 - [x] full test — 71건 통과
 - [x] build
-- [x] migration diff 없음 확인 예정
+- [x] migration diff 없음
 - [x] Production 배포 전 row count 기록
-- [ ] Production deployment and smoke
+- [x] Production deployment — Sites Version 29 succeeded
+- [x] 데이터 보존 — 핵심 12개 table row count 동일
+- [x] Worker 오류 확인 — 배포 후 최근 오류 0건
+- [ ] 브라우저 UI smoke — owner-only 로그인 장벽과 브라우저 자동화 시작 오류로 자동 확인 미실행
 
 ## Completion
 
-- Final source commit:
-- Sites version:
-- Production URL:
-- Row count preservation:
-- Completed at:
-- Remaining TODO:
+- Final source commit: `a43e98bd6aaa49dea487884620afed3fc95a7e28`
+- Sites version: 29
+- Production URL: `https://jeongilpum-chuseok-mvp.bonbu2012.chatgpt.site`
+- Row count preservation: products 13, orders 25, order_items 29, order_events 51, fulfillments 21, fulfillment_items 25, packages 1, payments 0, production_batches 0, skin_packs 0, package_skin_packs 0, configuration_events 7 — 전후 동일
+- Completed at: 2026-09-06
+- Remaining TODO: 운영 계정으로 `/settings`를 새로고침해 각 상품 카드의 `품절 처리` 버튼 표시를 확인한다. 버튼 클릭은 실제 운영 설정을 변경하므로 자동 smoke에서 실행하지 않았다.
