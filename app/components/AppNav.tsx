@@ -1,8 +1,9 @@
-export type AppSurface = "kiosk" | "sales" | "workshop" | "settings";
+export type AppSurface = "kiosk" | "sales" | "bulk" | "workshop" | "settings";
 
 const links: Array<{ key: AppSurface; href: string; label: string }> = [
   { key: "kiosk", href: "/kiosk", label: "메인 화면" },
   { key: "sales", href: "/sales", label: "판매장" },
+  { key: "bulk", href: "/bulk-orders", label: "대량주문" },
   { key: "workshop", href: "/workshop", label: "작업장" },
   { key: "settings", href: "/settings", label: "설정" },
 ];
