@@ -1,6 +1,6 @@
 # Task: 맞춤주문 수동 입력과 운영 화면 표시
 
-- Status: Active
+- Status: Blocked — Production deployment safety checks failed
 - Owner: Codex
 - Branch: `codex/custom-order-manual-fields`
 - Base commit: `0e88cfc184e16732826561891c178bf2781a183d`
@@ -48,24 +48,26 @@
 
 ## Validation
 
-- [ ] lint
-- [ ] typecheck
-- [ ] focused tests
-- [ ] full test
-- [ ] build
+- [ ] lint — 변경 파일은 통과, 전체 lint는 기존 테스트 파일의 미사용 변수 5건으로 실패
+- [x] typecheck
+- [x] focused tests — 맞춤주문 4건 + v2 맞춤주문 1건 통과
+- [ ] full test — 47건 중 28건 통과, 기존 회귀 테스트 19건 실패
+- [x] build
+- [x] local HTTP render — 맞춤주문 화면 200, 품명·금액·요청사항 확인
 
 ## Integration notes
 
-- 충돌 해결 내용:
+- 충돌 해결 내용: GitHub main 최신 commit에서 분기했으며 구현 중 추가 main 변경은 없었다.
 - backward compatibility: 기존 저장 draft의 예산 필드를 읽어 새 품명·금액 형식으로 정규화한다.
 - Production 설정/migration 필요사항: 없음.
+- Production blocker: 0007 migration이 운영 테이블을 DROP하므로 데이터 보존 조건을 충족하지 못한다. 전체 lint와 전체 test도 통과하지 않았다.
 
 ## Completion
 
-- Final commit:
-- GitHub remote/branch:
-- Push verification:
-- Sites version:
-- Production URL:
-- Completed at:
-- Remaining TODO:
+- Implementation commit: e03ac7bcc9c000ae48b655f306e232171b3701ac
+- GitHub remote/branch: github/codex/custom-order-manual-fields
+- Push verification: pending
+- Sites version: 미생성
+- Production URL: 기존 https://jeongilpum-chuseok-mvp.bonbu2012.chatgpt.site (이번 변경 미배포)
+- Completed at: 미완료
+- Remaining TODO: 파괴적 migration과 기준 브랜치 전체 검사 실패를 별도 수정한 뒤 Production 백업·migration 검증·배포
