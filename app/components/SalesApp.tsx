@@ -32,6 +32,8 @@ import {
   type WorkStatus,
 } from "../lib/work-status";
 import { formatWorkItemDateTime } from "./WorkItemHistory";
+import CustomOrderDetails from "./CustomOrderDetails";
+import { MoneyFieldInput } from "./MoneyInput";
 import SharedWorkItemEditor, {
   WorkItemFields as SharedWorkItemFields,
   toWorkItemChanges,
@@ -625,7 +627,9 @@ export default function SalesApp() {
     {
       id: "product",
       header: "상품",
-      cell: (item) => <><b>{item.productName}</b>{item.productDailyLimit !== null && item.productScheduledQuantity > item.productDailyLimit ? <small className="sales-work-table__overage">일일 수량 초과 {item.productScheduledQuantity}/{item.productDailyLimit}</small> : null}</>,
+      cell: (item) => <>{item.productId === "custom-order"
+        ? <CustomOrderDetails productName={item.productName} amount={item.unitPrice} request={item.customizationJson} />
+        : <b>{item.productName}</b>}{item.productDailyLimit !== null && item.productScheduledQuantity > item.productDailyLimit ? <small className="sales-work-table__overage">일일 수량 초과 {item.productScheduledQuantity}/{item.productDailyLimit}</small> : null}</>,
       sortValue: (item) => item.productName,
       exportValue: (item) => `${item.productName}${item.productDailyLimit !== null && item.productScheduledQuantity > item.productDailyLimit ? ` 일일 수량 초과 ${item.productScheduledQuantity}/${item.productDailyLimit}` : ""}`,
       cellLayout: "stacked",
@@ -1074,7 +1078,7 @@ function BulkActions({
           <FieldSelect id="sales-bulk-payment-status" label="결제 상태" value={paymentStatus} onChange={(event) => setPaymentStatus(event.target.value as PaymentStatus)}>
             {Object.entries(PAYMENT_STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
           </FieldSelect>
-          <FieldInput id="sales-bulk-paid-amount" label="결제 금액" format="number" value={paidAmount} onValueChange={setPaidAmount} />
+          <MoneyFieldInput id="sales-bulk-paid-amount" label="결제 금액" value={paidAmount} onValueChange={setPaidAmount} />
           <Button size="sm" variant="ghost" disabled={!Number.isInteger(Number(paidAmount)) || Number(paidAmount) < 0} onClick={() => void onRun({ action: "payment", paymentStatus, paidAmount: Number(paidAmount) }, "결제 정보를 일괄 변경했습니다.")}>결제 변경</Button>
         </div>
       </div>
@@ -1202,8 +1206,8 @@ function OrderFields({
       <FieldInput id={`${idPrefix}-buyer-name`} label="주문자 성함" value={draft.buyerName} onChange={(event) => onChange("buyerName", event.target.value)} />
       <FieldInput id={`${idPrefix}-buyer-phone`} label="주문자 전화번호" format="phone" value={draft.buyerPhone} onValueChange={(value) => onChange("buyerPhone", value)} />
       <FieldInput id={`${idPrefix}-payment-status`} label="결제 상태" value={draft.paymentStatus} onChange={(event) => onChange("paymentStatus", event.target.value)} />
-      <FieldInput id={`${idPrefix}-paid-amount`} label="결제 금액" format="number" value={draft.paidAmount} onValueChange={(value) => onChange("paidAmount", value)} />
-      <FieldInput id={`${idPrefix}-total-amount`} label="주문 금액" format="number" value={draft.totalAmount} onValueChange={(value) => onChange("totalAmount", value)} />
+      <MoneyFieldInput id={`${idPrefix}-paid-amount`} label="결제 금액" value={draft.paidAmount} onValueChange={(value) => onChange("paidAmount", value)} />
+      <MoneyFieldInput id={`${idPrefix}-total-amount`} label="주문 금액" value={draft.totalAmount} onValueChange={(value) => onChange("totalAmount", value)} />
       <FieldInput id={`${idPrefix}-customer-arrived-at`} label="고객 도착 시각" value={draft.customerArrivedAt} onChange={(event) => onChange("customerArrivedAt", event.target.value)} />
       <FieldTextarea id={`${idPrefix}-customer-note`} className="sales-work-table__editor-wide" label="고객 메모" rows={3} value={draft.customerNote} onChange={(event) => onChange("customerNote", event.target.value)} />
     </div>
@@ -1393,7 +1397,7 @@ function PaymentEditor({
         <FieldSelect id="sales-payment-status" label="결제 상태" value={paymentStatus} onChange={(event) => setPaymentStatus(event.target.value as PaymentStatus)}>
           {Object.entries(PAYMENT_STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
         </FieldSelect>
-        <FieldInput id="sales-paid-amount" label="결제 금액" format="number" value={paidAmount} onValueChange={setPaidAmount} hint="주문 금액보다 큰 금액도 운영자가 기록할 수 있습니다." />
+        <MoneyFieldInput id="sales-paid-amount" label="결제 금액" value={paidAmount} onValueChange={setPaidAmount} hint="주문 금액보다 큰 금액도 운영자가 기록할 수 있습니다." />
         {error ? <p className="sales-work-table__error" role="alert">{error}</p> : null}
       </form>
     </Modal>

@@ -19,6 +19,7 @@ import {
   type DataTableColumn,
 } from "../ui";
 import { parseIntegerInput } from "../lib/input-format";
+import { MoneyFieldInput } from "./MoneyInput";
 
 type CatalogProduct = {
   id: string;
@@ -959,7 +960,7 @@ export default function SettingsApp() {
         <FieldSelect id="product-category" label="카테고리" value={draft.category} onChange={(event) => updateDraft("category", event.target.value)}>
           {categoryNames.map((category) => <option key={category} value={category}>{category}</option>)}
         </FieldSelect>
-        <FieldInput id="product-price" label="가격" format="number" value={draft.price} onValueChange={(value) => updateDraft("price", value)} />
+        <MoneyFieldInput id="product-price" label="가격" value={draft.price} onValueChange={(value) => updateDraft("price", value)} />
         <FieldInput id="product-weight" label="중량" value={draft.displayWeight} onChange={(event) => updateDraft("displayWeight", event.target.value)} placeholder="예: 1.8kg" />
         <FieldInput className="settings-editor-grid__wide" id="product-subtitle" label="부제" value={draft.subtitle} onChange={(event) => updateDraft("subtitle", event.target.value)} />
         <FieldTextarea className="settings-editor-grid__wide" id="product-description" label="설명" value={draft.description} onChange={(event) => updateDraft("description", event.target.value)} />

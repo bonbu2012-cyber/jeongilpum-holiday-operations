@@ -11,6 +11,7 @@ import { useState } from "react";
 import type { ReactNode } from "react";
 import type { DataTableColumn } from "../ui";
 import AppNav from "./AppNav";
+import CustomOrderDetails from "./CustomOrderDetails";
 import {
   Button,
   DataTable,
@@ -309,7 +310,9 @@ export default function WorkshopApp() {
     {
       id: "product",
       header: "상품",
-      cell: (item) => <span>{item.productName}</span>,
+      cell: (item) => item.productId === "custom-order"
+        ? <CustomOrderDetails productName={item.productName} amount={item.unitPrice} request={item.customizationJson} />
+        : <span>{item.productName}</span>,
       sortValue: (item) => item.productName,
     },
     {
@@ -327,7 +330,9 @@ export default function WorkshopApp() {
     {
       id: "product",
       header: "상품",
-      cell: (item) => <span>{item.productName}</span>,
+      cell: (item) => item.productId === "custom-order"
+        ? <CustomOrderDetails productName={item.productName} amount={item.unitPrice} request={item.customizationJson} />
+        : <span>{item.productName}</span>,
       sortValue: (item) => item.productName,
     },
     {
