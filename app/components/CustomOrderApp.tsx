@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { FormattedInput } from "../ui";
 import { parseIntegerInput } from "../lib/input-format";
 import type { OrderDraft } from "./types";
+import { MoneyReadout } from "./MoneyInput";
 
 type Draft = {
   productName: string;
@@ -152,6 +153,7 @@ export default function CustomOrderApp() {
               onValueChange={(value) => set("amount", value)}
               placeholder="금액을 입력해주세요"
             />
+            <MoneyReadout value={draft.amount} />
           </label>
           {errors.amount && <span className="field-error" role="alert">{errors.amount}</span>}
         </section>

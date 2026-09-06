@@ -5,6 +5,7 @@ import type { FormEvent } from "react";
 import { Button, FieldInput, FieldSelect, FieldTextarea, Modal, useResource } from "../ui";
 import { type WorkStatus } from "../lib/work-status";
 import WorkItemHistory, { type WorkItemHistoryEvent } from "./WorkItemHistory";
+import { MoneyFieldInput } from "./MoneyInput";
 import WorkStatusSelect from "./WorkStatusSelect";
 import "../sales/work-table.css";
 
@@ -252,7 +253,7 @@ export function WorkItemFields({
           {existingItem ? null : <option value="">상품 선택</option>}
           {productOptions.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}
         </FieldSelect>
-        <FieldInput id={`${idPrefix}-unit-price`} label="상품 단가" format="number" value={draft.unitPrice} onValueChange={(value) => onChange("unitPrice", value)} />
+        <MoneyFieldInput id={`${idPrefix}-unit-price`} label="상품 단가" value={draft.unitPrice} onValueChange={(value) => onChange("unitPrice", value)} />
         <FieldInput id={`${idPrefix}-quantity`} label="수량" format="number" value={draft.quantity} onValueChange={(value) => onChange("quantity", value)} />
         <FieldSelect id={`${idPrefix}-delivery`} label="수령방법" value={draft.deliveryMethod} onChange={(event) => onChange("deliveryMethod", event.target.value as DeliveryMethod)}>
           {Object.entries(DELIVERY_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
