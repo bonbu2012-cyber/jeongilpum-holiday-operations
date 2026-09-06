@@ -41,15 +41,18 @@
 
 ## Validation
 
-- [x] changed-file lint (전체 lint는 기준 브랜치의 기존 미사용 변수 5건으로 실패)
+- [x] changed-file lint; 전체 lint는 맞춤주문 기준 브랜치와 동일한 기존 미사용 변수 5건으로 실패
 - [x] typecheck
 - [x] focused test (4/4)
 - [x] git diff --check
+- [x] build
+- [ ] full test: 맞춤주문 기준 브랜치와 동일하게 47건 중 28건 통과, 기존 19건 실패
 
 ## Completion
 
 - Final implementation commit: `ca85ca7f6db37f5dac1091f60e877c6937f4de38`
+- Integration commit: `09a029b` (맞춤주문 브랜치 병합)
 - GitHub remote/branch: `github/codex/disable-past-pickup-times` (미전송)
 - Push verification: 명시적 외부 전송 승인 필요
 - Completed at:
-- Remaining TODO: `codex/custom-order-manual-fields`에 수동 병합, GitHub push 확인
+- Remaining TODO: GitHub push 확인; Production 배포는 별도 승인 필요
