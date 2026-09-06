@@ -1,0 +1,75 @@
+# Task: 카드형 상품관리 품절 버튼
+
+- Status: Active
+- Owner: Codex
+- Branch: `codex/product-sold-out-card-ui`
+- Base commit: `73126c9bb1c4a953453066e483a0012af3e7ad8a`
+- Started at: 2026-09-06
+- Target environment: Local validation only
+- Related issue/spec: 사용자 제공 Production 상품관리 화면 캡처
+
+## Goal
+
+Production Version 28의 카드형 상품관리 화면에서 각 상품마다 `품절 처리` 또는 `판매 재개` 버튼을 제공하고, 품절 상품은 키오스크 상품 화면에서 선택하거나 장바구니에 추가할 수 없게 한다.
+
+## Non-goals
+
+- Production 배포 및 D1 migration
+- 상품 노출 여부(`products.active`)를 품절 상태로 오용
+- 기존 프리미엄 한정 판매량 기능 제거
+
+## Claimed paths
+
+- `app/components/SettingsApp.tsx`의 상품 카드 품절 액션
+- `app/api/settings/route.ts`의 상품 품절 설정 계약
+- `app/components/KioskApp.tsx`의 품절 상품 선택 차단
+- `app/globals.css`의 상품 카드 품절 버튼 스타일
+- `tests/product-sold-out-card.test.mjs`
+- `docs/work/active/20260906-codex-product-sold-out-card-ui.md`
+
+## Shared contracts
+
+- `product_daily_limits.daily_limit=0 AND active=1`을 즉시 품절 상태로 사용한다.
+- `/api/settings`의 `product_availability` 액션은 낙관적 버전 확인과 감사 이벤트를 유지한다.
+- 판매 재개 시 품절 처리 직전의 한정 판매량 설정을 복원한다.
+
+## Dependencies
+
+- 현재 `SettingsApp.tsx`와 `KioskApp.tsx`를 claim한 다른 작업은 GitHub main 계열이며, 이 hotfix는 Production Version 28 커밋에서 분기해 해당 작업의 미완료 변경을 포함하거나 되돌리지 않는다.
+- `docs/PAGES_AND_FEATURES.md`는 다른 active 작업들이 claim 중이므로 직접 수정하지 않고 완료 문서에 후속 통합 필요사항을 기록한다.
+
+## Plan
+
+1. Production 카드 UI와 기존 일일 한정수량 계약을 확인한다.
+2. 상품별 품절 처리·판매 재개와 키오스크 선택 차단을 구현한다.
+3. 회귀 테스트와 lint, typecheck, test, build를 실행한다.
+
+## Acceptance criteria
+
+- [ ] 각 상품 카드에 명확한 품절 상태 버튼이 보인다.
+- [ ] 품절 처리는 기존 한정수량을 보존하고 감사 이벤트를 남긴다.
+- [ ] 품절 상품은 키오스크에서 클릭 및 장바구니 추가가 불가능하다.
+- [ ] 판매 재개 시 기존 한정수량 설정이 복원된다.
+
+## Validation
+
+- [ ] lint
+- [ ] typecheck
+- [ ] related tests
+- [ ] full test
+- [ ] build
+- [ ] manual smoke, 해당 시
+
+## Integration notes
+
+- 충돌 해결 내용: Production 전용 분기로 active GitHub main 계열 작업과 파일 이력을 분리한다.
+- backward compatibility: 기존 `daily_limit` 액션과 프리미엄 한정 판매량 UI는 유지한다.
+- Production 설정/migration 필요사항: schema 변경 없음. 배포는 별도 사용자 요청이 필요하다.
+
+## Completion
+
+- Final commit:
+- GitHub remote/branch:
+- Push verification:
+- Completed at:
+- Remaining TODO:
