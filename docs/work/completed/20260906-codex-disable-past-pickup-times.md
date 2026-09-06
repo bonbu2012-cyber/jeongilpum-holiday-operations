@@ -1,6 +1,6 @@
 # Task: 오늘 방문수령 과거 시간 선택 방지
 
-- Status: Review
+- Status: Completed
 - Owner: Codex
 - Branch: `codex/disable-past-pickup-times`
 - Base commit: `0e88cfc184e16732826561891c178bf2781a183d`
@@ -69,7 +69,7 @@
 - Staff help removal commit: `4e282e677077e4ee2e289ff2e21ed6258e428f7f`
 - Money input implementation commit: `9bd82e3`
 - Integration commit: `09a029b` (맞춤주문 브랜치 병합)
-- GitHub remote/branch: `github/codex/disable-past-pickup-times` (미전송)
-- Push verification: 명시적 외부 전송 승인 필요
-- Completed at:
-- Remaining TODO: GitHub push 확인; Production 배포는 별도 승인 필요
+- GitHub remote/branch: `github/codex/disable-past-pickup-times` (전송 완료)
+- Push verification: GitHub 원격이 로컬 `72efc9fb177a50c929b96eaad642c60e1c2b0608`을 포함함
+- Completed at: 2026-09-06
+- Remaining TODO: Production 배포는 별도 승인 필요
