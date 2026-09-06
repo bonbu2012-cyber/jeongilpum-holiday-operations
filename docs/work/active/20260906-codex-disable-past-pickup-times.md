@@ -10,7 +10,7 @@
 
 ## Goal
 
-방문수령일이 Asia/Seoul 기준 오늘이면 현재 시각 이전의 30분 시간대를 선택할 수 없게 하고, 미래 날짜의 시간 선택은 유지한다.
+방문수령일이 Asia/Seoul 기준 오늘이면 현재 시각 이전의 30분 시간대를 선택할 수 없게 하고, 미래 날짜의 시간 선택은 유지한다. 추가 요청에 따라 모든 페이지에서 직원 도움 버튼과 관련 팝업을 제거한다.
 
 ## Non-goals
 
@@ -23,6 +23,8 @@
 - `app/kiosk-flow.css`
 - `app/lib/pickup-time.ts`
 - `tests/pickup-time.test.mjs`
+- `app/ui/kiosk.css`
+- `tests/no-staff-help.test.mjs`
 - `docs/work/active/20260906-codex-disable-past-pickup-times.md`
 
 ## Shared contracts
@@ -37,20 +39,23 @@
 
 1. 서울 기준 오늘의 과거 시간 판정 helper를 추가한다.
 2. 과거 시간 버튼과 다음 단계 진행을 비활성화한다.
-3. 회귀 테스트, lint, typecheck를 실행한다.
+3. 모든 앱 페이지의 직원 도움 UI와 잔여 스타일을 제거한다.
+4. 회귀 테스트, lint, typecheck를 실행한다.
 
 ## Validation
 
 - [x] changed-file lint; 전체 lint는 맞춤주문 기준 브랜치와 동일한 기존 미사용 변수 5건으로 실패
 - [x] typecheck
-- [x] focused test (4/4)
+- [x] pickup time focused test (4/4)
+- [x] all-page staff help absence test (1/1)
 - [x] git diff --check
 - [x] build
 - [ ] full test: 맞춤주문 기준 브랜치와 동일하게 47건 중 28건 통과, 기존 19건 실패
 
 ## Completion
 
-- Final implementation commit: `ca85ca7f6db37f5dac1091f60e877c6937f4de38`
+- Pickup time implementation commit: `ca85ca7f6db37f5dac1091f60e877c6937f4de38`
+- Staff help removal commit: `4e282e677077e4ee2e289ff2e21ed6258e428f7f`
 - Integration commit: `09a029b` (맞춤주문 브랜치 병합)
 - GitHub remote/branch: `github/codex/disable-past-pickup-times` (미전송)
 - Push verification: 명시적 외부 전송 승인 필요
