@@ -1,6 +1,6 @@
 # Task: 상품 품절 처리와 키오스크 선택 차단
 
-- Status: Active
+- Status: Completed
 - Owner: Codex
 - Branch: `codex/product-sold-out`
 - Base commit: `a92d9dcfe2d6743f75a43c65fdd060b6a5bb0e28`
@@ -47,11 +47,11 @@
 
 ## Acceptance criteria
 
-- [ ] 운영자가 상품 한정수량을 0으로 저장하면 품절로 명확히 표시된다.
-- [ ] 품절 상품은 키오스크 상품 목록에 남지만 클릭·수량 증가·상세 열기가 불가능하다.
-- [ ] 품절 상품이 기존 session 초안에 있더라도 주문 가능 수량이 0으로 정리된다.
-- [ ] 기존 활성/숨김, 한정수량, 주문 원자성 계약은 유지된다.
-- [ ] 관련 문서가 갱신된다.
+- [x] 운영자가 상품 한정수량을 0으로 저장하면 품절로 명확히 표시된다.
+- [x] 품절 상품은 키오스크 상품 목록에 남지만 클릭·수량 증가·상세 열기가 불가능하다.
+- [x] 품절 상품이 기존 session 초안에 있더라도 주문 가능 수량이 0으로 정리된다.
+- [x] 기존 활성/숨김, 한정수량, 주문 원자성 계약은 유지된다.
+- [x] 관련 문서가 갱신된다.
 
 ## Validation
 
@@ -70,8 +70,8 @@
 
 ## Completion
 
-- Final commit:
-- GitHub remote/branch:
-- Push verification:
-- Completed at:
-- Remaining TODO:
+- Final implementation commit: `1a525d949f602d2b2c12986c13d104098e879721`
+- GitHub remote/branch: `github/codex/product-sold-out`
+- Push verification: 구현 commit에서 local/remote 일치 및 remote branch가 local HEAD를 포함함을 확인
+- Completed at: 2026-09-06
+- Remaining TODO: 기준 브랜치의 기존 lint 5건·전체 test 19건 실패를 별도 작업에서 정리하고, local D1을 정상 초기화한 뒤 브라우저 smoke를 수행한다. Production은 미배포.
