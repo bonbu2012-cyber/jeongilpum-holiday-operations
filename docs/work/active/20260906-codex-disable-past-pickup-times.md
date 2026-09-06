@@ -67,6 +67,7 @@
 
 - Pickup time implementation commit: `ca85ca7f6db37f5dac1091f60e877c6937f4de38`
 - Staff help removal commit: `4e282e677077e4ee2e289ff2e21ed6258e428f7f`
+- Money input implementation commit: `9bd82e3`
 - Integration commit: `09a029b` (맞춤주문 브랜치 병합)
 - GitHub remote/branch: `github/codex/disable-past-pickup-times` (미전송)
 - Push verification: 명시적 외부 전송 승인 필요
