@@ -66,7 +66,7 @@
 
 - Implementation commit: e03ac7bcc9c000ae48b655f306e232171b3701ac
 - GitHub remote/branch: github/codex/custom-order-manual-fields
-- Push verification: pending
+- Push verification: 7786a7f102fe59aafb5a1601b792b3203b54272a에서 local/remote 일치 확인
 - Sites version: 미생성
 - Production URL: 기존 https://jeongilpum-chuseok-mvp.bonbu2012.chatgpt.site (이번 변경 미배포)
 - Completed at: 미완료
