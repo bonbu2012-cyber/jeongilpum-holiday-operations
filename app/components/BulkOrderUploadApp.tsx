@@ -7,6 +7,7 @@ import { Button, OperationsPageHeader } from "../ui";
 import {
   todayInSeoul,
   validateAndGroupBulkOrderRows,
+  type BulkOrderFulfillmentType,
   type BulkOrderGroup,
   type BulkOrderRowInput,
   type BulkOrderValidationError,
@@ -49,9 +50,20 @@ function resultLabel(status: ImportResult["status"]) {
   return "접수 실패";
 }
 
+function fulfillmentLabel(type: BulkOrderFulfillmentType) {
+  return type === "pickup" ? "현장수령" : "택배발송";
+}
+
+function scheduleLabel(group: BulkOrderGroup) {
+  return group.fulfillmentType === "pickup"
+    ? `${group.scheduleDate} · ${group.pickupTime}`
+    : `${group.scheduleDate} 발송`;
+}
+
 export default function BulkOrderUploadApp() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [products, setProducts] = useState<Product[]>([]);
+  const [catalogLoading, setCatalogLoading] = useState(true);
   const [catalogError, setCatalogError] = useState("");
   const [fileName, setFileName] = useState("");
   const [fileHash, setFileHash] = useState("");
@@ -70,7 +82,8 @@ export default function BulkOrderUploadApp() {
         if (!response.ok) throw new Error(data.error ?? "상품을 불러오지 못했습니다.");
         setProducts(data.products ?? []);
       })
-      .catch((caught) => setCatalogError(caught instanceof Error ? caught.message : "상품을 불러오지 못했습니다."));
+      .catch((caught) => setCatalogError(caught instanceof Error ? caught.message : "상품을 불러오지 못했습니다."))
+      .finally(() => setCatalogLoading(false));
   }, []);
 
   const productsByCode = useMemo(() => new Map(products.map((product) => [product.code.toUpperCase(), product])), [products]);
@@ -85,6 +98,8 @@ export default function BulkOrderUploadApp() {
     const product = productsByCode.get(item.productCode);
     return itemSum + (product ? product.price * item.quantity : 0);
   }, 0), 0);
+  const pickupCount = groups.filter((group) => group.fulfillmentType === "pickup").length;
+  const shippingCount = groups.length - pickupCount;
 
   const resetSelection = () => {
     setFileName("");
@@ -127,7 +142,7 @@ export default function BulkOrderUploadApp() {
   };
 
   const upload = async () => {
-    if (!fileHash || !rows.length || allErrors.length || uploading) return;
+    if (!fileHash || !rows.length || allErrors.length || uploading || catalogLoading || catalogError) return;
     setUploading(true);
     setNotice("");
     setResults([]);
@@ -157,18 +172,18 @@ export default function BulkOrderUploadApp() {
 
   return (
     <div className="bulk-order-app">
-      <OperationsPageHeader title="대량 택배 주문" description="엑셀 검토 및 일괄 접수" href="/bulk-orders" />
+      <OperationsPageHeader title="대량 주문" description="현장수령·택배발송 엑셀 일괄 접수" href="/bulk-orders" />
       <main className="bulk-order-main">
         <section className="bulk-order-intro" aria-labelledby="bulk-order-title">
           <div>
             <p className="bulk-order-eyebrow">판매장 업무</p>
-            <h1 id="bulk-order-title">엑셀로 택배 주문 접수</h1>
-            <p>양식을 내려받아 주문을 작성한 뒤 파일을 선택하세요. 저장하기 전에 행 오류와 주문 묶음을 확인할 수 있습니다.</p>
+            <h1 id="bulk-order-title">엑셀로 대량 주문 접수</h1>
+            <p>한 양식에서 현장수령과 택배발송을 함께 작성하세요. 저장 전에 행 오류와 주문 묶음을 확인할 수 있습니다.</p>
           </div>
           <a
             className="ui-button ui-button--ghost ui-button--md bulk-order-download"
-            href="/templates/jeongilpum-bulk-shipping-orders.xlsx"
-            download="정일품_대량택배주문_업로드양식.xlsx"
+            href="/templates/jeongilpum-bulk-orders.xlsx"
+            download="정일품_대량주문_업로드양식.xlsx"
           >
             <Download size={17} aria-hidden="true" />
             엑셀 양식 받기
@@ -199,6 +214,7 @@ export default function BulkOrderUploadApp() {
             <strong>{reading ? "파일을 확인하는 중입니다" : fileName || "엑셀 파일 선택"}</strong>
             <span>{fileName ? "다른 파일을 선택하려면 다시 누르세요." : "파일은 브라우저 저장소에 보관하지 않습니다."}</span>
           </label>
+          {catalogLoading ? <p className="bulk-order-message" role="status">상품 정보를 불러오는 중입니다.</p> : null}
           {catalogError ? <p className="bulk-order-message bulk-order-message--error" role="alert">{catalogError}</p> : null}
         </section>
 
@@ -238,7 +254,8 @@ export default function BulkOrderUploadApp() {
               </div>
               <div className="bulk-order-summary" aria-label="업로드 요약">
                 <strong>{groups.length}건</strong>
-                <span>{rows.length}행</span>
+                <span>현장 {pickupCount}건</span>
+                <span>택배 {shippingCount}건</span>
                 <span>상품 {quantityTotal}개</span>
                 <span>{won(amountTotal)}</span>
               </div>
@@ -248,8 +265,9 @@ export default function BulkOrderUploadApp() {
                 <thead>
                   <tr>
                     <th scope="col">그룹키</th>
-                    <th scope="col">수령인</th>
-                    <th scope="col">발송일</th>
+                    <th scope="col">수령방법</th>
+                    <th scope="col">수령 대상</th>
+                    <th scope="col">일정</th>
                     <th scope="col">상품</th>
                     <th scope="col">금액</th>
                   </tr>
@@ -257,11 +275,14 @@ export default function BulkOrderUploadApp() {
                 <tbody>
                   {groups.map((group) => {
                     const total = group.items.reduce((sum, item) => sum + (productsByCode.get(item.productCode)?.price ?? 0) * item.quantity, 0);
+                    const displayName = group.fulfillmentType === "pickup" ? group.buyerName : group.recipientName;
+                    const displayPhone = group.fulfillmentType === "pickup" ? group.buyerPhone : group.recipientPhone;
                     return (
                       <tr key={group.groupKey}>
                         <th scope="row">{group.groupKey}</th>
-                        <td><strong>{group.recipientName}</strong><small>{group.recipientPhone}</small></td>
-                        <td>{group.shipDate}</td>
+                        <td><strong>{fulfillmentLabel(group.fulfillmentType)}</strong></td>
+                        <td><strong>{displayName}</strong><small>{displayPhone}</small></td>
+                        <td>{scheduleLabel(group)}</td>
                         <td>{group.items.map((item) => `${productsByCode.get(item.productCode)?.name ?? item.productCode} × ${item.quantity}`).join(", ")}</td>
                         <td>{won(total)}</td>
                       </tr>
@@ -271,8 +292,8 @@ export default function BulkOrderUploadApp() {
               </table>
             </div>
             <div className="bulk-order-submit">
-              <p>업로드 주문은 미결제·택배 접수 상태로 저장됩니다.</p>
-              <Button disabled={uploading || Boolean(catalogError)} leadingIcon={<Upload />} onClick={() => void upload()}>
+              <p>모든 주문은 미결제이며 현장수령 예약 또는 택배발송 작업으로 접수됩니다.</p>
+              <Button disabled={uploading || catalogLoading || Boolean(catalogError)} leadingIcon={<Upload />} onClick={() => void upload()}>
                 {uploading ? "일괄 주문 업로드 중" : `일괄 주문 업로드 (${groups.length}건)`}
               </Button>
             </div>

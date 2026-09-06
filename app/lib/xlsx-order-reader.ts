@@ -3,8 +3,9 @@ import type { BulkOrderRowInput } from "./bulk-order-import";
 type ZipEntry = { name: string; compression: number; compressedSize: number; localHeaderOffset: number };
 
 const uploadHeaders = [
-  "주문그룹키*", "주문자명*", "주문자연락처*", "수령인명*", "수령인연락처*", "우편번호*", "도로명주소*",
-  "참고주소", "지번주소", "상세주소*", "발송일*", "상품코드*", "수량*", "주문메모",
+  "주문그룹키*", "수령방법*", "주문자명*", "주문자연락처*", "수령인명(택배필수)", "수령인연락처(택배필수)",
+  "우편번호(택배필수)", "도로명주소(택배필수)", "참고주소", "지번주소", "상세주소(택배필수)",
+  "수령/발송일*", "현장수령시간(현장필수)", "상품코드*", "수량*", "주문메모",
 ] as const;
 const decoder = new TextDecoder("utf-8");
 const element = (name: string) => `(?:\\w+:)?${name}`;
@@ -144,6 +145,14 @@ export function excelSerialToIsoDate(serial: number) {
   return new Date(Date.UTC(1899, 11, 30) + Math.floor(serial) * 86_400_000).toISOString().slice(0, 10);
 }
 
+export function excelSerialToTime(serial: number) {
+  if (!Number.isFinite(serial)) return "";
+  const totalMinutes = Math.round((serial - Math.floor(serial)) * 1_440) % 1_440;
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
 export async function readBulkOrderWorkbook(buffer: ArrayBuffer): Promise<BulkOrderRowInput[]> {
   const source = zipEntries(buffer);
   const loadXml = async (name: string, required = true) => {
@@ -166,10 +175,11 @@ export async function readBulkOrderWorkbook(buffer: ArrayBuffer): Promise<BulkOr
     .filter((row) => row.values.slice(0, uploadHeaders.length).some((value) => String(value ?? "").trim() !== ""))
     .map((row) => ({
       rowNumber: row.rowNumber,
-      groupKey: row.values[0], buyerName: row.values[1], buyerPhone: row.values[2], recipientName: row.values[3],
-      recipientPhone: row.values[4], postalCode: row.values[5], roadAddr: row.values[6], roadAddrReference: row.values[7],
-      jibunAddr: row.values[8], detailAddr: row.values[9],
-      shipDate: typeof row.values[10] === "number" ? excelSerialToIsoDate(row.values[10]) : row.values[10],
-      productCode: row.values[11], quantity: row.values[12], note: row.values[13],
+      groupKey: row.values[0], fulfillmentMethod: row.values[1], buyerName: row.values[2], buyerPhone: row.values[3],
+      recipientName: row.values[4], recipientPhone: row.values[5], postalCode: row.values[6], roadAddr: row.values[7],
+      roadAddrReference: row.values[8], jibunAddr: row.values[9], detailAddr: row.values[10],
+      scheduleDate: typeof row.values[11] === "number" ? excelSerialToIsoDate(row.values[11]) : row.values[11],
+      pickupTime: typeof row.values[12] === "number" ? excelSerialToTime(row.values[12]) : row.values[12],
+      productCode: row.values[13], quantity: row.values[14], note: row.values[15],
     }));
 }
