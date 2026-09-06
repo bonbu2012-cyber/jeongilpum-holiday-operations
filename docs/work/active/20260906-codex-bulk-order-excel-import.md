@@ -1,12 +1,11 @@
 # Task: 대량 택배 주문 엑셀 업로드
 
-- Status: Completed
+- Status: Active — GitHub push approval required
 - Owner: Codex
 - Branch: `codex/bulk-order-excel-import`
 - Base commit: `a92d9dcfe2d6743f75a43c65fdd060b6a5bb0e28`
 - Implementation commit: `04f99d76165a75bb3338976321e5c567b6d1055d`
 - Started at: 2026-09-06
-- Completed at: 2026-09-06
 - Target environment: Local validation only
 
 ## Goal
@@ -33,7 +32,7 @@
 - `tests/bulk-order-import.test.mjs`
 - `docs/BULK_ORDER_IMPORT.md`
 - `docs/README.md`
-- `docs/work/completed/20260906-codex-bulk-order-excel-import.md`
+- `docs/work/active/20260906-codex-bulk-order-excel-import.md`
 
 ## Shared contracts
 
@@ -69,9 +68,9 @@
 - 기존 주문 API, DB schema, 키오스크·판매장 흐름을 변경하지 않았다.
 - Production 설정과 migration은 필요 없다. 사용자의 명시 요청이 없어 배포하지 않았다.
 
-## Completion
+## Completion blocker
 
-- Final implementation commit: `04f99d76165a75bb3338976321e5c567b6d1055d`
-- GitHub remote/branch: `github/codex/bulk-order-excel-import`
-- Push verification: 완료 문서 커밋과 함께 확인
-- Remaining TODO: 전체 저장소 기준의 기존 lint/test 실패는 별도 작업에서 정리 필요
+- GitHub push: 보안 정책이 외부 GitHub 저장소로의 전송에 대한 사용자 명시 승인을 요구하여 차단됨
+- Required user action: `github` 원격의 `codex/bulk-order-excel-import` 브랜치 푸시 승인
+- Local commits: `04f99d7`, `ae5a781`
+- Remaining TODO: 승인 후 push, 원격 HEAD 검증, completed 문서 이동
