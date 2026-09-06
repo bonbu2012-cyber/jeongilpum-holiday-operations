@@ -22,6 +22,8 @@ Production Version 28의 카드형 상품관리 화면에서 각 상품마다 `�
 
 - `app/components/SettingsApp.tsx`의 상품 카드 품절 액션
 - `app/api/settings/route.ts`의 상품 품절 설정 계약
+- `app/api/products/route.ts`의 키오스크 품절 상태 응답
+- `app/api/orders/route.ts`의 품절 상품 주문 거부 검사
 - `app/components/KioskApp.tsx`의 품절 상품 선택 차단
 - `app/globals.css`의 상품 카드 품절 버튼 스타일
 - `tests/product-sold-out-card.test.mjs`
@@ -29,9 +31,9 @@ Production Version 28의 카드형 상품관리 화면에서 각 상품마다 `�
 
 ## Shared contracts
 
-- `product_daily_limits.daily_limit=0 AND active=1`을 즉시 품절 상태로 사용한다.
-- `/api/settings`의 `product_availability` 액션은 낙관적 버전 확인과 감사 이벤트를 유지한다.
-- 판매 재개 시 품절 처리 직전의 한정 판매량 설정을 복원한다.
+- `configuration_events`의 최신 `product_availability` 이벤트를 상품별 품절 상태의 운영 원본으로 사용한다.
+- `/api/settings`의 `product_availability` 액션은 이벤트 ID 기반 낙관적 버전 확인을 유지한다.
+- 프리미엄 `product_daily_limits` 값과 활성 상태는 품절 처리·판매 재개 중 변경하지 않는다.
 
 ## Dependencies
 
@@ -47,7 +49,7 @@ Production Version 28의 카드형 상품관리 화면에서 각 상품마다 `�
 ## Acceptance criteria
 
 - [ ] 각 상품 카드에 명확한 품절 상태 버튼이 보인다.
-- [ ] 품절 처리는 기존 한정수량을 보존하고 감사 이벤트를 남긴다.
+- [ ] 품절 처리는 기존 한정수량을 변경하지 않고 감사 이벤트를 남긴다.
 - [ ] 품절 상품은 키오스크에서 클릭 및 장바구니 추가가 불가능하다.
 - [ ] 판매 재개 시 기존 한정수량 설정이 복원된다.
 
