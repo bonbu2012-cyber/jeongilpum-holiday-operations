@@ -700,6 +700,26 @@ export default function SettingsApp() {
     }
   };
 
+  const toggleProductSoldOut = async (product: ProductRecord) => {
+    const soldOut = product.dailyLimit === 0;
+    setSaving(true);
+    setNotice("");
+    try {
+      await settingsMutation("PATCH", {
+        type: "product-bulk",
+        action: "daily-limit",
+        items: [{ id: product.id, expectedVersion: product.version }],
+        dailyLimit: soldOut ? null : 0,
+      }, soldOut ? "상품 판매를 재개하지 못했습니다." : "상품을 품절 처리하지 못했습니다.");
+      await reload();
+      setNotice(`${product.name} 상품을 ${soldOut ? "판매 재개했습니다." : "품절 처리했습니다."}`);
+    } catch (caught) {
+      setNotice(caught instanceof Error ? caught.message : "상품 판매 상태를 변경하지 못했습니다.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const columns: DataTableColumn<ProductRecord>[] = [
     {
       id: "thumbnail",
@@ -761,6 +781,31 @@ export default function SettingsApp() {
       },
       exportValue: (product) => VISIBILITY_LABELS[product.active ? "visible" : "hidden"],
       width: "90px",
+      align: "center",
+    },
+    {
+      id: "sold-out-action",
+      header: "품절 관리",
+      cell: (product) => {
+        const soldOut = product.dailyLimit === 0;
+        const label = soldOut ? "판매 재개" : "품절 처리";
+        return <Button
+          variant={soldOut ? "ghost" : "danger"}
+          size="sm"
+          disabled={saving}
+          aria-label={`${product.name} ${label}`}
+          aria-pressed={soldOut}
+          onClick={(event) => {
+            event.stopPropagation();
+            void toggleProductSoldOut(product);
+          }}
+          onKeyDown={(event) => event.stopPropagation()}
+        >
+          {label}
+        </Button>;
+      },
+      exportValue: (product) => product.dailyLimit === 0 ? "판매 재개" : "품절 처리",
+      width: "130px",
       align: "center",
     },
   ];

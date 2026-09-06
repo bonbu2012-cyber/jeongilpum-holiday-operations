@@ -53,21 +53,22 @@
 - [x] 품절 상품이 기존 session 초안에 있더라도 주문 가능 수량이 0으로 정리된다.
 - [x] 기존 활성/숨김, 한정수량, 주문 원자성 계약은 유지된다.
 - [x] 관련 문서가 갱신된다.
-- [ ] 각 상품 행에서 편집창을 열지 않고 품절 처리·판매 재개를 즉시 실행할 수 있다.
+- [x] 각 상품 행에서 편집창을 열지 않고 품절 처리·판매 재개를 즉시 실행할 수 있다.
 
 ## Validation
 
 - [ ] lint — 변경 파일 통과; 전체 lint는 기존 테스트 파일의 미사용 변수 5건으로 실패
 - [x] typecheck
-- [x] focused tests — 품절 판정·초안 수량 정리·UI 계약 3건 통과
+- [x] focused tests — 품절 판정·초안 수량 정리·상품별 버튼 payload·이벤트 차단 UI 계약 3건 통과
 - [ ] full test — 47건 중 28건 통과, 기준 브랜치의 기존 회귀 테스트 19건 실패
 - [x] build
 - [ ] local HTTP render — dev compile 성공; 기존 local D1이 일부 migration만 적용된 상태라 `categories` table 누락으로 500
 
 ## Integration notes
 
-- 충돌 해결 내용: 최신 `github/main`에서 분기하고 기존 active claim과 겹치는 파일은 품절 관련 hunk만 수정했다.
+- 충돌 해결 내용: 최신 `github/main`에서 분기하고 기존 active claim과 겹치는 파일은 품절 관련 hunk만 수정했다. 상품별 버튼은 기존 DataTable과 Button을 재사용했다.
 - backward compatibility: 새 DB/API field 없이 기존 `daily_limit`과 `remainingQuantity` 의미를 확장한다.
+- follow-up API usage: 기존 `product-bulk`의 `daily-limit` action을 단일 상품에 사용하고 현재 product version으로 충돌을 방지한다.
 - Production 설정/migration 필요사항: migration 없음; Production 배포는 별도 명시 요청이 있을 때만 진행한다.
 
 ## Previous completion

@@ -33,5 +33,10 @@ test("kiosk and settings expose the sold-out interaction contract", async () => 
   assert.match(kiosk, /product-sold-out-label/);
   assert.match(settings, /0이면 품절입니다/);
   assert.match(settings, /sold_out: "품절"/);
+  assert.match(settings, /const toggleProductSoldOut = async/);
+  assert.match(settings, /items: \[\{ id: product\.id, expectedVersion: product\.version \}\]/);
+  assert.match(settings, /dailyLimit: soldOut \? null : 0/);
+  assert.match(settings, /event\.stopPropagation\(\)/);
+  assert.match(settings, /soldOut \? "판매 재개" : "품절 처리"/);
   assert.match(css, /\.product-card\.sold-out/);
 });
