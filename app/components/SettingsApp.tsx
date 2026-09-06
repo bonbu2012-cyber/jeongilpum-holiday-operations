@@ -15,7 +15,8 @@ type EditableProduct = {
 type EditableAppSetting = { value:string; version:string; updatedAt:string|null };
 type EditableDailyLimit = {
   productId:string; productCode:string; productName:string; dailyLimit:number;
-  active:boolean; version:number|null; updatedAt:string|null;
+  active:boolean; reservedQuantity:number; remainingQuantity:number|null; autoSoldOut:boolean;
+  availabilityDate:string; version:number|null; updatedAt:string|null;
 };
 type EditableSeason = {
   id:string; name:string; holidayDate:string; salesStartDate:string; salesEndDate:string;
@@ -111,7 +112,7 @@ export default function SettingsApp(){
       const response=await fetch("/api/settings",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({type:"daily_limit",productId:item.productId,dailyLimit:item.dailyLimit,expectedVersion:item.version})});
       const data=await response.json() as {version?:number;updatedAt?:string;dailyLimit?:number;error?:string};
       if(!response.ok)throw new Error(data.error);
-      setDailyLimits(current=>current.map(limit=>limit.productId===item.productId?{...limit,dailyLimit:data.dailyLimit??limit.dailyLimit,active:true,version:data.version??limit.version,updatedAt:data.updatedAt??limit.updatedAt}:limit));
+      setDailyLimits(current=>current.map(limit=>{if(limit.productId!==item.productId)return limit;const dailyLimit=data.dailyLimit??limit.dailyLimit,remainingQuantity=Math.max(0,dailyLimit-limit.reservedQuantity);return{...limit,dailyLimit,active:true,remainingQuantity,autoSoldOut:remainingQuantity===0,version:data.version??limit.version,updatedAt:data.updatedAt??limit.updatedAt}}));
       setNotice(item.productName+"의 하루 한정 판매량을 "+item.dailyLimit+"세트로 저장했습니다.");
     }catch(caught){setNotice(caught instanceof Error?caught.message:"한정 판매량을 저장하지 못했습니다.")}
     finally{setSaving("")}
@@ -146,8 +147,13 @@ export default function SettingsApp(){
         <div className="settings-title"><div><small>PREMIUM DAILY LIMIT</small><h2>프리미엄 한정 판매량</h2></div><p>수령일 또는 발송일 기준 하루 판매 가능한 수량입니다.</p></div>
         <div className="product-editors">{dailyLimits.map(item=>{
           const savingKey="daily_limit:"+item.productId;
-          return <article className="product-editor" key={item.productId}>
-            <header><div><small>{item.productCode}</small><h3>{productDisplayName({id:item.productId,name:item.productName})}</h3></div><span>{item.active?"한정 판매 중":"한정 판매 준비"}</span></header>
+          return <article className={item.autoSoldOut?"product-editor auto-sold-out":"product-editor"} key={item.productId}>
+            <header><div><small>{item.productCode}</small><h3>{productDisplayName({id:item.productId,name:item.productName})}</h3></div><span className={item.autoSoldOut?"daily-limit-state closed":"daily-limit-state"}>{item.autoSoldOut?"자동 품절":item.active?"한정 판매 중":"한정 판매 준비"}</span></header>
+            {item.active&&<div className={item.autoSoldOut?"daily-limit-status closed":"daily-limit-status"}>
+              <div className="daily-limit-metrics"><p><span>오늘 판매</span><strong>{item.reservedQuantity} / {item.dailyLimit}세트</strong></p><p><span>남은 수량</span><strong>{item.remainingQuantity??0}세트</strong></p></div>
+              <progress aria-label="오늘 한정수량 판매 진행률" max={Math.max(1,item.dailyLimit)} value={Math.min(item.reservedQuantity,item.dailyLimit)}/>
+              <small>{item.availabilityDate} 수령·발송 주문 기준 · 취소 주문 제외</small>
+            </div>}
             <div className="editor-grid"><label className="wide"><span>하루 한정 판매량</span><input type="number" min="1" step="1" value={item.dailyLimit} onChange={event=>updateDailyLimit(item.productId,Number(event.target.value))}/></label></div>
             <button className="save-product" onClick={()=>saveDailyLimit(item)} disabled={saving===savingKey||!Number.isInteger(item.dailyLimit)||item.dailyLimit<1}>{saving===savingKey?"저장 중…":"한정 판매량 저장"}</button>
           </article>;

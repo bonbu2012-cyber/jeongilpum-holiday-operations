@@ -11,6 +11,7 @@ type ProductRow = {
 type DailyLimitRow = {
   product_id:string; product_code:string; product_name:string; daily_limit:number|null;
   schedule_basis:string|null; active:number|null; version:number|null; updated_at:string|null;
+  reserved_quantity:number|null;
 };
 type SeasonRow = {
   id:string; name:string; holiday_date:string; sales_start_date:string; sales_end_date:string;
@@ -35,6 +36,7 @@ type Payload = ProductPayload | SeasonPayload | AppSettingPayload | DailyLimitPa
 const runtimeEnv=env as typeof env&{DB:D1Database;OPERATOR_USER_IDS?:string;OPERATOR_EMAILS?:string};
 function configured(value:string|undefined){return(value??"").split(",").map(item=>item.trim()).filter(Boolean)}
 function isOperator(user:{userId:string;email:string}){return configured(runtimeEnv.OPERATOR_USER_IDS).includes(user.userId)||configured(runtimeEnv.OPERATOR_EMAILS).map(value=>value.toLowerCase()).includes(user.email.toLowerCase())}
+function todayInSeoul(){return new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Seoul",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date())}
 function product(row:ProductRow){return{id:row.id,category:row.category,code:row.code,name:row.name,subtitle:row.subtitle,description:row.description,price:row.price,customerDisplayWeight:row.customer_display_weight,imageUrl:row.image_url,badge:row.badge,displayOrder:row.display_order,active:Boolean(row.active),version:row.version,updatedAt:row.updated_at}}
 function season(row:SeasonRow){return{id:row.id,name:row.name,holidayDate:row.holiday_date,salesStartDate:row.sales_start_date,salesEndDate:row.sales_end_date,active:Boolean(row.active),version:row.version,updatedAt:row.updated_at}}
 
@@ -49,15 +51,16 @@ export async function GET(){
   const auth=await authorize();
   if("error" in auth)return auth.error;
   try{
+    const today=todayInSeoul();
     const[products,seasons,headline,dailyLimits,availabilityEvents]=await Promise.all([
       runtimeEnv.DB.prepare("SELECT id,category,code,name,subtitle,description,price,customer_display_weight,image_url,badge,display_order,active,version,updated_at FROM products ORDER BY display_order,id").all<ProductRow>(),
       runtimeEnv.DB.prepare("SELECT id,name,holiday_date,sales_start_date,sales_end_date,active,version,updated_at FROM sales_seasons ORDER BY sales_start_date DESC").all<SeasonRow>(),
       runtimeEnv.DB.prepare("SELECT id,after_data,created_at FROM configuration_events WHERE entity_type='app_setting' AND entity_id='kiosk_headline' ORDER BY created_at DESC,id DESC LIMIT 1").first<AppSettingRow>(),
-      runtimeEnv.DB.prepare("SELECT p.id AS product_id,p.code AS product_code,p.name AS product_name,l.daily_limit,l.schedule_basis,l.active,l.version,l.updated_at FROM products p LEFT JOIN product_daily_limits l ON l.product_id=p.id WHERE p.category='프리미엄' ORDER BY p.display_order,p.id").all<DailyLimitRow>(),
+      runtimeEnv.DB.prepare("SELECT p.id AS product_id,p.code AS product_code,p.name AS product_name,l.daily_limit,l.schedule_basis,l.active,l.version,l.updated_at,COALESCE((SELECT SUM(r.quantity) FROM product_daily_reservations r WHERE r.product_id=p.id AND r.reserve_date=? AND r.status='active'),0) AS reserved_quantity FROM products p LEFT JOIN product_daily_limits l ON l.product_id=p.id WHERE p.category='프리미엄' ORDER BY p.display_order,p.id").bind(today).all<DailyLimitRow>(),
       runtimeEnv.DB.prepare("SELECT id,entity_id,after_data,created_at FROM configuration_events WHERE entity_type='product_availability' ORDER BY created_at DESC,id DESC").all<ProductAvailabilityRow>(),
     ]);
     const availabilityByProduct=latestProductAvailability(availabilityEvents.results.map(row=>({id:row.id,entityId:row.entity_id,afterData:row.after_data})));
-    return Response.json({products:products.results.map(row=>{const availability=availabilityByProduct.get(row.id);return{...product(row),soldOut:availability?.soldOut??false,availabilityVersion:availability?.version??""}}),seasons:seasons.results.map(season),dailyLimits:dailyLimits.results.map(row=>({productId:row.product_id,productCode:row.product_code,productName:row.product_name,dailyLimit:row.daily_limit??1,active:Boolean(row.active),version:row.version,updatedAt:row.updated_at})),appSettings:{kioskHeadline:{value:parseStoredSetting(headline?.after_data,DEFAULT_KIOSK_HEADLINE),version:headline?.id??"",updatedAt:headline?.created_at??null}}},{headers:{"Cache-Control":"no-store"}});
+    return Response.json({products:products.results.map(row=>{const availability=availabilityByProduct.get(row.id);return{...product(row),soldOut:availability?.soldOut??false,availabilityVersion:availability?.version??""}}),seasons:seasons.results.map(season),dailyLimits:dailyLimits.results.map(row=>{const dailyLimit=row.daily_limit??1,active=Boolean(row.active),reservedQuantity=active?row.reserved_quantity??0:0,remainingQuantity=active?Math.max(0,dailyLimit-reservedQuantity):null;return{productId:row.product_id,productCode:row.product_code,productName:row.product_name,dailyLimit,active,reservedQuantity,remainingQuantity,autoSoldOut:active&&remainingQuantity===0,availabilityDate:today,version:row.version,updatedAt:row.updated_at}}),appSettings:{kioskHeadline:{value:parseStoredSetting(headline?.after_data,DEFAULT_KIOSK_HEADLINE),version:headline?.id??"",updatedAt:headline?.created_at??null}}},{headers:{"Cache-Control":"no-store"}});
   }catch(error){return Response.json({error:error instanceof Error?error.message:"설정을 불러오지 못했습니다."},{status:500})}
 }
 
