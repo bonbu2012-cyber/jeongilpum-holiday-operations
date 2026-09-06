@@ -35,6 +35,8 @@ test("the kiosk and order API keep automatic sell-out enforcement", async () => 
   assert.match(productsApi, /Math\.max\(0, dailyLimit - reservedQuantity\)/);
   assert.match(kiosk, /disabled=\{soldOut\}/);
   assert.match(kiosk, /isProductSoldOut\(product\)/);
+  assert.match(kiosk, /return <article className=\{soldOut/);
+  assert.doesNotMatch(kiosk, /return <button className=\{soldOut\?"product-card/);
   assert.match(ordersApi, /product_daily_reservations/);
   assert.match(ordersApi, /daily product limit exceeded/);
 });

@@ -79,9 +79,13 @@
 .availability{display:block;width:max-content;margin:8px 0;color:#9c453e;background:#fff0ed;border-radius:999px;padding:5px 9px;font-size:11px;font-weight:900;font-style:normal}
 .availability.closed{color:#777;background:#ece9e3}
 .quantity button:disabled{opacity:.32;cursor:not-allowed}
-.product-card.sold-out:disabled{cursor:not-allowed;opacity:.62;filter:grayscale(.35);transform:none}
-.product-card.sold-out:disabled .product-photo{position:relative}
-.product-card.sold-out:disabled .product-photo::after{content:"품절";position:absolute;inset:0;display:grid;place-items:center;background:#302c28a8;color:#fff;font-size:24px;font-weight:900;letter-spacing:.12em}
+.product-card-open{display:block;width:100%;padding:0;border:0;background:transparent;color:inherit;text-align:left}
+.product-card-open:active{transform:scale(.98)}
+.product-card-quantity{padding:0 15px 15px}
+.product-card-quantity .quantity{margin-top:0}
+.product-card.sold-out{cursor:not-allowed;opacity:.62;filter:grayscale(.35);transform:none}
+.product-card.sold-out .product-photo{position:relative}
+.product-card.sold-out .product-photo::after{content:"품절";position:absolute;inset:0;display:grid;place-items:center;background:#302c28a8;color:#fff;font-size:24px;font-weight:900;letter-spacing:.12em}
 .custom-cart-item{padding:20px!important;background:#fff9f3}
 .custom-cart-item>div{display:grid;gap:5px}
 .custom-cart-item small{color:var(--wine);font-weight:900}
