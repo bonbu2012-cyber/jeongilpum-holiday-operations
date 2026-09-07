@@ -8,9 +8,10 @@ import { clampCartToAvailability, isProductSoldOut } from "../lib/product-availa
 import { isPastPickupTime } from "../lib/input-format";
 import type { OrderDraft, OrderRecord, Product, SeasonSchedule } from "./types";
 import AppNav from "./AppNav";
+import PrivacyNoticeStep from "./PrivacyNoticeStep";
 import "../kiosk-flow.css";
 
-type Step="products"|"cart"|"fulfillment"|"pickup-info"|"pickup-date"|"pickup-time"|"shipping-sender"|"shipping-recipient"|"shipping-address"|"shipping-date"|"payment"|"done";
+type Step="products"|"cart"|"fulfillment"|"privacy-notice"|"pickup-info"|"pickup-date"|"pickup-time"|"shipping-sender"|"shipping-recipient"|"shipping-address"|"shipping-date"|"payment"|"done";
 type PostcodeData={zonecode:string;roadAddress:string;jibunAddress:string;autoJibunAddress:string;bname:string;buildingName:string;apartment:string};
 type KakaoWindow=Window&{kakao?:{Postcode:new(options:{oncomplete:(data:PostcodeData)=>void;onclose?:()=>void})=>{open:()=>void}}};
 const categories=["진공세트","프리미엄","LA갈비","뼈세트","O'meat"];
@@ -55,8 +56,8 @@ export default function KioskApp(){
  const today=todayInSeoul(),minScheduleDate=season?(season.salesStartDate>today?season.salesStartDate:today):today,maxScheduleDate=season?.salesEndDate??"";
  const setQty=(id:string,value:number)=>setDraft(current=>{const product=products.find(item=>item.id===id),max=product?.remainingQuantity;return {...current,cart:{...current.cart,[id]:Math.max(0,max===null||max===undefined?value:Math.min(max,value))}}});
  const go=(next:Step,nextDirection=1)=>{setDirection(nextDirection);setStep(next);setSubmitError("")};
- const back=()=>{const paymentBack=draft.fulfillmentType==="onsite"?"fulfillment":draft.fulfillmentType==="pickup"?"pickup-time":"shipping-date",map:Partial<Record<Step,Step>>={cart:"products",fulfillment:"cart","pickup-info":"fulfillment","pickup-date":"pickup-info","pickup-time":"pickup-date","shipping-sender":"fulfillment","shipping-recipient":"shipping-sender","shipping-address":"shipping-recipient","shipping-date":"shipping-address",payment:paymentBack};go(map[step]??"products",-1)};
- const chooseFulfillment=(type:"onsite"|"pickup"|"shipping")=>{setDraft(current=>({...current,fulfillmentType:type,paymentMethod:null,buyerName:type==="onsite"?"":current.buyerName,buyerPhone:type==="onsite"?"":current.buyerPhone,scheduleLabel:type==="onsite"?"현장판매":type==="pickup"?(current.pickupDate&&current.pickupTime?koreanDate(current.pickupDate)+" · "+current.pickupTime:""):(current.shipDate?koreanDate(current.shipDate)+" 발송 예정":"")}));go(type==="onsite"?"payment":type==="pickup"?"pickup-info":"shipping-sender")};
+ const back=()=>{const paymentBack=draft.fulfillmentType==="onsite"?"fulfillment":draft.fulfillmentType==="pickup"?"pickup-time":"shipping-date",map:Partial<Record<Step,Step>>={cart:"products",fulfillment:"cart","privacy-notice":"fulfillment","pickup-info":"privacy-notice","pickup-date":"pickup-info","pickup-time":"pickup-date","shipping-sender":"privacy-notice","shipping-recipient":"shipping-sender","shipping-address":"shipping-recipient","shipping-date":"shipping-address",payment:paymentBack};go(map[step]??"products",-1)};
+ const chooseFulfillment=(type:"onsite"|"pickup"|"shipping")=>{setDraft(current=>({...current,fulfillmentType:type,paymentMethod:null,buyerName:type==="onsite"?"":current.buyerName,buyerPhone:type==="onsite"?"":current.buyerPhone,scheduleLabel:type==="onsite"?"현장판매":type==="pickup"?(current.pickupDate&&current.pickupTime?koreanDate(current.pickupDate)+" · "+current.pickupTime:""):(current.shipDate?koreanDate(current.shipDate)+" 발송 예정":"")}));go(type==="onsite"?"payment":"privacy-notice")};
  const submit=async()=>{if(submitting||!draft.paymentMethod)return;setSubmitting(true);setSubmitError("");try{const response=await fetch("/api/orders",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({idempotencyKey:draft.idempotencyKey,buyerName:draft.buyerName,buyerPhone:draft.buyerPhone,fulfillmentType:draft.fulfillmentType,paymentMethod:draft.paymentMethod,pickupDate:draft.pickupDate,pickupTime:draft.pickupTime,shipDate:draft.shipDate,recipientName:draft.recipientName,recipientPhone:draft.recipientPhone,postalCode:draft.postalCode,roadAddr:draft.roadAddr,roadAddrReference:draft.roadAddrReference,jibunAddr:draft.jibunAddr,detailAddr:draft.detailAddr,note:draft.note,items:selected.map(product=>({productId:product.id,quantity:draft.cart[product.id]})),customItem:draft.customItem})}),data=await response.json() as {order?:OrderRecord;error?:string};if(!response.ok||!data.order)throw new Error(data.error||"주문을 접수하지 못했습니다.");setCompleted(data.order);sessionStorage.removeItem("jeongilpum-kiosk-draft");go("done")}catch(error){setSubmitError(error instanceof Error?error.message:"주문이 아직 접수되지 않았습니다.")}finally{setSubmitting(false)}};
  const reset=()=>{setDraft(emptyDraft());setCompleted(null);go("products",-1)};
  const filtered=products.filter(product=>product.category===category);
@@ -71,6 +72,7 @@ export default function KioskApp(){
    </motion.div>:<FlowStep key={step} step={step} direction={direction} back={back}>
     {step==="cart"&&<CartStep products={selected} draft={draft} setQty={setQty} totalQty={totalQty} total={total} next={()=>go("fulfillment")}/>}
     {step==="fulfillment"&&<Fulfillment choose={chooseFulfillment}/>}
+    {step==="privacy-notice"&&<PrivacyNoticeStep type={draft.fulfillmentType==="shipping"?"shipping":"pickup"} next={()=>go(draft.fulfillmentType==="pickup"?"pickup-info":"shipping-sender")}/>}
     {step==="pickup-info"&&<InfoStep title="주문자 정보를 알려주세요" description="방문수령 안내에 필요한 정보입니다." draft={draft} setDraft={setDraft} next={()=>go("pickup-date")} valid={draft.buyerName.trim().length>0&&draft.buyerPhone.replace(/\D/g,"").length>=10}/>}
     {step==="pickup-date"&&<ScheduleDateStep type="pickup" value={draft.pickupDate} minDate={minScheduleDate} maxDate={maxScheduleDate} setValue={value=>setDraft(current=>({...current,pickupDate:value,scheduleLabel:current.pickupTime?`${koreanDate(value)} · ${current.pickupTime}`:koreanDate(value)}))} next={()=>go("pickup-time")}/>}
     {step==="pickup-time"&&<PickupTime draft={draft} setDraft={setDraft} next={()=>go("payment")}/>}
@@ -87,7 +89,7 @@ export default function KioskApp(){
 }
 
 function FlowStep({children,step,direction,back}:{children:React.ReactNode;step:Step;direction:number;back:()=>void}){
- const progress:Record<Step,number>={products:0,cart:10,fulfillment:20,"pickup-info":35,"pickup-date":50,"pickup-time":68,"shipping-sender":32,"shipping-recipient":45,"shipping-address":58,"shipping-date":72,payment:88,done:100};
+ const progress:Record<Step,number>={products:0,cart:10,fulfillment:20,"privacy-notice":28,"pickup-info":38,"pickup-date":52,"pickup-time":68,"shipping-sender":38,"shipping-recipient":50,"shipping-address":62,"shipping-date":74,payment:88,done:100};
  return <motion.section className="flow-shell" custom={direction} initial={{opacity:0,x:direction*70}} animate={{opacity:1,x:0}} exit={{opacity:0,x:direction*-70}} transition={transition}><header className="flow-header">{step!=="done"?<button onClick={back} aria-label="이전 단계">← <span>이전</span></button>:<span/>}<div className="flow-progress"><i style={{width:progress[step]+"%"}}/></div><span>{step==="done"?"접수 완료":"주문 진행"}</span></header><div className="flow-content">{children}</div>{step!=="done"&&<button className="flow-back-bottom" onClick={back}>← 이전 단계로</button>}</motion.section>;
 }
 function CartStep({products,draft,setQty,totalQty,total,next}:{products:Product[];draft:OrderDraft;setQty:(id:string,value:number)=>void;totalQty:number;total:number;next:()=>void}){
@@ -140,3 +142,5 @@ function Done({order,reset}:{order:OrderRecord|null;reset:()=>void}){
  const onsite=order?.fulfillmentType==="onsite";
  return <div className="done-card"><div className="done-mark">✓</div><small>{onsite?"SALE COMPLETE":"ORDER COMPLETE"}</small><h1>{onsite?"현장판매가 기록되었습니다":"주문 접수가 완료되었습니다"}</h1><p>{onsite?<>상품 판매와 결제내역이 고객 장부에 반영되었습니다.</>:<>주문이 정상적으로 접수되었습니다.<br/>실제 결제 확인은 직원이 도와드립니다.</>}</p><div className="receipt"><span>주문번호</span><b>{order?.orderNo||"-"}</b><span>판매·수령 방식</span><b>{onsite?"현장판매":order?.fulfillmentType==="pickup"?"방문수령":"택배발송"}</b><span>{onsite?"판매시점":"예정 일정"}</span><b>{order?.scheduleLabel||"-"}</b></div><button className="main-cta" onClick={reset}>새 주문 시작하기 <span>→</span></button></div>;
 }
+
+
