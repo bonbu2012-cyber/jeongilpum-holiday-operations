@@ -134,15 +134,16 @@ test("committed combined workbook has the required upload sheet and no accidenta
   assert.equal(excelSerialToTime(0.4375), "10:30");
 });
 
-test("bulk route stays operator-only, idempotent, atomic, auditable, and supports both methods", async () => {
+test("bulk route stays operator-only, idempotent, atomic, auditable, and writes current order records", async () => {
   const source = await readFile(new URL("../app/api/orders/bulk/route.ts", import.meta.url), "utf8");
   assert.match(source, /requireOperatorApi\(\)/);
   assert.match(source, /bulk-xlsx:/);
   assert.match(source, /runtimeEnv\.DB\.batch\(statements\)/);
   assert.match(source, /source: "bulk_xlsx"/);
-  assert.match(source, /onsite_reservation/);
-  assert.match(source, /"delivery"/);
-  assert.match(source, /fulfillmentType: group\.fulfillmentType/);
+  assert.match(source, /INSERT INTO order_items/);
+  assert.match(source, /INSERT INTO fulfillments/);
+  assert.match(source, /INSERT INTO fulfillment_items/);
+  assert.match(source, /group\.fulfillmentType/);
   assert.match(source, /redactedFields/);
   assert.doesNotMatch(source, /console\.(log|error)/);
 });

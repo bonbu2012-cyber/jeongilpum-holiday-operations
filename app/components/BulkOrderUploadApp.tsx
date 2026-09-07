@@ -3,7 +3,6 @@
 import { AlertTriangle, CheckCircle2, Download, FileSpreadsheet, Upload } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import AppNav from "./AppNav";
-import { Button, OperationsPageHeader } from "../ui";
 import {
   todayInSeoul,
   validateAndGroupBulkOrderRows,
@@ -172,7 +171,6 @@ export default function BulkOrderUploadApp() {
 
   return (
     <div className="bulk-order-app">
-      <OperationsPageHeader title="대량 주문" description="현장수령·택배발송 엑셀 일괄 접수" href="/bulk-orders" />
       <main className="bulk-order-main">
         <section className="bulk-order-intro" aria-labelledby="bulk-order-title">
           <div>
@@ -293,9 +291,10 @@ export default function BulkOrderUploadApp() {
             </div>
             <div className="bulk-order-submit">
               <p>모든 주문은 미결제이며 현장수령 예약 또는 택배발송 작업으로 접수됩니다.</p>
-              <Button disabled={uploading || catalogLoading || Boolean(catalogError)} leadingIcon={<Upload />} onClick={() => void upload()}>
+              <button className="bulk-order-upload-button" disabled={uploading || catalogLoading || Boolean(catalogError)} onClick={() => void upload()}>
+                <Upload size={17} aria-hidden="true" />
                 {uploading ? "일괄 주문 업로드 중" : `일괄 주문 업로드 (${groups.length}건)`}
-              </Button>
+              </button>
             </div>
           </section>
         ) : null}

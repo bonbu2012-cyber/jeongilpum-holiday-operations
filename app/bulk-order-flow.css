@@ -45,8 +45,60 @@
 
 .bulk-order-download {
   flex: none;
+  min-height: 44px;
+  padding: 0 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid var(--wine);
+  border-radius: 12px;
+  color: var(--wine);
+  font-weight: var(--weight-strong);
   text-decoration: none;
 }
+
+.passcode-gate {
+  min-height: 100vh;
+  padding: 24px;
+  display: grid;
+  place-items: center;
+}
+
+.passcode-card {
+  width: min(380px, 100%);
+  padding: 28px;
+  display: grid;
+  gap: 14px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 20px 50px rgb(39 24 12 / 11%);
+}
+
+.passcode-card h1,
+.passcode-card p { margin: 0; }
+
+.passcode-card label { display: grid; gap: 6px; }
+
+.passcode-card input,
+.passcode-card button {
+  min-height: 44px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  font: inherit;
+}
+
+.passcode-card input { border: 1px solid var(--line); }
+
+.passcode-card button {
+  border: 0;
+  background: var(--wine);
+  color: #fff;
+  font-weight: var(--weight-strong);
+}
+
+.passcode-card button:disabled { opacity: 0.55; }
 
 .bulk-order-panel {
   padding: 20px;
@@ -266,6 +318,27 @@
   margin: 0;
   color: var(--muted);
   font-size: var(--text-sm);
+}
+
+.bulk-order-upload-button {
+  min-height: 46px;
+  padding: 0 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--wine);
+  color: #fff;
+  font: inherit;
+  font-weight: var(--weight-strong);
+  cursor: pointer;
+}
+
+.bulk-order-upload-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .bulk-order-results {
