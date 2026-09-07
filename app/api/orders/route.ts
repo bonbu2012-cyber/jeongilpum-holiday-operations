@@ -1,5 +1,6 @@
 import { env } from "cloudflare:workers";
 import { getChatGPTUser } from "../../chatgpt-auth";
+import { isPastPickupTime } from "../../lib/input-format";
 import { latestProductAvailability } from "../../lib/product-availability";
 import {
   SALES_DATE_ORDERS_SQL,
@@ -584,12 +585,22 @@ export async function POST(request: Request) {
     )) {
       return Response.json({ error: "예약 가능한 날짜를 다시 선택해주세요." }, { status: 400 });
     }
+    const pickupTime = clean(payload.pickupTime);
     if (
       fulfillmentType === "pickup"
-      && !validPickupTime(clean(payload.pickupTime))
+      && !validPickupTime(pickupTime)
     ) {
       return Response.json(
         { error: "방문 시간을 08:00부터 21:00 사이에서 선택해주세요." },
+        { status: 400 },
+      );
+    }
+    if (
+      fulfillmentType === "pickup"
+      && isPastPickupTime(scheduleDate, pickupTime)
+    ) {
+      return Response.json(
+        { error: "이미 지난 방문 시간입니다. 현재 시각 이후로 다시 선택해주세요." },
         { status: 400 },
       );
     }
@@ -651,7 +662,6 @@ export async function POST(request: Request) {
     const orderNo = createOrderNo();
     const now = new Date().toISOString();
     const onsiteAt = fulfillmentType === "onsite" ? nowInSeoul() : null;
-    const pickupTime = clean(payload.pickupTime);
     const pickupAt = fulfillmentType === "pickup"
       ? `${scheduleDate}T${pickupTime}:00+09:00`
       : onsiteAt;

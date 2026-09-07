@@ -28,8 +28,21 @@ test("금액을 한글 원 단위로 읽는다", () => {
 test("오늘은 현재 분까지의 방문 시간을 막고 다른 날짜는 유지한다", () => {
   const now = new Date("2026-09-06T01:15:00.000Z"); // 서울 10:15
   assert.equal(isPastPickupTime("2026-09-06", "10:00", now), true);
+  assert.equal(isPastPickupTime("2026-09-06", "10:15", now), true);
   assert.equal(isPastPickupTime("2026-09-06", "10:30", now), false);
   assert.equal(isPastPickupTime("2026-09-07", "08:00", now), false);
+});
+
+test("방문 시간 화면과 주문 API가 지난 시간 선택을 함께 차단한다", () => {
+  const kiosk = read("app/components/KioskApp.tsx");
+  const api = read("app/api/orders/route.ts");
+  const css = read("app/kiosk-flow.css");
+  assert.match(kiosk, /setInterval\(\(\)=>setNow\(new Date\(\)\),1_000\)/);
+  assert.match(kiosk, /disabled=\{unavailable\}/);
+  assert.match(kiosk, /지난 시간/);
+  assert.match(api, /isPastPickupTime\(scheduleDate, pickupTime\)/);
+  assert.match(api, /이미 지난 방문 시간입니다/);
+  assert.match(css, /pickup-time-grid button:disabled/);
 });
 
 test("직원 도움 UI와 요청사항 예시 문구가 앱 소스에 남지 않는다", () => {
