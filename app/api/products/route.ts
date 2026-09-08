@@ -4,6 +4,7 @@ import {
   configurationEvents,
   productDailyLimits,
   productDailyReservations,
+  productComponents,
   products,
   salesSeasons,
 } from "../../../db/schema";
@@ -27,7 +28,7 @@ export async function GET(request: Request) {
       ? (url.searchParams.get("date") as string)
       : todayInSeoul();
     const db = getDb();
-    const [productRows, seasonRows, headlineRows, availabilityRows] = await Promise.all([
+    const [productRows, componentRows, seasonRows, headlineRows, availabilityRows] = await Promise.all([
       db
         .select({
           product: products,
@@ -53,6 +54,11 @@ export async function GET(request: Request) {
         .where(eq(products.active, true))
         .groupBy(products.id, productDailyLimits.dailyLimit)
         .orderBy(asc(products.displayOrder)),
+      db
+        .select({ productId: productComponents.productId, name: productComponents.componentName })
+        .from(productComponents)
+        .where(eq(productComponents.active, true))
+        .orderBy(asc(productComponents.productId), asc(productComponents.sortOrder)),
       db
         .select()
         .from(salesSeasons)
@@ -92,6 +98,12 @@ export async function GET(request: Request) {
         }
       : null;
     const availabilityByProduct = latestProductAvailability(availabilityRows);
+    const cutNamesByProduct = new Map<string, string[]>();
+    for (const component of componentRows) {
+      const names = cutNamesByProduct.get(component.productId) ?? [];
+      names.push(component.name);
+      cutNamesByProduct.set(component.productId, names);
+    }
     const productResponse = productRows.map(({ product, dailyLimit, reservedQuantity }) => {
       const soldOut = availabilityByProduct.get(product.id)?.soldOut ?? false;
       return {
@@ -102,6 +114,7 @@ export async function GET(request: Request) {
           description: "보관하기 편하고, 구성은 충분하게. 진공포장으로 필요한 만큼 나누어 보관할 수 있고 5가지 부위로 다양한 한우의 맛을 즐길 수 있습니다. 20만원대 한우 선물을 찾으신다면 정일품이 가장 먼저 추천하는 구성입니다.",
           customerDisplayWeight: "총 1kg · 약 6~7인분 · 5가지 부위",
         } : {}),
+        cutNames: cutNamesByProduct.get(product.id) ?? [],
         imageUrl: resolveCatalogProductImageUrl(product.id, product.imageUrl),
         dailyLimit,
         reservedQuantity,
