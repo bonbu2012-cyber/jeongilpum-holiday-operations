@@ -548,3 +548,13 @@ export const configurationEvents = sqliteTable("configuration_events", {
   actorId: text("actor_id").notNull(),
   createdAt: text("created_at").notNull(),
 }, (table) => [index("idx_configuration_events_entity").on(table.entityType, table.entityId, table.createdAt)]);
+export const kioskEvents = sqliteTable("kiosk_events", {
+  id: text("id").primaryKey(),
+  sessionId: text("session_id").notNull(),
+  eventType: text("event_type").notNull(),
+  value: text("value"),
+  createdAt: text("created_at").notNull(),
+}, (table) => [
+  index("idx_kiosk_events_type_time").on(table.eventType, table.createdAt),
+  index("idx_kiosk_events_session_time").on(table.sessionId, table.createdAt),
+]);

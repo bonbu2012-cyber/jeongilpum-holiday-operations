@@ -96,6 +96,12 @@ export async function GET(request: Request) {
       const soldOut = availabilityByProduct.get(product.id)?.soldOut ?? false;
       return {
         ...product,
+        ...(product.id === "bonghwang" ? {
+          badge: "정일품 추천",
+          subtitle: "가장 균형 잡힌 구성",
+          description: "보관하기 편하고, 구성은 충분하게. 진공포장으로 필요한 만큼 나누어 보관할 수 있고 5가지 부위로 다양한 한우의 맛을 즐길 수 있습니다. 20만원대 한우 선물을 찾으신다면 정일품이 가장 먼저 추천하는 구성입니다.",
+          customerDisplayWeight: "총 1kg · 약 6~7인분 · 5가지 부위",
+        } : {}),
         imageUrl: resolveCatalogProductImageUrl(product.id, product.imageUrl),
         dailyLimit,
         reservedQuantity,
