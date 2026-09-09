@@ -6,7 +6,7 @@ type ProductRevisionRow = {
   id: string;
   active: number;
   sort_order: number;
-  updated_at: string;
+  version_token: string;
 };
 
 type InactiveProductRow = {
@@ -22,7 +22,7 @@ type InactiveProductRow = {
   daily_limit: number | null;
   sort_order: number;
   active: number;
-  updated_at: string;
+  version_token: string;
   reserved_quantity: number;
 };
 
@@ -59,6 +59,7 @@ type CountRow = {
 type SettingsPayload = Record<string, unknown>;
 
 const runtimeEnv = env as typeof env & { DB: D1Database };
+const PRODUCT_REVISION_SQL = "COALESCE(NULLIF(updated_at, ''), 'legacy:' || CAST(version AS TEXT))";
 
 function todayInSeoul() {
   const parts = new Intl.DateTimeFormat("en-US", {
@@ -157,7 +158,7 @@ function inactiveProduct(row: InactiveProductRow) {
     dailyLimit: row.daily_limit,
     sortOrder: row.sort_order,
     active: Boolean(row.active),
-    version: row.updated_at,
+    version: row.version_token,
     reservedQuantity: row.reserved_quantity,
   };
 }
@@ -169,9 +170,13 @@ async function activeCategory(name: string) {
 }
 
 async function productExists(id: string) {
-  return runtimeEnv.DB.prepare("SELECT id, updated_at FROM products WHERE id = ?")
+  return runtimeEnv.DB.prepare(`
+    SELECT id, ${PRODUCT_REVISION_SQL} AS version_token
+    FROM products
+    WHERE id = ?
+  `)
     .bind(id)
-    .first<{ id: string; updated_at: string }>();
+    .first<{ id: string; version_token: string }>();
 }
 
 function invalidProductResponse() {
@@ -212,8 +217,9 @@ async function updateProduct(payload: SettingsPayload) {
       display_order = ?,
       sort_order = ?,
       active = ?,
+      version = version + 1,
       updated_at = ?
-    WHERE id = ? AND updated_at = ? AND active IN (0, 1)
+    WHERE id = ? AND ${PRODUCT_REVISION_SQL} = ? AND active IN (0, 1)
   `).bind(
     product.category,
     product.name,
@@ -297,8 +303,8 @@ async function bulkUpdateProducts(payload: SettingsPayload) {
     if (dailyLimit !== null && !isNonnegativeInteger(dailyLimit)) return invalidProductResponse();
     statements = items.map((item) => runtimeEnv.DB.prepare(`
       UPDATE products
-      SET daily_limit = ?, updated_at = ?
-      WHERE id = ? AND updated_at = ? AND active IN (0, 1)
+      SET daily_limit = ?, version = version + 1, updated_at = ?
+      WHERE id = ? AND ${PRODUCT_REVISION_SQL} = ? AND active IN (0, 1)
     `).bind(dailyLimit, updatedAt, item.id, item.expectedVersion));
   } else if (action === "category") {
     const category = text(payload.category);
@@ -307,15 +313,15 @@ async function bulkUpdateProducts(payload: SettingsPayload) {
     }
     statements = items.map((item) => runtimeEnv.DB.prepare(`
       UPDATE products
-      SET category = ?, updated_at = ?
-      WHERE id = ? AND updated_at = ? AND active IN (0, 1)
+      SET category = ?, version = version + 1, updated_at = ?
+      WHERE id = ? AND ${PRODUCT_REVISION_SQL} = ? AND active IN (0, 1)
     `).bind(category, updatedAt, item.id, item.expectedVersion));
   } else {
     if (typeof payload.active !== "boolean") return invalidProductResponse();
     statements = items.map((item) => runtimeEnv.DB.prepare(`
       UPDATE products
-      SET active = ?, updated_at = ?
-      WHERE id = ? AND updated_at = ? AND active IN (0, 1)
+      SET active = ?, version = version + 1, updated_at = ?
+      WHERE id = ? AND ${PRODUCT_REVISION_SQL} = ? AND active IN (0, 1)
     `).bind(payload.active ? 1 : 0, updatedAt, item.id, item.expectedVersion));
   }
 
@@ -334,8 +340,8 @@ async function reorderProducts(payload: SettingsPayload) {
   const updatedAt = new Date().toISOString();
   const results = await runtimeEnv.DB.batch(items.map((item, index) => runtimeEnv.DB.prepare(`
     UPDATE products
-    SET display_order = ?, sort_order = ?, updated_at = ?
-    WHERE id = ? AND category = ? AND updated_at = ? AND active IN (0, 1)
+    SET display_order = ?, sort_order = ?, version = version + 1, updated_at = ?
+    WHERE id = ? AND category = ? AND ${PRODUCT_REVISION_SQL} = ? AND active IN (0, 1)
   `).bind(index, index, updatedAt, item.id, category, item.expectedVersion)));
   if (results.some((result) => !result.meta.changes)) return versionConflictResponse();
   return Response.json({ ok: true, version: updatedAt, updatedAt });
@@ -348,7 +354,7 @@ async function removeProduct(payload: SettingsPayload) {
 
   const product = await productExists(id);
   if (!product) return Response.json({ error: "상품을 찾을 수 없습니다." }, { status: 404 });
-  if (product.updated_at !== expectedVersion) return versionConflictResponse();
+  if (product.version_token !== expectedVersion) return versionConflictResponse();
 
   const [workItems, packages] = await runtimeEnv.DB.batch<CountRow>([
     runtimeEnv.DB.prepare("SELECT COUNT(*) AS count FROM work_items WHERE product_id = ?").bind(id),
@@ -360,8 +366,8 @@ async function removeProduct(payload: SettingsPayload) {
   if (referenced) {
     const archive = await runtimeEnv.DB.prepare(`
       UPDATE products
-      SET active = -1, updated_at = ?
-      WHERE id = ? AND updated_at = ? AND active IN (0, 1)
+      SET active = -1, version = version + 1, updated_at = ?
+      WHERE id = ? AND ${PRODUCT_REVISION_SQL} = ? AND active IN (0, 1)
     `).bind(removedAt, id, expectedVersion).run();
     if (!archive.meta.changes) return versionConflictResponse();
     return Response.json({ ok: true, removal: "history-preserved" });
@@ -369,7 +375,10 @@ async function removeProduct(payload: SettingsPayload) {
 
   let removal;
   try {
-    removal = await runtimeEnv.DB.prepare("DELETE FROM products WHERE id = ? AND updated_at = ?")
+    removal = await runtimeEnv.DB.prepare(`
+      DELETE FROM products
+      WHERE id = ? AND ${PRODUCT_REVISION_SQL} = ?
+    `)
       .bind(id, expectedVersion)
       .run();
   } catch (error) {
@@ -469,7 +478,7 @@ export async function GET() {
     const today = todayInSeoul();
     const [revisions, inactiveProducts, categories] = await Promise.all([
       runtimeEnv.DB.prepare(`
-        SELECT id, active, sort_order, updated_at
+        SELECT id, active, sort_order, ${PRODUCT_REVISION_SQL} AS version_token
         FROM products
         WHERE active IN (0, 1)
         ORDER BY sort_order, id
@@ -478,7 +487,9 @@ export async function GET() {
         SELECT
           p.id, p.category, p.name, p.subtitle, p.description, p.price,
           p.display_weight, p.image_url, p.badge, p.daily_limit, p.sort_order,
-          p.active, p.updated_at, COALESCE(SUM(w.quantity), 0) AS reserved_quantity
+          p.active,
+          COALESCE(NULLIF(p.updated_at, ''), 'legacy:' || CAST(p.version AS TEXT)) AS version_token,
+          COALESCE(SUM(w.quantity), 0) AS reserved_quantity
         FROM products p
         LEFT JOIN work_items w
           ON w.product_id = p.id
@@ -504,7 +515,7 @@ export async function GET() {
           id: row.id,
           active: Boolean(row.active),
           sortOrder: row.sort_order,
-          version: row.updated_at,
+          version: row.version_token,
         })),
         inactiveProducts: inactiveProducts.results.map(inactiveProduct),
         categories: categories.results.map((row) => ({
