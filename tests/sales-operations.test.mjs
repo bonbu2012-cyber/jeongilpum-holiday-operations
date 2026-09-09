@@ -69,3 +69,41 @@ test("sales API keeps cancelled history searchable and exposes work progress, cu
   for (const label of ["시간", "고객", "상품", "수량", "구분", "작업상태", "결제", "고객상태", "변경"]) assert.match(sales, new RegExp(label));
   assert.match(workItems, /prepareWorkStatusTransition/);
 });
+
+test("settings can update a legacy product whose updated_at is null without losing conflict detection", async () => {
+  const api = await read("app/api/settings/route.ts");
+  const database = new DatabaseSync(":memory:");
+  database.exec(`
+    CREATE TABLE products (
+      id TEXT PRIMARY KEY,
+      daily_limit INTEGER,
+      active INTEGER NOT NULL DEFAULT 1,
+      version INTEGER NOT NULL DEFAULT 1,
+      updated_at TEXT
+    );
+    INSERT INTO products(id, daily_limit) VALUES ('legacy-product', NULL);
+  `);
+
+  const revisionSql = "COALESCE(NULLIF(updated_at, ''), 'legacy:' || CAST(version AS TEXT))";
+  const legacy = database.prepare(`SELECT ${revisionSql} AS version_token FROM products WHERE id = ?`)
+    .get("legacy-product");
+  assert.equal(legacy.version_token, "legacy:1");
+
+  const update = database.prepare(`
+    UPDATE products
+    SET daily_limit = ?, version = version + 1, updated_at = ?
+    WHERE id = ? AND ${revisionSql} = ? AND active IN (0, 1)
+  `);
+  const updatedAt = "2026-09-10T00:00:00.000Z";
+  assert.equal(update.run(25, updatedAt, "legacy-product", legacy.version_token).changes, 1);
+  const saved = database.prepare("SELECT daily_limit, version, updated_at FROM products WHERE id = ?")
+    .get("legacy-product");
+  assert.equal(saved.daily_limit, 25);
+  assert.equal(saved.version, 2);
+  assert.equal(saved.updated_at, updatedAt);
+  assert.equal(update.run(30, "2026-09-10T00:01:00.000Z", "legacy-product", legacy.version_token).changes, 0);
+
+  assert.match(api, /PRODUCT_REVISION_SQL = "COALESCE\(NULLIF\(updated_at, ''\), 'legacy:' \|\| CAST\(version AS TEXT\)\)"/);
+  assert.match(api, /SET daily_limit = \?, version = version \+ 1, updated_at = \?/);
+  assert.match(api, /WHERE id = \? AND \$\{PRODUCT_REVISION_SQL\} = \? AND active IN \(0, 1\)/);
+});
