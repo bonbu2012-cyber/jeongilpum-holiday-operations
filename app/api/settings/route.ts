@@ -204,10 +204,12 @@ async function updateProduct(payload: SettingsPayload) {
       subtitle = ?,
       description = ?,
       price = ?,
+      customer_display_weight = ?,
       display_weight = ?,
       image_url = ?,
       badge = ?,
       daily_limit = ?,
+      display_order = ?,
       sort_order = ?,
       active = ?,
       updated_at = ?
@@ -219,9 +221,11 @@ async function updateProduct(payload: SettingsPayload) {
     product.description,
     product.price,
     product.displayWeight,
+    product.displayWeight,
     product.imageUrl,
     product.badge,
     product.dailyLimit,
+    sortOrder,
     sortOrder,
     product.active ? 1 : 0,
     updatedAt,
@@ -252,9 +256,10 @@ async function createProduct(payload: SettingsPayload) {
 
   await runtimeEnv.DB.prepare(`
     INSERT INTO products (
-      id, category, code, name, subtitle, description, price, display_weight,
-      image_url, badge, daily_limit, sort_order, active, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      id, category, code, name, subtitle, description, price, customer_display_weight,
+      display_weight, image_url, badge, daily_limit, display_order, sort_order, active,
+      created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     id,
     product.category,
@@ -264,9 +269,11 @@ async function createProduct(payload: SettingsPayload) {
     product.description,
     product.price,
     product.displayWeight,
+    product.displayWeight,
     product.imageUrl,
     product.badge,
     product.dailyLimit,
+    nextOrder?.sort_order ?? 0,
     nextOrder?.sort_order ?? 0,
     product.active ? 1 : 0,
     createdAt,
@@ -327,9 +334,9 @@ async function reorderProducts(payload: SettingsPayload) {
   const updatedAt = new Date().toISOString();
   const results = await runtimeEnv.DB.batch(items.map((item, index) => runtimeEnv.DB.prepare(`
     UPDATE products
-    SET sort_order = ?, updated_at = ?
+    SET display_order = ?, sort_order = ?, updated_at = ?
     WHERE id = ? AND category = ? AND updated_at = ? AND active IN (0, 1)
-  `).bind(index, updatedAt, item.id, category, item.expectedVersion)));
+  `).bind(index, index, updatedAt, item.id, category, item.expectedVersion)));
   if (results.some((result) => !result.meta.changes)) return versionConflictResponse();
   return Response.json({ ok: true, version: updatedAt, updatedAt });
 }

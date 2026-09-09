@@ -25,6 +25,9 @@ export type Product = {
   customerDisplayWeight: string | null;
   imageUrl: string | null;
   badge: string | null;
+  cutNames?: string[];
+  servings?: string | null;
+  totalWeight?: string | null;
   dailyLimit: number | null;
   reservedQuantity: number;
   remainingQuantity: number | null;

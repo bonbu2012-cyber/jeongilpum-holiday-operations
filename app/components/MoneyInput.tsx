@@ -44,3 +44,5 @@ export function MoneyFieldInput({
     </Field>
   );
 }
+
+export const MoneyInput = MoneyFieldInput;

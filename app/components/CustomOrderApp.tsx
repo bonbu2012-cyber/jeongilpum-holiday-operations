@@ -1,10 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { FormattedInput } from "../ui";
 import { parseIntegerInput } from "../lib/input-format";
 import type { OrderDraft } from "./types";
-import { MoneyReadout } from "./MoneyInput";
+import { MoneyInput } from "./MoneyInput";
 
 type Draft = {
   productName: string;
@@ -143,19 +142,15 @@ export default function CustomOrderApp() {
 
         <section>
           <h2><span>2</span> 금액</h2>
-          <label className="custom-wide" htmlFor="custom-order-amount">
-            <span>금액</span>
-            <FormattedInput
-              id="custom-order-amount"
-              format="number"
-              value={draft.amount}
-              aria-invalid={Boolean(errors.amount)}
-              onValueChange={(value) => set("amount", value)}
-              placeholder="금액을 입력해주세요"
-            />
-            <MoneyReadout value={draft.amount} />
-          </label>
-          {errors.amount && <span className="field-error" role="alert">{errors.amount}</span>}
+          <MoneyInput
+            id="custom-order-amount"
+            className="custom-wide"
+            label="금액"
+            value={draft.amount}
+            error={errors.amount}
+            onValueChange={(value) => set("amount", value)}
+            placeholder="금액을 입력해주세요"
+          />
         </section>
 
         <section>

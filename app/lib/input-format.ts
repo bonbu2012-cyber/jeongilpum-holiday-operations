@@ -69,7 +69,7 @@ function koreanNumberGroup(value: number) {
 export function koreanWonText(value: string | number) {
   const amount = typeof value === "number" ? value : parseIntegerInput(value);
   if (amount === null || !Number.isSafeInteger(amount) || amount < 0) return "";
-  if (amount === 0) return "영 원";
+  if (amount === 0) return "영원";
 
   const groups: string[] = [];
   let remaining = amount;
@@ -82,5 +82,23 @@ export function koreanWonText(value: string | number) {
     unitIndex += 1;
   }
 
-  return `${groups.join(" ")} 원`;
+  return `${groups.join("")}원`;
+}
+
+export function isPastPickupTime(date: string, time: string, now = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(now);
+  const value = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
+  const today = `${value("year")}-${value("month")}-${value("day")}`;
+  if (date !== today) return false;
+
+  const [hour, minute] = time.split(":").map(Number);
+  return hour * 60 + minute <= Number(value("hour")) * 60 + Number(value("minute"));
 }

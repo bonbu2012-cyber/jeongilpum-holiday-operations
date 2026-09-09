@@ -62,12 +62,13 @@ export async function POST(request: Request) {
     await runtimeEnv.DB.batch([
       runtimeEnv.DB.prepare(`
         INSERT INTO packages(
-          id,work_item_id,package_sequence,assembly_key,package_code,product_id,
+          id,work_item_id,order_id,package_sequence,assembly_key,package_code,product_id,
           product_name_snapshot,package_status,created_at,updated_at
-        ) VALUES(?,?,?,?,?,?,?,'queued',?,?)
+        ) VALUES(?,?,?,?,?,?,?,?,'queued',?,?)
       `).bind(
         packageId,
         workItem.id,
+        workItem.order_id,
         sequence,
         assemblyKey,
         packageCode,

@@ -2,6 +2,7 @@
 import { env } from "cloudflare:workers";
 import { OPERATOR_ACTOR, requireOperatorApi } from "../../lib/operator-session";
 import { nextOrderNo, orderNumberPrefix } from "../../lib/order-number";
+import { isPastPickupTime } from "../../lib/input-format";
 
 type CustomItemPayload = {
   productName?: string;
@@ -557,25 +558,44 @@ async function createManualOrder(payload: CreatePayload) {
   const totalAmount = typeof payload.totalAmount === "number"
     ? payload.totalAmount
     : preparedItems.workItems.reduce((sum, item) => sum + item.lineTotal, 0);
+  const primaryWorkItem = preparedItems.workItems[0];
+  const legacyFulfillmentType = primaryWorkItem.deliveryMethod === "delivery"
+    ? "shipping"
+    : primaryWorkItem.deliveryMethod === "onsite_sale"
+      ? "onsite"
+      : "pickup";
+  const legacyScheduleLabel = scheduleLabel(primaryWorkItem.deliveryMethod, primaryWorkItem.dueAt);
+  const paymentStatus = clean(payload.paymentStatus) || "unpaid";
+  const paidAmount = typeof payload.paidAmount === "number" ? payload.paidAmount : 0;
 
   try {
     await runtimeEnv.DB.batch([
       runtimeEnv.DB.prepare(`
         INSERT INTO orders(
-          id,order_no,buyer_name,buyer_phone,payment_status,paid_amount,total_amount,
-          customer_arrived_at,customer_note,idempotency_key,version,created_at,updated_at
-        ) VALUES(?,?,?,?,?,?,?,?,?,1,?,?)
+          id,order_no,season_id,buyer_name_snapshot,buyer_phone_snapshot,order_status,
+          fulfillment_type,schedule_label,buyer_name,buyer_phone,payment_status,paid_amount,
+          total_amount,customer_arrived_at,customer_note,idempotency_key,version,submitted_at,
+          created_at,updated_at
+        ) VALUES(
+          ?,?,(SELECT id FROM sales_seasons WHERE active=1 ORDER BY sales_start_date DESC LIMIT 1),
+          ?,?,'submitted',?,?,?,?,?,?,?,?,?,?,1,?,?,?
+        )
       `).bind(
         orderId,
         orderNo,
         buyerName,
         buyerPhone,
-        clean(payload.paymentStatus) || "unpaid",
-        typeof payload.paidAmount === "number" ? payload.paidAmount : 0,
+        legacyFulfillmentType,
+        legacyScheduleLabel,
+        buyerName,
+        buyerPhone,
+        paymentStatus,
+        paidAmount,
         totalAmount,
         payload.customerArrivedAt ?? null,
         clean(payload.note),
         idempotencyKey,
+        now,
         now,
         now,
       ),
@@ -747,6 +767,9 @@ export async function POST(request: Request) {
     if (fulfillmentType === "pickup" && !validPickupTime(pickupTime)) {
       return Response.json({ error: "방문 시간을 08:00부터 21:00 사이에서 선택해주세요." }, { status: 400 });
     }
+    if (fulfillmentType === "pickup" && isPastPickupTime(scheduleDate, pickupTime)) {
+      return Response.json({ error: "이미 지난 방문 시간입니다. 이후 시간을 선택해주세요." }, { status: 400 });
+    }
 
     const recipientName = clean(payload.recipientName);
     const recipientPhone = normalizePhone(payload.recipientPhone ?? "");
@@ -871,12 +894,21 @@ export async function POST(request: Request) {
     const statements: D1PreparedStatement[] = [
       runtimeEnv.DB.prepare(`
         INSERT INTO orders(
-          id,order_no,buyer_name,buyer_phone,payment_status,paid_amount,total_amount,
-          customer_arrived_at,customer_note,idempotency_key,version,created_at,updated_at
-        ) VALUES(?,?,?,?,?,?,?,NULL,?,?,1,?,?)
+          id,order_no,season_id,buyer_name_snapshot,buyer_phone_snapshot,order_status,
+          fulfillment_type,schedule_label,buyer_name,buyer_phone,payment_status,paid_amount,
+          total_amount,customer_arrived_at,customer_note,idempotency_key,version,submitted_at,
+          created_at,updated_at
+        ) VALUES(
+          ?,?,(SELECT id FROM sales_seasons WHERE active=1 ORDER BY sales_start_date DESC LIMIT 1),
+          ?,?,'submitted',?,?,?,?,?,?,?,NULL,?,?,1,?,?,?
+        )
       `).bind(
         orderId,
         orderNo,
+        buyer,
+        buyerPhone,
+        fulfillmentType,
+        scheduleLabel(deliveryMethod, dueAt),
         buyer,
         buyerPhone,
         paymentStatus,
@@ -884,6 +916,7 @@ export async function POST(request: Request) {
         totalAmount,
         clean(payload.note),
         idempotencyKey,
+        now,
         now,
         now,
       ),
