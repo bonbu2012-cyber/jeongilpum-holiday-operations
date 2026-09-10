@@ -1,6 +1,6 @@
 # Task: 현재 Production 기준 상품 품절 기능 복구
 
-- Status: Active
+- Status: Completed
 - Owner: Codex
 - Branch: `codex/restore-sold-out-current-production`
 - Base commit: `d905bb19bdcb22f653e51acf3948b31e5ccd0002`
@@ -39,16 +39,17 @@ Sites Production Version 42의 정확한 소스 상태에서 상품관리의 상
 
 ## Validation
 
-- [ ] lint
-- [ ] typecheck
-- [ ] focused sold-out test
-- [ ] full test
-- [ ] build
+- [x] changed-file lint
+- [x] typecheck
+- [x] focused sold-out test — 3/3 passed
+- [ ] full lint — Production 기준 소스의 기존 미사용 변수 5건으로 실패; 이번 변경 파일은 통과
+- [ ] full test — Production 기준 소스의 기존 회귀 19건으로 실패; 29/48 passed
+- [x] build — npm run build passed; Sites helper는 Windows npm 경로 탐색 오류로 실행 불가
 
 ## Completion
 
-- Final commit:
-- GitHub remote/branch:
-- Push verification:
-- Completed at:
-- Remaining TODO:
+- Final implementation commit: 2744c36b17ff7b105b80cb98a09f390c58be84f7
+- GitHub remote/branch: github/codex/restore-sold-out-current-production
+- Push verification: closure commit push 후 확인
+- Completed at: 2026-09-10
+- Remaining TODO: 사용자가 명시적으로 요청하면 현재 Production DB 백업·row count 확인 후 Sites Production에 배포한다. 다른 active task가 소유한 docs/PAGES_AND_FEATURES.md 갱신은 해당 claim 해제 후 통합한다.
