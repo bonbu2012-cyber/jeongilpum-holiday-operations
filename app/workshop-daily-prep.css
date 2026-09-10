@@ -1,0 +1,159 @@
+.workshop-page-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100svh;
+  background: var(--paper);
+}
+
+.workshop-page-shell > .workshop-app {
+  display: contents;
+}
+
+.workshop-page-shell .workshop-main {
+  order: 2;
+}
+
+.workshop-page-shell .workshop-utility-links {
+  display: none;
+}
+
+.workshop-daily-prep {
+  order: 1;
+  padding: 14px 24px 4px;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.workshop-daily-prep__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 10px;
+}
+
+.workshop-daily-prep__header :is(p, h2) {
+  margin: 0;
+}
+
+.workshop-daily-prep__header p {
+  color: var(--wine);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-strong);
+}
+
+.workshop-daily-prep__header h2 {
+  margin-top: 2px;
+  font-size: var(--text-lg);
+}
+
+.workshop-daily-prep__header time {
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.workshop-daily-prep__sets {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.workshop-daily-prep__sets article {
+  display: grid;
+  gap: 2px;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: #eee9e1;
+  color: var(--muted);
+}
+
+.workshop-daily-prep__sets article.is-active {
+  border-color: #b98a84;
+  background: #fff;
+  color: var(--ink);
+}
+
+.workshop-daily-prep__sets strong {
+  color: var(--wine);
+  font-size: var(--text-lg);
+}
+
+.workshop-daily-prep__sets small {
+  font-size: var(--text-sm);
+}
+
+.workshop-daily-prep__table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: #fff;
+}
+
+.workshop-daily-prep__table {
+  width: 100%;
+  min-width: 680px;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.workshop-daily-prep__table :is(th, td) {
+  padding: 9px 10px;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  text-align: center;
+}
+
+.workshop-daily-prep__table :is(th, td):last-child {
+  border-right: 0;
+}
+
+.workshop-daily-prep__table thead th,
+.workshop-daily-prep__table tfoot :is(th, td) {
+  background: #eee9e1;
+}
+
+.workshop-daily-prep__table tbody th {
+  text-align: left;
+}
+
+.workshop-daily-prep__table tbody td:nth-child(2) {
+  background: #fff6ed;
+  color: var(--wine);
+  font-size: var(--text-md);
+}
+
+.workshop-daily-prep__message,
+.workshop-daily-prep__empty,
+.workshop-daily-prep__note {
+  margin: 0;
+}
+
+.workshop-daily-prep__message,
+.workshop-daily-prep__empty {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: #fff;
+}
+
+.workshop-daily-prep__message.is-error {
+  color: #8f241d;
+}
+
+.workshop-daily-prep__note {
+  padding-top: 7px;
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+@media (max-width: 760px) {
+  .workshop-daily-prep {
+    padding-inline: 12px;
+  }
+
+  .workshop-daily-prep__sets {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

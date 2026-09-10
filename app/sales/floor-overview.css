@@ -1,0 +1,174 @@
+.sales-floor-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100svh;
+  background: var(--paper);
+}
+
+.sales-floor-shell > .sales-work-table {
+  display: contents;
+}
+
+.sales-floor-shell .sales-work-table__main {
+  order: 2;
+  width: min(100%, 1480px);
+  margin: 0 auto;
+}
+
+.sales-floor-overview {
+  order: 1;
+  width: min(100%, 1480px);
+  margin: 0 auto;
+  padding: 14px clamp(12px, 2vw, 28px) 4px;
+  color: var(--ink);
+}
+
+.sales-floor-overview__header,
+.workshop-daily-prep__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 10px;
+}
+
+.sales-floor-overview__header p,
+.sales-floor-overview__header h2,
+.sales-floor-overview__message,
+.sales-floor-overview__excel-note {
+  margin: 0;
+}
+
+.sales-floor-overview__header p {
+  color: var(--wine);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-strong);
+}
+
+.sales-floor-overview__header h2 {
+  margin-top: 2px;
+  font-size: var(--text-lg);
+  line-height: var(--leading-tight);
+}
+
+.sales-floor-overview__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.sales-floor-overview__actions > a {
+  text-decoration: none;
+}
+
+.sales-floor-overview__summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.sales-floor-overview__summary > span {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: #fff;
+}
+
+.sales-floor-overview__summary > span.is-attention {
+  border-color: #d99b72;
+  background: #fff6ed;
+}
+
+.sales-floor-overview__summary small,
+.sales-floor-overview__table small {
+  display: block;
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.sales-floor-overview__table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: #fff;
+}
+
+.sales-floor-overview__table {
+  width: 100%;
+  min-width: 820px;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.sales-floor-overview__table :is(th, td) {
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.sales-floor-overview__table thead th {
+  background: #eee9e1;
+  color: var(--muted);
+}
+
+.sales-floor-overview__table tbody tr:last-child :is(th, td) {
+  border-bottom: 0;
+}
+
+.sales-floor-overview__table tr.is-payment-due td:last-child {
+  background: #fff6ed;
+  box-shadow: inset 3px 0 #d27a3a;
+}
+
+.sales-floor-overview__products {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sales-floor-overview__products li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sales-floor-overview__message {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: #fff;
+}
+
+.sales-floor-overview__message.is-error {
+  color: #8f241d;
+}
+
+.sales-floor-overview__excel-note {
+  padding-top: 7px;
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+@media (max-width: 720px) {
+  .sales-floor-overview__header {
+    display: grid;
+  }
+
+  .sales-floor-overview__actions {
+    justify-content: flex-start;
+  }
+
+  .sales-floor-overview__summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
