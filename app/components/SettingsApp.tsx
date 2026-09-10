@@ -44,6 +44,8 @@ type ProductRevision = {
   active: boolean;
   sortOrder: number;
   version: string;
+  soldOut: boolean;
+  availabilityVersion: string;
 };
 
 type ProductRecord = {
@@ -61,6 +63,8 @@ type ProductRecord = {
   active: boolean;
   version: string;
   reservedQuantity: number;
+  soldOut: boolean;
+  availabilityVersion: string;
 };
 
 type CategoryRecord = {
@@ -216,6 +220,8 @@ function productRows(catalog: CatalogResponse | null, settings: SettingsResponse
       active: revision.active,
       version: revision.version,
       reservedQuantity: product.reservedQuantity,
+      soldOut: revision.soldOut,
+      availabilityVersion: revision.availabilityVersion,
     }];
   });
 
@@ -284,6 +290,7 @@ export default function SettingsApp() {
   const [editing, setEditing] = useState<ProductRecord | null>(null);
   const [draft, setDraft] = useState<ProductDraft | null>(null);
   const [saving, setSaving] = useState(false);
+  const [availabilitySavingId, setAvailabilitySavingId] = useState<string | null>(null);
   const [reordering, setReordering] = useState(false);
   const [draggedProductId, setDraggedProductId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -510,6 +517,27 @@ export default function SettingsApp() {
       setNotice(caught instanceof Error ? caught.message : "상품을 저장하지 못했습니다.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const toggleProductSoldOut = async (product: ProductRecord) => {
+    if (saving || availabilitySavingId) return;
+    setAvailabilitySavingId(product.id);
+    setNotice("");
+    try {
+      const result = await settingsMutation("PATCH", {
+        type: "product_availability",
+        productId: product.id,
+        soldOut: !product.soldOut,
+        expectedVersion: product.availabilityVersion,
+      }, "품절 상태를 변경하지 못했습니다.") as { soldOut?: boolean };
+      const soldOut = result?.soldOut ?? !product.soldOut;
+      await reload();
+      setNotice(product.name + " 상품을 " + (soldOut ? "품절 처리했습니다." : "판매 재개했습니다."));
+    } catch (caught) {
+      setNotice(caught instanceof Error ? caught.message : "품절 상태를 변경하지 못했습니다.");
+    } finally {
+      setAvailabilitySavingId(null);
     }
   };
 
@@ -761,6 +789,31 @@ export default function SettingsApp() {
       },
       exportValue: (product) => VISIBILITY_LABELS[product.active ? "visible" : "hidden"],
       width: "90px",
+      align: "center",
+    },
+    {
+      id: "sold-out",
+      header: "품절 관리",
+      cell: (product) => (
+        <Button
+          aria-pressed={product.soldOut}
+          disabled={saving || availabilitySavingId !== null}
+          size="sm"
+          variant={product.soldOut ? "ghost" : "danger"}
+          onClick={(event) => {
+            event.stopPropagation();
+            void toggleProductSoldOut(product);
+          }}
+        >
+          {availabilitySavingId === product.id
+            ? "변경 중"
+            : product.soldOut
+              ? "판매 재개"
+              : "품절 처리"}
+        </Button>
+      ),
+      exportValue: (product) => product.soldOut ? "품절" : "판매 중",
+      width: "125px",
       align: "center",
     },
   ];

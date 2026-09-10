@@ -1,6 +1,7 @@
 import { env } from "cloudflare:workers";
 import { resolveCatalogProductImageUrl } from "../../lib/catalog-product-images";
-import { requireOperatorApi } from "../../lib/operator-session";
+import { OPERATOR_ACTOR, requireOperatorApi } from "../../lib/operator-session";
+import { latestProductAvailability, parseProductSoldOut } from "../../lib/product-availability";
 
 type ProductRevisionRow = {
   id: string;
@@ -32,6 +33,13 @@ type CategoryRow = {
   sort_order: number;
   updated_at: string;
   product_count: number;
+};
+
+type ProductAvailabilityRow = {
+  id: string;
+  entity_id: string;
+  after_data: string | null;
+  created_at: string;
 };
 
 type ProductInput = {
@@ -470,13 +478,90 @@ async function removeCategory(payload: SettingsPayload) {
   return Response.json({ ok: true });
 }
 
+async function updateProductAvailability(payload: SettingsPayload) {
+  const productId = text(payload.productId);
+  const expectedVersion = typeof payload.expectedVersion === "string" ? payload.expectedVersion : null;
+  if (
+    payload.type !== "product_availability"
+    || !productId
+    || expectedVersion === null
+    || typeof payload.soldOut !== "boolean"
+  ) {
+    return invalidProductResponse();
+  }
+
+  if (!await productExists(productId)) {
+    return Response.json({ error: "상품을 찾을 수 없습니다." }, { status: 404 });
+  }
+
+  const current = await runtimeEnv.DB.prepare(`
+    SELECT id, entity_id, after_data, created_at
+    FROM configuration_events
+    WHERE entity_type = 'product_availability' AND entity_id = ?
+    ORDER BY created_at DESC, id DESC
+    LIMIT 1
+  `).bind(productId).first<ProductAvailabilityRow>();
+  const currentVersion = current?.id ?? "";
+  if (currentVersion !== expectedVersion) {
+    return Response.json(
+      { error: "다른 화면에서 먼저 품절 상태를 수정했습니다. 새로고침 후 다시 시도해주세요." },
+      { status: 409 },
+    );
+  }
+
+  const before = { soldOut: parseProductSoldOut(current?.after_data) };
+  const soldOut = payload.soldOut;
+  if (before.soldOut === soldOut) {
+    return Response.json({
+      ok: true,
+      soldOut,
+      version: currentVersion,
+      updatedAt: current?.created_at ?? null,
+    });
+  }
+
+  const id = crypto.randomUUID();
+  const updatedAt = new Date().toISOString();
+  const after = { soldOut };
+  const result = await runtimeEnv.DB.prepare(`
+    INSERT INTO configuration_events(
+      id, entity_type, entity_id, before_data, after_data, actor_id, created_at
+    )
+    SELECT ?, 'product_availability', ?, ?, ?, ?, ?
+    WHERE COALESCE((
+      SELECT id
+      FROM configuration_events
+      WHERE entity_type = 'product_availability' AND entity_id = ?
+      ORDER BY created_at DESC, id DESC
+      LIMIT 1
+    ), '') = ?
+  `).bind(
+    id,
+    productId,
+    JSON.stringify(before),
+    JSON.stringify(after),
+    OPERATOR_ACTOR,
+    updatedAt,
+    productId,
+    expectedVersion,
+  ).run();
+
+  if (!result.meta.changes) {
+    return Response.json(
+      { error: "다른 화면에서 먼저 품절 상태를 수정했습니다. 새로고침 후 다시 시도해주세요." },
+      { status: 409 },
+    );
+  }
+  return Response.json({ ok: true, soldOut, version: id, updatedAt });
+}
+
 export async function GET() {
   const denied = await requireOperatorApi();
   if (denied) return denied;
 
   try {
     const today = todayInSeoul();
-    const [revisions, inactiveProducts, categories] = await Promise.all([
+    const [revisions, inactiveProducts, categories, availabilityEvents] = await Promise.all([
       runtimeEnv.DB.prepare(`
         SELECT id, active, sort_order, ${PRODUCT_REVISION_SQL} AS version_token
         FROM products
@@ -507,17 +592,41 @@ export async function GET() {
         GROUP BY c.id
         ORDER BY c.sort_order, c.name COLLATE NOCASE
       `).all<CategoryRow>(),
+      runtimeEnv.DB.prepare(`
+        SELECT id, entity_id, after_data, created_at
+        FROM configuration_events
+        WHERE entity_type = 'product_availability'
+        ORDER BY created_at DESC, id DESC
+      `).all<ProductAvailabilityRow>(),
     ]);
+
+    const availabilityByProduct = latestProductAvailability(availabilityEvents.results.map((row) => ({
+      id: row.id,
+      entityId: row.entity_id,
+      afterData: row.after_data,
+    })));
 
     return Response.json(
       {
-        productRevisions: revisions.results.map((row) => ({
-          id: row.id,
-          active: Boolean(row.active),
-          sortOrder: row.sort_order,
-          version: row.version_token,
-        })),
-        inactiveProducts: inactiveProducts.results.map(inactiveProduct),
+        productRevisions: revisions.results.map((row) => {
+          const availability = availabilityByProduct.get(row.id);
+          return {
+            id: row.id,
+            active: Boolean(row.active),
+            sortOrder: row.sort_order,
+            version: row.version_token,
+            soldOut: availability?.soldOut ?? false,
+            availabilityVersion: availability?.version ?? "",
+          };
+        }),
+        inactiveProducts: inactiveProducts.results.map((row) => {
+          const availability = availabilityByProduct.get(row.id);
+          return {
+            ...inactiveProduct(row),
+            soldOut: availability?.soldOut ?? false,
+            availabilityVersion: availability?.version ?? "",
+          };
+        }),
         categories: categories.results.map((row) => ({
           id: row.id,
           name: row.name,
@@ -560,6 +669,7 @@ export async function PATCH(request: Request) {
     const payload = await request.json().catch(() => null) as SettingsPayload | null;
     if (!payload || typeof payload !== "object") return invalidProductResponse();
 
+    if (payload.type === "product_availability") return updateProductAvailability(payload);
     if (payload.type === "product") return updateProduct(payload);
     if (payload.type === "product-bulk") return bulkUpdateProducts(payload);
     if (payload.type === "product-reorder") return reorderProducts(payload);
