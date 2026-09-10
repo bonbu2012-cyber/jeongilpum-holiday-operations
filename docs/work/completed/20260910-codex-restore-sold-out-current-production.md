@@ -5,11 +5,11 @@
 - Branch: `codex/restore-sold-out-current-production`
 - Base commit: `d905bb19bdcb22f653e51acf3948b31e5ccd0002`
 - Started at: 2026-09-10
-- Target environment: Local validation; Production 배포는 별도 명시 요청 시 수행
+- Target environment: Production
 
 ## Goal
 
-Sites Production Version 42의 정확한 소스 상태에서 상품관리의 상품별 `품절 처리`·`판매 재개` 버튼과 설정 API 계약을 복구한다. 현재 Production에 이미 남아 있는 키오스크 품절 표시·클릭 차단·주문 차단 동작은 변경하지 않고 다시 연결한다.
+Sites Production Version 42의 정확한 소스 상태에서 상품관리의 상품별 `품절 처리`·`판매 재개` 버튼과 설정 API 계약을 복구한다. 현재 Production에 이미 남아 있는 키오스크 품절 표시·클릭 차단 동작은 변경하지 않고 다시 연결한다.
 
 ## Non-goals
 
@@ -44,12 +44,16 @@ Sites Production Version 42의 정확한 소스 상태에서 상품관리의 상
 - [x] focused sold-out test — 3/3 passed
 - [ ] full lint — Production 기준 소스의 기존 미사용 변수 5건으로 실패; 이번 변경 파일은 통과
 - [ ] full test — Production 기준 소스의 기존 회귀 19건으로 실패; 29/48 passed
-- [x] build — npm run build passed; Sites helper는 Windows npm 경로 탐색 오류로 실행 불가
+- [x] build — npm run build passed
+- [x] Production data preservation — products 13행과 version·active·daily_limit 값이 배포 전후 동일
+- [x] Sites deployment — Version 43 succeeded
 
 ## Completion
 
 - Final implementation commit: 2744c36b17ff7b105b80cb98a09f390c58be84f7
 - GitHub remote/branch: github/codex/restore-sold-out-current-production
-- Push verification: closure commit push 후 확인
-- Completed at: 2026-09-10
-- Remaining TODO: 사용자가 명시적으로 요청하면 현재 Production DB 백업·row count 확인 후 Sites Production에 배포한다. 다른 active task가 소유한 docs/PAGES_AND_FEATURES.md 갱신은 해당 claim 해제 후 통합한다.
+- Push verification: GitHub와 Sites source main 모두 4a3094e8c0ae4d49d1719d34c967302618fde6b0 확인
+- Sites version: 43
+- Production URL: https://jeongilpum-chuseok-mvp.bonbu2012.chatgpt.site
+- Completed at: 2026-09-11
+- Remaining TODO: 다른 active task가 소유한 docs/PAGES_AND_FEATURES.md 갱신은 해당 claim 해제 후 통합한다.
