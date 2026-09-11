@@ -14,6 +14,7 @@
 ## Claimed paths
 
 - `app/api/workshop/daily-skin-packs/route.ts`
+- `app/components/SalesFloorOverview.tsx`
 - `tests/sales-workshop-visibility.test.mjs`
 - `docs/work/active/20260911-codex-daily-skin-pack-source-hotfix.md`
 

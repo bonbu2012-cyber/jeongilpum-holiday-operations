@@ -15,6 +15,7 @@ test("sales floor exposes customer, product work status, payment, and pickup-tim
   assert.match(overview, /고객별 상품·결제·작업 상태/);
   assert.match(overview, /WORK_STATUS_LABELS/);
   assert.match(overview, /PAYMENT_STATUS_LABELS/);
+  assert.match(overview, /unpaid: "미결제"/);
   assert.match(overview, /jeongilpum-bulk-orders-pickup-time\.xlsx/);
   assert.match(overview, /3_000/);
 });
@@ -32,7 +33,7 @@ test("workshop page prioritizes the daily cut board and hides legacy utility lin
   assert.match(board, /부위별 필요 수량/);
   assert.match(board, /5_000/);
   assert.match(css, /\.workshop-page-shell \.workshop-utility-links[\s\S]*display: none/);
-  assert.match(api, /o\.order_status!='cancelled'/);
-  assert.match(api, /f\.pickup_at/);
-  assert.match(api, /f\.ship_date/);
+  assert.match(api, /FROM work_items oi/);
+  assert.match(api, /oi\.work_status!='cancelled'/);
+  assert.match(api, /substr\(oi\.due_at,1,10\)=\?/);
 });

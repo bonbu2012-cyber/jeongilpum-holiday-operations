@@ -50,6 +50,10 @@ const DELIVERY_LABELS: Record<WorkItem["deliveryMethod"], string> = {
   onsite_reservation: "현장수령",
   delivery: "택배발송",
 };
+const SALES_PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
+  ...PAYMENT_STATUS_LABELS,
+  unpaid: "미결제",
+};
 
 function todayInSeoul() {
   const parts = new Intl.DateTimeFormat("en-US", {
@@ -170,7 +174,7 @@ export default function SalesFloorOverview() {
                     </ul>
                   </td>
                   <td>
-                    <Badge tone={paymentStatusTone(order.paymentStatus)}>{PAYMENT_STATUS_LABELS[order.paymentStatus]}</Badge>
+                    <Badge tone={paymentStatusTone(order.paymentStatus)}>{SALES_PAYMENT_STATUS_LABELS[order.paymentStatus]}</Badge>
                     <small>{won(order.paidAmount)} / {won(order.totalAmount)}</small>
                   </td>
                 </tr>

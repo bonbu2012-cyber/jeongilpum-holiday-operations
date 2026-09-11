@@ -40,18 +40,13 @@ export async function GET(request: Request) {
         oi.product_id,
         oi.product_name_snapshot,
         SUM(oi.quantity) AS quantity
-      FROM orders o
-      JOIN fulfillments f ON f.order_id=o.id
-      JOIN order_items oi ON oi.order_id=o.id
-      WHERE o.order_status!='cancelled'
+      FROM work_items oi
+      WHERE oi.work_status!='cancelled'
         AND oi.product_id IN (${productIds.map(() => "?").join(",")})
-        AND (
-          (f.fulfillment_type='pickup' AND substr(f.pickup_at,1,10)=?)
-          OR (f.fulfillment_type='shipping' AND f.ship_date=?)
-        )
+        AND substr(oi.due_at,1,10)=?
       GROUP BY oi.product_id,oi.product_name_snapshot
       ORDER BY oi.product_name_snapshot COLLATE NOCASE,oi.product_id
-    `).bind(...productIds, date, date).all<DemandRow>();
+    `).bind(...productIds, date).all<DemandRow>();
     const demands: SetDemand[] = rows.results.map((row) => ({
       productId: row.product_id,
       productName: row.product_name_snapshot,
