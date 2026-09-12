@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, CheckSquare, Clock, Package, Printer, Truck, X } from "lucide-react";
+import { CheckCircle2, Clock, Package, Printer, Truck, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import {
   calculateSetCutRequirements,
@@ -72,14 +72,13 @@ export default function WorkshopPackingSlipModal({
           </div>
           <div className="packing-slip-toolbar-actions">
             <Button
-              variant="secondary"
+              variant="primary"
               leadingIcon={<Printer size={18} />}
               onClick={handlePrint}
-              ariaLabel="A4 검수표 인쇄"
             >
               A4 인쇄 (SAMSUNG)
             </Button>
-            <Button variant="ghost" leadingIcon={<X size={18} />} onClick={onClose} ariaLabel="검수표 닫기">
+            <Button variant="ghost" leadingIcon={<X size={18} />} onClick={onClose}>
               닫기
             </Button>
           </div>

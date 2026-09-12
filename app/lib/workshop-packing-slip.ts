@@ -1,4 +1,4 @@
-import { CATALOG_PRODUCT_DETAILS, resolveCatalogProductDetails } from "./catalog-product-details";
+import { resolveCatalogProductDetails } from "./catalog-product-details";
 
 export type DeliveryClassification = "onsite" | "shipping" | "direct_delivery";
 

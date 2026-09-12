@@ -1,7 +1,7 @@
 "use client";
 
 import { CheckCircle2, Copy, Printer, Tag, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   generatePackingLabels,
   type PackingSlipLabel,
@@ -32,7 +32,7 @@ export default function WorkshopLabelModal({
   }, [items, date]);
 
   // 라벨 HTML 및 인쇄 전용 iframe 빌드 함수
-  const triggerPrint = () => {
+  const triggerPrint = useCallback(() => {
     if (!labels.length) return;
 
     let iframe = iframeRef.current;
@@ -240,7 +240,7 @@ export default function WorkshopLabelModal({
       iframe.contentWindow?.focus();
       iframe.contentWindow?.print();
     }, 250);
-  };
+  }, [labels]);
 
   // autoPrint가 켜져 있으면 모달 오픈 시 자동 1회 인쇄 트리거
   useEffect(() => {
@@ -250,7 +250,7 @@ export default function WorkshopLabelModal({
       }, 350);
       return () => clearTimeout(timer);
     }
-  }, [open, autoPrint, labels.length]);
+  }, [open, autoPrint, labels.length, triggerPrint]);
 
   if (!open) return null;
 
