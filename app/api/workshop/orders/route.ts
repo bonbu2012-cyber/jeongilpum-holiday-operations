@@ -1,4 +1,4 @@
-import { env } from "cloudflare:workers";
+import { getDb } from "../../../../db";
 import { requireOperatorApi } from "../../../lib/operator-session";
 
 type WorkStatus = "received" | "confirmed" | "in_progress" | "ready" | "completed" | "cancelled";
@@ -49,10 +49,10 @@ type EventRow = {
   created_at: string;
 };
 
-const runtimeEnv = env as typeof env & { DB: D1Database };
+const runtimeEnv = { DB: getDb() };
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 
-export const TODAY_ONSITE_WORK_ITEMS_SQL = `
+const TODAY_ONSITE_WORK_ITEMS_SQL = `
   SELECT
     w.id,w.order_id,o.order_no,o.buyer_name,o.buyer_phone,w.product_id,w.product_name_snapshot,
     w.unit_price_snapshot,w.quantity,w.delivery_method,w.due_at,w.work_status,w.note,
@@ -69,7 +69,7 @@ export const TODAY_ONSITE_WORK_ITEMS_SQL = `
   LIMIT 500
 `;
 
-export const TODAY_DELIVERY_WORK_ITEMS_SQL = `
+const TODAY_DELIVERY_WORK_ITEMS_SQL = `
   SELECT
     w.id,w.order_id,o.order_no,o.buyer_name,o.buyer_phone,w.product_id,w.product_name_snapshot,
     w.unit_price_snapshot,w.quantity,w.delivery_method,w.due_at,w.work_status,w.note,
@@ -86,7 +86,7 @@ export const TODAY_DELIVERY_WORK_ITEMS_SQL = `
   LIMIT 500
 `;
 
-export const TODAY_PRODUCT_TOTALS_SQL = `
+const TODAY_PRODUCT_TOTALS_SQL = `
   SELECT
     w.product_id,
     w.product_name_snapshot,

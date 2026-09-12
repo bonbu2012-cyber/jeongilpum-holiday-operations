@@ -1,10 +1,8 @@
-import { env } from "cloudflare:workers";
 import { headers } from "next/headers";
 
 export const COOKIE_NAME = "jip_operator";
 export const OPERATOR_ACTOR = "operator";
 
-const runtimeEnv = env as typeof env & { OPERATOR_PASSCODE?: string };
 const encoder = new TextEncoder();
 const salt = encoder.encode("jeongilpum-operator");
 
@@ -48,7 +46,7 @@ function sessionCookie(value: string | null) {
 }
 
 export async function expectedToken(): Promise<string | null> {
-  const passcode = runtimeEnv.OPERATOR_PASSCODE;
+  const passcode = process.env.OPERATOR_PASSCODE;
   if (!passcode) return null;
   return tokenFor(passcode);
 }

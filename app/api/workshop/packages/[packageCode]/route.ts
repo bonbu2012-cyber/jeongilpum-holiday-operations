@@ -1,4 +1,4 @@
-import { env } from "cloudflare:workers";
+import { getDb } from "../../../../../db";
 import { requireOperatorApi } from "../../../../lib/operator-session";
 
 type RouteContext = { params: Promise<{ packageCode: string }> };
@@ -29,7 +29,7 @@ type SkinPackRow = {
   label_status: "draft" | "printed" | "void" | null;
 };
 
-const runtimeEnv = env as typeof env & { DB: D1Database };
+const runtimeEnv = { DB: getDb() };
 
 function schedule(row: PackageRow) {
   if (!row.due_at || !row.delivery_method) return null;

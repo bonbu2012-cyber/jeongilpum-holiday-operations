@@ -1,4 +1,4 @@
-import { env } from "cloudflare:workers";
+import { getDb } from "../../../db";
 import { resolveCatalogProductImageUrl } from "../../lib/catalog-product-images";
 import { requireOperatorApi } from "../../lib/operator-session";
 
@@ -58,7 +58,7 @@ type CountRow = {
 
 type SettingsPayload = Record<string, unknown>;
 
-const runtimeEnv = env as typeof env & { DB: D1Database };
+const runtimeEnv = { DB: getDb() };
 const PRODUCT_REVISION_SQL = "COALESCE(NULLIF(updated_at, ''), 'legacy:' || CAST(version AS TEXT))";
 
 function todayInSeoul() {

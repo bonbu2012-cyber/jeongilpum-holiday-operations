@@ -13,6 +13,7 @@ const eslintConfig = defineConfig([
     "dist/**",
     "out/**",
     "build/**",
+    "tests/**",
   ]),
   eslint.configs.recommended,
   ...tseslint.configs.recommended,

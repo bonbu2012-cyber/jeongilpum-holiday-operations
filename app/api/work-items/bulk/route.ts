@@ -1,4 +1,4 @@
-import { env } from "cloudflare:workers";
+import { getDb } from "../../../../db";
 import { OPERATOR_ACTOR, requireOperatorApi } from "../../../lib/operator-session";
 import { workItemEventType } from "../../../lib/work-item-events";
 import {
@@ -25,7 +25,7 @@ type CurrentWorkItem = {
   order_version: number;
 };
 
-const runtimeEnv = env as typeof env & { DB: D1Database };
+const runtimeEnv = { DB: getDb() };
 const WORK_STATUSES: WorkStatus[] = ["received", "confirmed", "in_progress", "ready", "completed", "cancelled"];
 const PAYMENT_STATUSES: PaymentStatus[] = ["unpaid", "partial", "paid"];
 const MAX_BULK_ITEMS = 100;

@@ -1,4 +1,4 @@
-import { env } from "cloudflare:workers";
+import { getDb } from "../../../../db";
 import { OPERATOR_ACTOR, requireOperatorApi } from "../../../lib/operator-session";
 
 type PaymentStatus = "unpaid" | "partial" | "paid";
@@ -18,7 +18,7 @@ type OrderRow = {
   version: number;
 };
 
-const runtimeEnv = env as typeof env & { DB: D1Database };
+const runtimeEnv = { DB: getDb() };
 const PAYMENT_STATUSES: PaymentStatus[] = ["unpaid", "partial", "paid"];
 
 function clean(value: string | undefined) {

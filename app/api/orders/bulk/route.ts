@@ -1,5 +1,4 @@
-/// <reference types="vite/client" />
-import { env } from "cloudflare:workers";
+import { getDb } from "../../../../db";
 import { validateAndGroupBulkOrderRows, todayInSeoul, type BulkOrderGroup, type BulkOrderRowInput } from "../../../lib/bulk-order-import";
 import { normalizeCustomerName, primaryCustomerAccountId } from "../../../lib/customer-ledger-domain";
 import { latestProductAvailability } from "../../../lib/product-availability";
@@ -26,7 +25,7 @@ type ImportResult = {
   message?: string;
 };
 
-const runtimeEnv = env as typeof env & { DB: D1Database };
+const runtimeEnv = { DB: getDb() };
 
 function placeholders(values: unknown[]) {
   return values.map(() => "?").join(",");

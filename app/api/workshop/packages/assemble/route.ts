@@ -1,4 +1,4 @@
-import { env } from "cloudflare:workers";
+import { getDb } from "../../../../../db";
 import { buildPackageCode } from "../../../../lib/package-domain";
 import { OPERATOR_ACTOR, requireOperatorApi } from "../../../../lib/operator-session";
 
@@ -19,7 +19,7 @@ type ExistingPackage = {
   package_code: string;
 };
 
-const runtimeEnv = env as typeof env & { DB: D1Database };
+const runtimeEnv = { DB: getDb() };
 
 export async function POST(request: Request) {
   const denied = await requireOperatorApi();

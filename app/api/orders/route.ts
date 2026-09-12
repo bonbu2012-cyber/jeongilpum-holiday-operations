@@ -1,5 +1,4 @@
-/// <reference types="vite/client" />
-import { env } from "cloudflare:workers";
+import { getDb } from "../../../db";
 import { OPERATOR_ACTOR, requireOperatorApi } from "../../lib/operator-session";
 import { nextOrderNo, orderNumberPrefix } from "../../lib/order-number";
 import { isPastPickupTime } from "../../lib/input-format";
@@ -171,7 +170,7 @@ type PreparedWorkItem = {
 
 type ManualWorkItemInput = Omit<PreparedWorkItem, "id" | "productName" | "lineTotal">;
 
-const runtimeEnv = env as typeof env & { DB: D1Database };
+const runtimeEnv = { DB: getDb() };
 const fulfillmentTypes = new Set(["onsite", "pickup", "shipping"]);
 const paymentMethods = new Set(["card", "cash", "bank_transfer"]);
 const isoDatePattern = /^\d{4}-\d{2}-\d{2}$/;

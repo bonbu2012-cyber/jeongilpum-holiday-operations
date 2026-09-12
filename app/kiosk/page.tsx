@@ -1,4 +1,4 @@
-import { env } from "cloudflare:workers";
+import { getDb } from "../../db";
 import KioskApp from "../components/KioskApp";
 import type { CategoryRailItem } from "../components/types";
 
@@ -12,7 +12,7 @@ type CategoryRow = {
   is_custom_order_link: number;
 };
 
-const runtimeEnv = env as typeof env & { DB: D1Database };
+const runtimeEnv = { DB: getDb() };
 
 export const dynamic = "force-dynamic";
 

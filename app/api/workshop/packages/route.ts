@@ -1,4 +1,4 @@
-import { env } from "cloudflare:workers";
+import { getDb } from "../../../../db";
 import { requireOperatorApi } from "../../../lib/operator-session";
 
 type PackageRow = {
@@ -12,7 +12,7 @@ type PackageRow = {
   due_at: string | null;
 };
 
-const runtimeEnv = env as typeof env & { DB: D1Database };
+const runtimeEnv = { DB: getDb() };
 
 export async function GET() {
   const denied = await requireOperatorApi();

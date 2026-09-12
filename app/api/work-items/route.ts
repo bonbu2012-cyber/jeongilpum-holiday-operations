@@ -1,4 +1,4 @@
-import { env } from "cloudflare:workers";
+import { getDb } from "../../../db";
 import { OPERATOR_ACTOR, requireOperatorApi } from "../../lib/operator-session";
 import { workItemEventType } from "../../lib/work-item-events";
 import {
@@ -102,7 +102,7 @@ type CurrentWorkItem = Pick<
 
 type Dashboard = Record<PipelineWorkStatus, Record<DeliveryMethod, number>>;
 
-const runtimeEnv = env as typeof env & { DB: D1Database };
+const runtimeEnv = { DB: getDb() };
 const WORK_STATUSES: WorkStatus[] = ["received", "confirmed", "in_progress", "ready", "completed", "cancelled"];
 const DELIVERY_METHODS: DeliveryMethod[] = ["onsite_sale", "onsite_reservation", "delivery"];
 const PAYMENT_COLLECTION_STATUSES = PAYMENT_STATUSES.filter(paymentRequiresCollection);

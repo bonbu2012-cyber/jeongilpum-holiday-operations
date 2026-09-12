@@ -1,4 +1,4 @@
-import { env } from "cloudflare:workers";
+import { getDb } from "../../../../db";
 import { OPERATOR_ACTOR, requireOperatorApi } from "../../../lib/operator-session";
 import { buildSkinPackCode, validateSkinPackWeight, type SkinPackLabelPayload } from "../../../lib/production-domain";
 import { parseTraceabilityScan, validateTraceabilityLength } from "../../../lib/package-domain";
@@ -45,7 +45,7 @@ type TraceRow = {
 };
 type ExistingPack = { id: string; skin_pack_code: string };
 
-const runtimeEnv = env as typeof env & { DB: D1Database; TRACEABILITY_NO_LENGTHS?: string };
+const runtimeEnv = { DB: getDb(), TRACEABILITY_NO_LENGTHS: process.env.TRACEABILITY_NO_LENGTHS };
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 
 function validDate(value: string) {

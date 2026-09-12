@@ -1,4 +1,4 @@
-import { env } from "cloudflare:workers";
+import { getDb } from "../../../db";
 import { DEFAULT_KIOSK_HEADLINE, parseStoredSetting } from "../../lib/app-settings";
 import { resolveCatalogProductDetails } from "../../lib/catalog-product-details";
 import { resolveCatalogProductImageUrl } from "../../lib/catalog-product-images";
@@ -31,7 +31,7 @@ type SeasonRow = {
   sales_end_date: string;
 };
 
-const runtimeEnv = env as typeof env & { DB: D1Database };
+const runtimeEnv = { DB: getDb() };
 const KIOSK_SCHEDULE_DAYS = 365;
 const isoDatePattern = /^\d{4}-\d{2}-\d{2}$/;
 

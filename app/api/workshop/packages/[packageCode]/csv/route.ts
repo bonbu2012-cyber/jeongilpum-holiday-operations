@@ -1,4 +1,4 @@
-import { env } from "cloudflare:workers";
+import { getDb } from "../../../../../../db";
 import { requireOperatorApi } from "../../../../../lib/operator-session";
 import { skinPackLabelsToLongCsv, type SkinPackLabelPayload } from "../../../../../lib/production-domain";
 
@@ -18,7 +18,7 @@ type Row = {
   food_type: string;
 };
 
-const runtimeEnv = env as typeof env & { DB: D1Database };
+const runtimeEnv = { DB: getDb() };
 
 export async function GET(_request: Request, context: RouteContext) {
   const denied = await requireOperatorApi();

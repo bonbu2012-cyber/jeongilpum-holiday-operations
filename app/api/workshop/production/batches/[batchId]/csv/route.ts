@@ -1,10 +1,10 @@
-import { env } from "cloudflare:workers";
+import { getDb } from "../../../../../../../db";
 import { requireOperatorApi } from "../../../../../../lib/operator-session";
 import { skinPackLabelsToLongCsv, type SkinPackLabelPayload } from "../../../../../../lib/production-domain";
 
 type RouteContext = { params: Promise<{ batchId: string }> };
 type Row = { skin_pack_code: string; cut_name_snapshot: string; weight_g: number; traceability_no: string; origin: string; slaughterhouse: string; grade: string; manufactured_at: string; storage_method: string; expiry_text: string; packaging_material: string; food_type: string };
-const runtimeEnv = env as typeof env & { DB: D1Database };
+const runtimeEnv = { DB: getDb() };
 
 export async function GET(_request: Request, context: RouteContext) {
   const denied = await requireOperatorApi();
