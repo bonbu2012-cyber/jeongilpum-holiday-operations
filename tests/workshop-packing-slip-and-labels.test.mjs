@@ -125,7 +125,7 @@ test("calculateSetCutRequirements accurately calculates packs for Bonghwang, Pal
   assert.equal(cutPacks["차돌박이"].omeatPacks, 2);
 });
 
-test("calculateSetCutRequirements accurately groups V8 practical, 223003 LA, and basket orders", () => {
+test("calculateSetCutRequirements excludes V8, LA, and baskets from skin pack calculations and focuses only on Bonghwang, Palyeong, and O'meat", () => {
   const mockItems = [
     {
       id: "w-v8",
@@ -166,27 +166,36 @@ test("calculateSetCutRequirements accurately groups V8 practical, 223003 LA, and
       buyerName: "강감찬",
       buyerPhone: "01033334444",
     },
+    {
+      id: "w-bh",
+      orderNo: "JI-260912-0013",
+      productId: "bonghwang",
+      productName: "봉황세트",
+      quantity: 2,
+      deliveryMethod: "onsite_reservation",
+      dueAt: "2026-09-12T17:00:00+09:00",
+      workStatus: "confirmed",
+      note: "",
+      buyerName: "이순신",
+      buyerPhone: "01055556666",
+    },
   ];
 
   const result = calculateSetCutRequirements(mockItems);
 
-  // V8 실속형 3세트 -> V8 용기 3팩
-  assert.equal(result.skinPacksV8.length, 1);
-  assert.equal(result.skinPacksV8[0].packs, 3);
-  assert.equal(result.skinPacksV8[0].container, "V8");
-  assert.equal(result.skinPacksV8[0].weight, "600g (150g×4)");
+  // V8 실속형, LA갈비 1호, 진 바구니는 스킨팩 대상에서 완전 제외됨
+  // 오직 봉황 2세트(10팩)만 스킨팩으로 계산됨
+  assert.equal(result.skinPacks162202.reduce((s, i) => s + i.packs, 0), 10);
+  assert.equal(result.skinPacks241702.length, 0);
+  assert.equal(result.totalVacuumPacks, 10);
+  assert.equal(result.totalOmeatPacks, 0);
+  assert.equal(result.totalAllPacks, 10);
 
-  // 223003 LA갈비 1호 2세트 -> 223003 용기 4팩 (세트당 2팩)
-  assert.equal(result.skinPacksLA223003.length, 1);
-  assert.equal(result.skinPacksLA223003[0].packs, 4);
-  assert.equal(result.skinPacksLA223003[0].container, "223003");
-  assert.equal(result.skinPacksLA223003[0].weight, "900g 이상");
-
-  // 바구니 계량 주문 (진 1세트)
-  assert.equal(result.basketOrders.length, 1);
-  assert.equal(result.basketOrders[0].productName, "진");
-  assert.equal(result.basketOrders[0].containerSummary, "4호 바구니");
-  assert.ok(result.basketOrders[0].instruction.includes("바구니 전체 중량만 계량"));
+  // otherProducts에 비스킨팩 품목 분류
+  assert.equal(result.otherProducts.length, 3);
+  assert.ok(result.otherProducts.some((p) => p.name === "실속세트"));
+  assert.ok(result.otherProducts.some((p) => p.name === "LA갈비 1호"));
+  assert.ok(result.otherProducts.some((p) => p.name === "진"));
 });
 
 test("generatePackingLabels creates exact (n/N) labels with sender/receiver details for shipping", () => {

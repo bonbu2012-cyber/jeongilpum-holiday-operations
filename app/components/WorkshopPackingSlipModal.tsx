@@ -101,26 +101,25 @@ export default function WorkshopPackingSlipModal({
           </div>
 
           {/* 1. 상품별 수량 및 부위별 팩 수 자동 계산표 */}
+          {/* 1. 상품별 수량 및 부위별 팩 수 자동 계산표 */}
           <section className="slip-summary-section">
             <div className="slip-section-title">
               <div className="slip-section-title-left">
-                <h3>1. 오늘 출고 상품 및 용기·중량별 스킨팩 생산 지시서</h3>
+                <h3>1. 오늘 출고 스킨팩 부위별 생산 지시서</h3>
                 <span className="slip-weight-notice-badge">
-                  2026 추석 지침서: 용기 규격 및 팩당 실측 중량 기준 준수
+                  봉황·팔영(162202) / 오미트 시그니처·프레스티지(241702) 전용 스킨팩
                 </span>
               </div>
               <div className="slip-pill-totals-group">
                 <span className="slip-pill-total container-162202">
-                  162202 용기: {cutCalc.skinPacks162202.reduce((s, i) => s + i.packs, 0)}팩
+                  162202 용기 (봉황·팔영): {cutCalc.skinPacks162202.reduce((s, i) => s + i.packs, 0)}팩
                 </span>
                 <span className="slip-pill-total container-241702">
-                  241702 용기: {cutCalc.skinPacks241702.reduce((s, i) => s + i.packs, 0)}팩
+                  241702 용기 (오미트): {cutCalc.skinPacks241702.reduce((s, i) => s + i.packs, 0)}팩
                 </span>
-                {(cutCalc.skinPacksV8.length > 0 || cutCalc.skinPacksLA223003.length > 0) && (
-                  <span className="slip-pill-total container-other">
-                    기타용기: {cutCalc.skinPacksV8.reduce((s, i) => s + i.packs, 0) + cutCalc.skinPacksLA223003.reduce((s, i) => s + i.packs, 0)}팩
-                  </span>
-                )}
+                <span className="slip-pill-total container-total">
+                  총 스킨팩 합계: {cutCalc.skinPacks162202.reduce((s, i) => s + i.packs, 0) + cutCalc.skinPacks241702.reduce((s, i) => s + i.packs, 0)}팩
+                </span>
               </div>
             </div>
 
@@ -141,15 +140,13 @@ export default function WorkshopPackingSlipModal({
                 {/* 해당 세트 상품 목록 */}
                 <div className="slip-plan-products">
                   <span className="slip-plan-sub-label">소요 세트:</span>
-                  {cutCalc.vacuumProducts.filter((p) => /봉황|팔영/.test(p.name)).length > 0 ? (
-                    cutCalc.vacuumProducts
-                      .filter((p) => /봉황|팔영/.test(p.name))
-                      .map((p) => (
-                        <span key={p.name} className="slip-prod-badge vacuum">
-                          <strong>{p.name}</strong> {p.quantity}개
-                          <em className="slip-prod-spec">({p.weightSpec})</em>
-                        </span>
-                      ))
+                  {cutCalc.vacuumProducts.length > 0 ? (
+                    cutCalc.vacuumProducts.map((p) => (
+                      <span key={p.name} className="slip-prod-badge vacuum">
+                        <strong>{p.name}</strong> {p.quantity}개
+                        <em className="slip-prod-spec">({p.weightSpec})</em>
+                      </span>
+                    ))
                   ) : (
                     <span className="slip-muted-text">오늘 봉황/팔영 예약 없음</span>
                   )}
@@ -198,7 +195,7 @@ export default function WorkshopPackingSlipModal({
                     {cutCalc.skinPacks162202.length === 0 && (
                       <tr>
                         <td colSpan={5} className="empty-cell">
-                          오늘 162202 용기 스킨팩 대상 세트가 없습니다.
+                          오늘 162202 용기 스킨팩 대상 세트(봉황·팔영)가 없습니다.
                         </td>
                       </tr>
                     )}
@@ -310,80 +307,6 @@ export default function WorkshopPackingSlipModal({
                 </table>
               </div>
             </div>
-
-            {/* [카드 3] 실속형(V8 용기) 및 LA갈비 1호(223003 용기) 정밀 표기 */}
-            {(cutCalc.skinPacksV8.length > 0 || cutCalc.skinPacksLA223003.length > 0) && (
-              <div className="slip-special-container-row">
-                <div className="slip-special-container-header">
-                  <span className="slip-sub-title-icon">📦</span>
-                  <strong>기타 규격 용기 스킨팩 (V8 / 223003)</strong>
-                </div>
-                <div className="slip-special-container-cards">
-                  {cutCalc.skinPacksV8.map((item) => (
-                    <div key={item.cutName} className="slip-special-box v8">
-                      <div className="slip-box-head">
-                        <span className="slip-container-badge b-v8">V8 용기</span>
-                        <strong>{item.cutName}</strong>
-                      </div>
-                      <div className="slip-box-body">
-                        <span>규격: <strong>{item.weight}</strong></span>
-                        <span>지침: <em>{item.note}</em></span>
-                        <span className="slip-box-qty">
-                          준비 수량: <strong>{item.packs}팩</strong> (☐ 확인)
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-
-                  {cutCalc.skinPacksLA223003.map((item) => (
-                    <div key={item.cutName} className="slip-special-box la">
-                      <div className="slip-box-head">
-                        <span className="slip-container-badge b-223003">223003 용기</span>
-                        <strong>{item.cutName}</strong>
-                      </div>
-                      <div className="slip-box-body">
-                        <span>규격: <strong>{item.weight}</strong></span>
-                        <span>지침: <em>세트당 2팩</em></span>
-                        <span className="slip-box-qty">
-                          준비 수량: <strong>{item.packs}팩</strong> (☐ 확인)
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* [카드 4] 바구니 전체 계량 세트 (프리미엄 진·선·미, LA 2호, 뼈세트) */}
-            {cutCalc.basketOrders.length > 0 && (
-              <div className="slip-basket-orders-section">
-                <div className="slip-special-container-header">
-                  <span className="slip-sub-title-icon">🧺</span>
-                  <strong>바구니 전체 계량 세트 (지침: 개별 부위 중량 맞추지 않고 바구니 전체 중량만 계량)</strong>
-                </div>
-                <div className="slip-basket-grid">
-                  {cutCalc.basketOrders.map((b) => (
-                    <div key={b.productName} className="slip-basket-card">
-                      <div className="slip-basket-card-top">
-                        <span className="slip-container-badge b-basket">{b.containerSummary}</span>
-                        <strong>{b.productName}</strong>
-                        <span className="slip-basket-qty-badge">{b.quantity}세트</span>
-                      </div>
-                      <div className="slip-basket-meta">
-                        <span>기준 총중량: <strong>{b.totalWeight}</strong></span>
-                        <span>부자재: {b.finishingSummary}</span>
-                      </div>
-                      <div className="slip-basket-instruction">
-                        <strong>계량 및 꽃 작업 지침:</strong> {b.instruction}
-                      </div>
-                      <div className="slip-basket-cuts">
-                        구성 부위: {b.cuts.map((c) => c.cutName).join(" · ")}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
           </section>
 
           {/* 2. 시간대별 / 수령유형별 출고 검수 목록 */}

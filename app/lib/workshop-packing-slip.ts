@@ -443,64 +443,28 @@ export function calculateSetCutRequirements(items: WorkItemLike[]): CutCalculati
       finishingSummary: product.finishingSummary,
     };
 
-    if (product.category === "vacuum") {
+    const sop = product.sop;
+
+    // 사용자의 명시적 지침:
+    // "V8은 대상에서 제외, 봉황,팔영/오미트 시그니처,프레스티지만 해당"
+    // "스킨팩의 개수만 필요하고 나머지 선물세트 라인업은 무시"
+    const isBonghwangOrPalyeong = sop?.id === "bonghwang" || sop?.id === "palyeong" || /봉황|팔영/.test(product.name);
+    const isOmeatSignatureOrPrestige =
+      sop?.id === "omeat-signature" ||
+      sop?.id === "omeat-prestige" ||
+      /오미트.*(시그니처|프레스티지)|(시그니처|프레스티지).*오미트|signature|prestige/i.test(product.name);
+
+    if (isBonghwangOrPalyeong) {
       vacuumProducts.push(itemData);
-    } else if (product.category === "omeat") {
+    } else if (isOmeatSignatureOrPrestige) {
       omeatProducts.push(itemData);
     } else {
       otherProducts.push(itemData);
     }
 
-    const sop = product.sop;
-
     if (sop) {
-      if (sop.isBasketWeighed) {
-        basketOrders.push({
-          productName: product.name,
-          quantity: product.quantity,
-          totalWeight: sop.totalWeight,
-          containerSummary: sop.containerSummary,
-          instruction: sop.basketInstruction || "바구니 전체 중량 계량",
-          finishingSummary: sop.finishingSummary,
-          cuts: sop.cuts,
-        });
-      } else if (sop.id === "practical") {
-        // 실속형: V8 용기 1개에 4부위 합포
-        const key = "실속형 4부위 합포_V8_600g";
-        const existing = detailedV8Map.get(key);
-        if (existing) {
-          existing.packs += product.quantity;
-          existing.targetSets.push(`${product.name} ${product.quantity}세트`);
-        } else {
-          detailedV8Map.set(key, {
-            cutName: "실속형 모둠 (부채·업진·제비·채끝 각 150g)",
-            container: "V8",
-            weight: "600g (150g×4)",
-            packs: product.quantity,
-            targetSets: [`${product.name} ${product.quantity}세트`],
-            note: "4부위 함께 V8 용기 1개에 포장",
-          });
-        }
-      } else if (sop.id === "la-1") {
-        // LA갈비 1호: 223003 용기 2팩
-        const key = "LA갈비_223003_900g";
-        const existing = detailedLA223003Map.get(key);
-        const packs = product.quantity * 2;
-        if (existing) {
-          existing.packs += packs;
-          existing.targetSets.push(`${product.name} ${product.quantity}세트`);
-        } else {
-          detailedLA223003Map.set(key, {
-            cutName: "LA갈비 (미국산 Prime)",
-            container: "223003",
-            weight: "900g 이상",
-            packs,
-            targetSets: [`${product.name} ${product.quantity}세트 (${packs}팩)`],
-            note: "세트당 2팩",
-          });
-        }
-      } else if (sop.category === "vacuum") {
-        // 봉황, 팔영 등 162202 스킨팩
+      if (isBonghwangOrPalyeong && sop.category === "vacuum") {
+        // 봉황(5팩: 180g×4, 280g×1), 팔영(7팩: 180g×7) - 162202 용기 스킨팩
         for (const c of sop.cuts) {
           const key = `${c.cutName}_${c.container}_${c.weight}`;
           const existing = detailed162202Map.get(key);
@@ -518,8 +482,8 @@ export function calculateSetCutRequirements(items: WorkItemLike[]): CutCalculati
             });
           }
         }
-      } else if (sop.category === "omeat") {
-        // 오미트 시그니처, 프레스티지 등 241702 용기 팩
+      } else if (isOmeatSignatureOrPrestige && sop.category === "omeat") {
+        // 오미트 시그니처(6팩: 200g×5, 300g×1), 프레스티지(6팩: 230g×6) - 241702 용기 스킨팩
         for (const c of sop.cuts) {
           const key = `${c.cutName}_${c.container}_${c.weight}`;
           const existing = detailed241702Map.get(key);
@@ -538,18 +502,19 @@ export function calculateSetCutRequirements(items: WorkItemLike[]): CutCalculati
           }
         }
       }
+      // V8(실속형), LA갈비, 바구니 세트(진·선·미 등)는 스킨팩 필요 팩수 계산에서 완전히 제외됨
     }
 
-    // 하위 호환성 cutMap 집계
-    const cuts = sop ? sop.cuts.map((c) => c.cutName) : getProductCuts(product.productId, product.name);
-    for (const cut of cuts) {
-      const entry = ensureCut(cut);
-      if (product.category === "vacuum") {
-        entry.vacuumPacks += product.quantity;
-      } else if (product.category === "omeat") {
-        entry.omeatPacks += product.quantity;
-      } else {
-        entry.otherPacks += product.quantity;
+    // 하위 호환성 cutMap 집계 (스킨팩 대상 4개 세트에 대해서만 집계)
+    if (isBonghwangOrPalyeong || isOmeatSignatureOrPrestige) {
+      const cuts = sop ? sop.cuts.map((c) => c.cutName) : getProductCuts(product.productId, product.name);
+      for (const cut of cuts) {
+        const entry = ensureCut(cut);
+        if (isBonghwangOrPalyeong) {
+          entry.vacuumPacks += product.quantity;
+        } else if (isOmeatSignatureOrPrestige) {
+          entry.omeatPacks += product.quantity;
+        }
       }
     }
   }
