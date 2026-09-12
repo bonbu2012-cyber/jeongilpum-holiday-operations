@@ -20,11 +20,17 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey, {
 
 console.log("[migrate-postgres] Checking Supabase database tables and seed data...");
 
-// 0. Ensure nocase collation exists in PostgreSQL
+// 0. Ensure nocase collation and boolean=integer operators exist in PostgreSQL
 try {
   await supabase.rpc("exec_dml", { statement: "CREATE COLLATION IF NOT EXISTS nocase (provider = icu, locale = 'und-u-ks-level2', deterministic = false);" });
+  await supabase.rpc("exec_dml", { statement: `
+    CREATE OR REPLACE FUNCTION bool_eq_int(b boolean, i integer) RETURNS boolean LANGUAGE sql IMMUTABLE AS $$ SELECT b = (i != 0); $$;
+    CREATE OR REPLACE FUNCTION int_eq_bool(i integer, b boolean) RETURNS boolean LANGUAGE sql IMMUTABLE AS $$ SELECT (i != 0) = b; $$;
+    CREATE OR REPLACE FUNCTION bool_neq_int(b boolean, i integer) RETURNS boolean LANGUAGE sql IMMUTABLE AS $$ SELECT b != (i != 0); $$;
+    CREATE OR REPLACE FUNCTION int_neq_bool(i integer, b boolean) RETURNS boolean LANGUAGE sql IMMUTABLE AS $$ SELECT (i != 0) != b; $$;
+  ` });
 } catch (e) {
-  // Ignore if already exists or permission
+  // Ignore if already exists
 }
 
 // 1. Check if products exist, otherwise seed from data/catalog.json
