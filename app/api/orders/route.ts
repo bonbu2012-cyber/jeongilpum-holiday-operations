@@ -870,7 +870,7 @@ export async function POST(request: Request) {
     const reserved = await runtimeEnv.DB.prepare(`
       SELECT product_id, SUM(quantity) AS quantity
       FROM work_items
-      WHERE date(due_at) = ?1 AND work_status != 'cancelled'
+      WHERE date(due_at) = ? AND work_status != 'cancelled'
       GROUP BY product_id
     `).bind(scheduleDate).all<{ product_id: string; quantity: number }>();
     const reservedByProduct = new Map(reserved.results.map((row) => [row.product_id, row.quantity]));

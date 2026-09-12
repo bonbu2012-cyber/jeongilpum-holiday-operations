@@ -15,9 +15,10 @@ export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
 
 function formatSqlWithParams(sql: string, params: unknown[]): string {
   let paramIndex = 0;
-  let formatted = sql.replace(/\?/g, () => {
-    if (paramIndex >= params.length) return "NULL";
-    const val = params[paramIndex++];
+  let formatted = sql.replace(/\?(\d+)?/g, (_, num) => {
+    const idx = num ? parseInt(num, 10) - 1 : paramIndex++;
+    if (idx >= params.length) return "NULL";
+    const val = params[idx];
     if (val === null || val === undefined) return "NULL";
     if (typeof val === "number") return String(val);
     if (typeof val === "boolean") return val ? "true" : "false";
