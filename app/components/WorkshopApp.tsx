@@ -3,15 +3,20 @@
 import {
   ClipboardList,
   Factory,
+  FileSpreadsheet,
   Package,
+  Printer,
   Route,
   ScanLine,
+  Tag,
 } from "lucide-react";
 import { useState } from "react";
 import type { ReactNode } from "react";
 import type { DataTableColumn } from "../ui";
 import AppNav from "./AppNav";
 import CustomOrderDetails from "./CustomOrderDetails";
+import WorkshopLabelModal from "./WorkshopLabelModal";
+import WorkshopPackingSlipModal from "./WorkshopPackingSlipModal";
 import {
   Button,
   DataTable,
@@ -160,6 +165,10 @@ export default function WorkshopApp() {
   const [busyIds, setBusyIds] = useState<string[]>([]);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
+  const [packingSlipOpen, setPackingSlipOpen] = useState(false);
+  const [labelModalOpen, setLabelModalOpen] = useState(false);
+  const [labelItems, setLabelItems] = useState<WorkItem[]>([]);
+  const [labelAutoPrint, setLabelAutoPrint] = useState(false);
   const { reload } = useResource<WorkshopResponse>(
     `/api/workshop/orders?date=${encodeURIComponent(date)}`,
     2500,
@@ -184,6 +193,12 @@ export default function WorkshopApp() {
 
   const openDetail = (item: WorkItem) => {
     setSelected(item);
+  };
+
+  const openLabelModal = (items: WorkItem[], autoPrint = false) => {
+    setLabelItems(items);
+    setLabelAutoPrint(autoPrint);
+    setLabelModalOpen(true);
   };
 
   const updateWorkStatuses = async (
@@ -220,6 +235,9 @@ export default function WorkshopApp() {
       await reload({ silent: true });
       setSelectedIds((current) => current.filter((id) => !targets.some((item) => item.id === id)));
       setNotice(targets.length === 1 ? successMessage : `${targets.length}개 작업 상태를 ${workStatusLabel(status)}으로 변경했습니다.`);
+      if (status === "in_progress" && targets.length === 1) {
+        openLabelModal(targets, false);
+      }
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "작업 상태를 변경하지 못했습니다.");
     } finally {
@@ -299,6 +317,26 @@ export default function WorkshopApp() {
     width: "164px",
   };
 
+  const labelColumn: DataTableColumn<WorkItem> = {
+    id: "label",
+    header: "라벨",
+    cell: (item) => (
+      <Button
+        size="sm"
+        variant="ghost"
+        leadingIcon={<Tag size={14} />}
+        onClick={(event) => {
+          event.stopPropagation();
+          openLabelModal([item], false);
+        }}
+      >
+        라벨
+      </Button>
+    ),
+    width: "74px",
+    align: "center",
+  };
+
   const onsiteColumns: DataTableColumn<WorkItem>[] = [
     {
       id: "time",
@@ -348,6 +386,7 @@ export default function WorkshopApp() {
       width: "92px",
     },
     statusColumn,
+    labelColumn,
   ];
 
   const deliveryColumns: DataTableColumn<WorkItem>[] = [
@@ -401,6 +440,7 @@ export default function WorkshopApp() {
       sortValue: (item) => item.address,
     },
     statusColumn,
+    labelColumn,
   ];
 
   const tabItems = [
@@ -440,14 +480,39 @@ export default function WorkshopApp() {
               />
             }
             selectionCount={selectedWorkItems.length || undefined}
-            actions={selectedWorkItems.length ? (
-              <Button
-                leadingIcon={<ClipboardList size={16} />}
-                onClick={() => setBulkActionModalOpen(true)}
-              >
-                선택 작업 처리
-              </Button>
-            ) : null}
+            actions={
+              <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+                <Button
+                  variant="ghost"
+                  leadingIcon={<FileSpreadsheet size={16} />}
+                  onClick={() => setPackingSlipOpen(true)}
+                >
+                  출고 검수표 (A4)
+                </Button>
+                <Button
+                  variant="ghost"
+                  leadingIcon={<Printer size={16} />}
+                  onClick={() => {
+                    const targets = selectedWorkItems.length ? selectedWorkItems : activeRows;
+                    if (!targets.length) {
+                      setNotice("인쇄할 작업이 없습니다.");
+                      return;
+                    }
+                    openLabelModal(targets, false);
+                  }}
+                >
+                  {selectedWorkItems.length ? `선택 라벨 인쇄 (${selectedWorkItems.length})` : "라벨 인쇄 (50×50)"}
+                </Button>
+                {selectedWorkItems.length ? (
+                  <Button
+                    leadingIcon={<ClipboardList size={16} />}
+                    onClick={() => setBulkActionModalOpen(true)}
+                  >
+                    선택 작업 처리
+                  </Button>
+                ) : null}
+              </div>
+            }
           />
         </section>
 
@@ -514,6 +579,27 @@ export default function WorkshopApp() {
           onDuplicate={() => void duplicateWorkItem(selected)}
         />
       ) : null}
+
+      <WorkshopPackingSlipModal
+        open={packingSlipOpen}
+        date={date}
+        items={[...onsite, ...delivery]}
+        onClose={() => setPackingSlipOpen(false)}
+        onCompleteItem={async (item) => {
+          const target = [...onsite, ...delivery].find((w) => w.id === item.id);
+          if (target) {
+            await updateWorkStatuses([target], "ready", `${target.productName} 작업을 완료 처리했습니다.`);
+          }
+        }}
+      />
+
+      <WorkshopLabelModal
+        open={labelModalOpen}
+        items={labelItems}
+        date={date}
+        autoPrint={labelAutoPrint}
+        onClose={() => setLabelModalOpen(false)}
+      />
 
       <Modal
         open={bulkActionModalOpen}
