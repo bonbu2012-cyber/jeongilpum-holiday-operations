@@ -917,124 +917,245 @@
   font-weight: 600;
   color: #0f172a;
 }
+.slip-section-title-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
 
-.slip-section-title {
+.slip-weight-notice-badge {
+  font-size: 0.76rem;
+  color: #b45309;
+  background: #fef3c7;
+  border: 1px solid #fde68a;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.slip-pill-totals-group {
+  display: flex;
+  gap: 6px;
+}
+
+.slip-pill-total.vacuum {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1e40af;
+}
+
+.slip-pill-total.omeat {
+  background: #fdf4ff;
+  border-color: #f5d0fe;
+  color: #86198f;
+}
+
+/* 2단 분리 생산 계획 그리드 */
+.slip-cuts-split-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-top: 10px;
+}
+
+.slip-plan-card {
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+}
+
+.slip-plan-card.vacuum-card {
+  border-top: 3px solid #2563eb;
+}
+
+.slip-plan-card.omeat-card {
+  border-top: 3px solid #9333ea;
+}
+
+.slip-plan-card-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #e2e8f0;
 }
 
-.slip-section-title h3 {
-  font-size: 1.05rem;
-  font-weight: 700;
-  color: #0f172a;
-  margin: 0;
-}
-
-.slip-pill-total {
-  font-size: 0.85rem;
-  font-weight: 700;
-  background: #f1f5f9;
-  border: 1px solid #cbd5e1;
-  color: #1e293b;
-  padding: 3px 10px;
-  border-radius: 12px;
-}
-
-.slip-summary-section {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  padding: 14px 16px;
-  margin-bottom: 24px;
-}
-
-.slip-product-badges-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-  padding-bottom: 12px;
-  margin-bottom: 12px;
-  border-bottom: 1px dashed #cbd5e1;
-}
-
-.slip-product-group {
+.slip-plan-title-box {
   display: flex;
   align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
+  gap: 8px;
 }
 
-.slip-group-label {
-  font-size: 0.85rem;
+.slip-plan-title-box h4 {
+  margin: 0;
+  font-size: 0.95rem;
   font-weight: 700;
-  color: #334155;
+  color: #0f172a;
 }
 
-.slip-prod-tag {
-  font-size: 0.82rem;
-  background: #fff;
-  border: 1px solid #cbd5e1;
-  padding: 2px 7px;
+.slip-plan-tag {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 6px;
   border-radius: 4px;
-  color: #1e293b;
 }
 
-.slip-prod-tag strong {
-  color: var(--wine, #8f241d);
+.slip-plan-tag.vacuum {
+  background: #dbeafe;
+  color: #1d4ed8;
 }
 
-.slip-prod-tag.omeat {
+.slip-plan-tag.omeat {
+  background: #fae8ff;
+  color: #86198f;
+}
+
+.slip-weight-guide {
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: #dc2626;
+  background: #fef2f2;
+  border: 1px solid #fee2e2;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.slip-plan-products {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+  font-size: 0.8rem;
+}
+
+.slip-plan-sub-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.slip-prod-badge {
+  font-size: 0.78rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.slip-prod-badge.vacuum {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+  color: #1e3a8a;
+}
+
+.slip-prod-badge.omeat {
+  border-color: #f5d0fe;
   background: #fdf4ff;
-  border-color: #f0abfc;
   color: #701a75;
 }
 
-.slip-prod-tag.omeat strong {
-  color: #a21caf;
+.slip-prod-spec {
+  font-style: normal;
+  font-size: 0.72rem;
+  color: #64748b;
 }
 
-.slip-cuts-table {
+.slip-muted-text {
+  color: #94a3b8;
+  font-size: 0.8rem;
+}
+
+/* 각 카드별 테이블 */
+.slip-plan-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.85rem;
-  background: #fff;
+  font-size: 0.82rem;
+  margin-top: auto;
   border: 1px solid #cbd5e1;
 }
 
-.slip-cuts-table th,
-.slip-cuts-table td {
-  padding: 6px 10px;
+.slip-plan-table th,
+.slip-plan-table td {
+  padding: 5px 8px;
   border: 1px solid #cbd5e1;
   text-align: center;
 }
 
-.slip-cuts-table th {
+.slip-plan-table th {
   background: #f1f5f9;
   font-weight: 700;
   color: #334155;
+  font-size: 0.78rem;
 }
 
-.slip-cuts-table td.cut-name-cell {
+.slip-plan-table th.check-th {
+  width: 44px;
+}
+
+.slip-plan-table td.cut-name-cell {
   text-align: left;
   font-weight: 600;
   color: #0f172a;
 }
 
-.slip-cuts-table .highlight-col {
-  background: #fef2f2;
-  color: #991b1b;
+.slip-plan-table .highlight-col.vacuum {
+  background: #eff6ff;
+  color: #1d4ed8;
   font-weight: 700;
 }
 
-.slip-cuts-table tfoot {
-  background: #f1f5f9;
+.slip-plan-table .highlight-col.omeat {
+  background: #fdf4ff;
+  color: #a21caf;
   font-weight: 700;
+}
+
+.slip-plan-table tfoot {
+  background: #f8fafc;
+  font-weight: 700;
+}
+
+.slip-other-products-bar {
+  margin-top: 10px;
+  padding: 8px 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.slip-other-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #475569;
+}
+
+.slip-other-list {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.slip-prod-badge.other {
+  border-color: #cbd5e1;
+  background: #fff;
+  color: #334155;
 }
 
 .slip-orders-section {
-  margin-top: 16px;
+  margin-top: 18px;
 }
 
 .slip-filters {
@@ -1524,7 +1645,12 @@
 
   /* 테이블 줄바꿈 제어 */
   .slip-cuts-table tr,
+  .slip-plan-table tr,
   .slip-orders-table tr {
+    page-break-inside: avoid;
+  }
+
+  .slip-plan-card {
     page-break-inside: avoid;
   }
 

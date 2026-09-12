@@ -88,6 +88,35 @@ test("calculateSetCutRequirements accurately calculates packs for Bonghwang, Pal
   // 전체 총 팩수: 46 + 12 = 58팩
   assert.equal(result.totalAllPacks, 58);
 
+  // 상품별 중량 규격 안내(weightSpec) 검증
+  const bh = result.vacuumProducts.find((p) => p.name === "봉황세트");
+  assert.equal(bh?.weightSpec, "1.0kg (200g/팩)");
+  const py = result.vacuumProducts.find((p) => p.name === "팔영세트");
+  assert.equal(py?.weightSpec, "1.26kg (180g/팩)");
+  const om = result.omeatProducts.find((p) => p.name === "O'meat Signature");
+  assert.equal(om?.weightSpec, "1.3kg (~217g/팩)");
+
+  // 독립 진공 부위별 목록 (vacuumCuts) 검증 - 스킨팩 150~200g 규격
+  const vacCutsMap = Object.fromEntries(result.vacuumCuts.map((c) => [c.cutName, c.packs]));
+  assert.equal(vacCutsMap["치마살"], 8);
+  assert.equal(vacCutsMap["갈비살"], 8);
+  assert.equal(vacCutsMap["부채살"], 8);
+  assert.equal(vacCutsMap["제비추리"], 8);
+  assert.equal(vacCutsMap["차돌박이"], 5);
+  assert.equal(vacCutsMap["업진살"], 3);
+  assert.equal(vacCutsMap["살치살"], 3);
+  assert.equal(vacCutsMap["채끝"], 3);
+
+  // 독립 오미트 부위별 목록 (omeatCuts) 검증 - 오미트 전용 215~230g 규격
+  const omeatCutsMap = Object.fromEntries(result.omeatCuts.map((c) => [c.cutName, c.packs]));
+  assert.equal(omeatCutsMap["치마살"], 2);
+  assert.equal(omeatCutsMap["갈비살"], 2);
+  assert.equal(omeatCutsMap["부채살"], 2);
+  assert.equal(omeatCutsMap["제비추리"], 2);
+  assert.equal(omeatCutsMap["차돌박이"], 2);
+  assert.equal(omeatCutsMap["채끝"], 2);
+  assert.equal(omeatCutsMap["업진살"], undefined); // 시그니처에는 업진살 없음
+
   const cutPacks = Object.fromEntries(result.cuts.map((c) => [c.cutName, c]));
 
   // 치마살: 봉황(5) + 팔영(3) = 진공 8팩, 오미트(2) = 2팩 -> 총 10팩

@@ -115,6 +115,24 @@ export function categorizeProduct(productId: string, productName: string): SetCa
   return "other";
 }
 
+export function getProductWeightSpec(productId: string, productName: string): string {
+  const norm = (productId + " " + productName).toLowerCase();
+  if (/봉황/.test(norm) || productId === "bonghwang") return "1.0kg (200g/팩)";
+  if (/팔영/.test(norm) || productId === "palyeong") return "1.26kg (180g/팩)";
+  if (/실속/.test(norm) || productId === "practical") return "600g (150g/팩)";
+  if (/진세트|진\(|pre-jin/.test(norm) || productId === "jin") return "1.33kg (190g/팩)";
+  if (/선세트|pre-seon/.test(norm) || productId === "seon") return "1.15kg (191g/팩)";
+  if (/미세트|pre-mi/.test(norm) || productId === "mi") return "1.0kg (200g/팩)";
+  if (/시그니처|signature/.test(norm) || productId === "omeat-signature") return "1.3kg (~217g/팩)";
+  if (/프레스티지|prestige/.test(norm) || productId === "omeat-prestige") return "1.38kg (230g/팩)";
+  if (/la.*1호|la-1/.test(norm)) return "1.8kg";
+  if (/la.*2호|la-2/.test(norm)) return "2.7kg";
+  if (/사골.*우족|bone-1/.test(norm)) return "4~5kg";
+  if (/꼬리|잡뼈|bone-2/.test(norm)) return "6.5kg";
+  const catalog = resolveCatalogProductDetails({ id: productId, name: productName });
+  return catalog?.totalWeight || "";
+}
+
 export type CutPackSummary = {
   cutName: string;
   vacuumPacks: number;
@@ -123,13 +141,28 @@ export type CutPackSummary = {
   totalPacks: number;
 };
 
+export type IndividualCutSummary = {
+  cutName: string;
+  packs: number;
+};
+
+export type ProductQuantityWithSpec = {
+  name: string;
+  quantity: number;
+  weightSpec: string;
+};
+
 export type CutCalculationResult = {
-  vacuumProducts: Array<{ name: string; quantity: number }>;
-  omeatProducts: Array<{ name: string; quantity: number }>;
-  otherProducts: Array<{ name: string; quantity: number }>;
-  cuts: CutPackSummary[];
+  vacuumProducts: ProductQuantityWithSpec[];
+  omeatProducts: ProductQuantityWithSpec[];
+  otherProducts: ProductQuantityWithSpec[];
+  vacuumCuts: IndividualCutSummary[]; // 진공세트 부위별 생산 팩수 (스킨 진공 150~200g 규격)
+  omeatCuts: IndividualCutSummary[];  // 오미트세트 부위별 생산 팩수 (오미트 전용 215~230g 규격)
+  otherCuts: IndividualCutSummary[];
   totalVacuumPacks: number;
   totalOmeatPacks: number;
+  totalOtherPacks: number;
+  cuts: CutPackSummary[];
   totalAllPacks: number;
 };
 
@@ -137,12 +170,16 @@ export function calculateSetCutRequirements(items: WorkItemLike[]): CutCalculati
   const activeItems = items.filter((item) => item.workStatus !== "cancelled");
 
   // 상품별 수량 집계
-  const quantityByProduct = new Map<string, { productId: string; name: string; quantity: number; category: SetCategory }>();
+  const quantityByProduct = new Map<
+    string,
+    { productId: string; name: string; quantity: number; category: SetCategory; weightSpec: string }
+  >();
 
   for (const item of activeItems) {
     const key = item.productId || item.productName;
     const existing = quantityByProduct.get(key);
     const category = categorizeProduct(item.productId, item.productName);
+    const weightSpec = getProductWeightSpec(item.productId, item.productName);
     if (existing) {
       existing.quantity += item.quantity;
     } else {
@@ -151,13 +188,14 @@ export function calculateSetCutRequirements(items: WorkItemLike[]): CutCalculati
         name: item.productName,
         quantity: item.quantity,
         category,
+        weightSpec,
       });
     }
   }
 
-  const vacuumProducts: Array<{ name: string; quantity: number }> = [];
-  const omeatProducts: Array<{ name: string; quantity: number }> = [];
-  const otherProducts: Array<{ name: string; quantity: number }> = [];
+  const vacuumProducts: ProductQuantityWithSpec[] = [];
+  const omeatProducts: ProductQuantityWithSpec[] = [];
+  const otherProducts: ProductQuantityWithSpec[] = [];
 
   const cutMap = new Map<string, { cutName: string; vacuumPacks: number; omeatPacks: number; otherPacks: number }>();
 
@@ -169,12 +207,13 @@ export function calculateSetCutRequirements(items: WorkItemLike[]): CutCalculati
   };
 
   for (const product of quantityByProduct.values()) {
+    const itemData = { name: product.name, quantity: product.quantity, weightSpec: product.weightSpec };
     if (product.category === "vacuum") {
-      vacuumProducts.push({ name: product.name, quantity: product.quantity });
+      vacuumProducts.push(itemData);
     } else if (product.category === "omeat") {
-      omeatProducts.push({ name: product.name, quantity: product.quantity });
+      omeatProducts.push(itemData);
     } else {
-      otherProducts.push({ name: product.name, quantity: product.quantity });
+      otherProducts.push(itemData);
     }
 
     const cuts = getProductCuts(product.productId, product.name);
@@ -203,6 +242,15 @@ export function calculateSetCutRequirements(items: WorkItemLike[]): CutCalculati
     "차돌박이",
   ];
 
+  const sortCuts = (aName: string, bName: string) => {
+    const indexA = preferredCutOrder.indexOf(aName);
+    const indexB = preferredCutOrder.indexOf(bName);
+    if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+    if (indexA !== -1) return -1;
+    if (indexB !== -1) return 1;
+    return aName.localeCompare(bName, "ko");
+  };
+
   const cuts: CutPackSummary[] = [...cutMap.values()]
     .map((entry) => ({
       cutName: entry.cutName,
@@ -211,26 +259,40 @@ export function calculateSetCutRequirements(items: WorkItemLike[]): CutCalculati
       otherPacks: entry.otherPacks,
       totalPacks: entry.vacuumPacks + entry.omeatPacks + entry.otherPacks,
     }))
-    .sort((a, b) => {
-      const indexA = preferredCutOrder.indexOf(a.cutName);
-      const indexB = preferredCutOrder.indexOf(b.cutName);
-      if (indexA !== -1 && indexB !== -1) return indexA - indexB;
-      if (indexA !== -1) return -1;
-      if (indexB !== -1) return 1;
-      return a.cutName.localeCompare(b.cutName, "ko");
-    });
+    .sort((a, b) => sortCuts(a.cutName, b.cutName));
 
-  const totalVacuumPacks = cuts.reduce((sum, cut) => sum + cut.vacuumPacks, 0);
-  const totalOmeatPacks = cuts.reduce((sum, cut) => sum + cut.omeatPacks, 0);
+  // 규격별 독립 부위 목록 추출 (0팩 제외)
+  const vacuumCuts: IndividualCutSummary[] = [...cutMap.values()]
+    .filter((entry) => entry.vacuumPacks > 0)
+    .map((entry) => ({ cutName: entry.cutName, packs: entry.vacuumPacks }))
+    .sort((a, b) => sortCuts(a.cutName, b.cutName));
+
+  const omeatCuts: IndividualCutSummary[] = [...cutMap.values()]
+    .filter((entry) => entry.omeatPacks > 0)
+    .map((entry) => ({ cutName: entry.cutName, packs: entry.omeatPacks }))
+    .sort((a, b) => sortCuts(a.cutName, b.cutName));
+
+  const otherCuts: IndividualCutSummary[] = [...cutMap.values()]
+    .filter((entry) => entry.otherPacks > 0)
+    .map((entry) => ({ cutName: entry.cutName, packs: entry.otherPacks }))
+    .sort((a, b) => sortCuts(a.cutName, b.cutName));
+
+  const totalVacuumPacks = vacuumCuts.reduce((sum, cut) => sum + cut.packs, 0);
+  const totalOmeatPacks = omeatCuts.reduce((sum, cut) => sum + cut.packs, 0);
+  const totalOtherPacks = otherCuts.reduce((sum, cut) => sum + cut.packs, 0);
   const totalAllPacks = cuts.reduce((sum, cut) => sum + cut.totalPacks, 0);
 
   return {
     vacuumProducts: vacuumProducts.sort((a, b) => b.quantity - a.quantity || a.name.localeCompare(b.name, "ko")),
     omeatProducts: omeatProducts.sort((a, b) => b.quantity - a.quantity || a.name.localeCompare(b.name, "ko")),
     otherProducts: otherProducts.sort((a, b) => b.quantity - a.quantity || a.name.localeCompare(b.name, "ko")),
-    cuts,
+    vacuumCuts,
+    omeatCuts,
+    otherCuts,
     totalVacuumPacks,
     totalOmeatPacks,
+    totalOtherPacks,
+    cuts,
     totalAllPacks,
   };
 }

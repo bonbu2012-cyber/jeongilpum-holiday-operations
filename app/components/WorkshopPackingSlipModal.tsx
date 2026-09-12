@@ -103,116 +103,187 @@ export default function WorkshopPackingSlipModal({
           {/* 1. 상품별 수량 및 부위별 팩 수 자동 계산표 */}
           <section className="slip-summary-section">
             <div className="slip-section-title">
-              <h3>1. 오늘 출고 상품 및 부위별 필요 팩 수 자동 계산</h3>
-              <span className="slip-pill-total">
-                총 {cutCalc.totalAllPacks}팩 소요 (진공 {cutCalc.totalVacuumPacks}팩 / 오미트 {cutCalc.totalOmeatPacks}팩)
-              </span>
+              <div className="slip-section-title-left">
+                <h3>1. 오늘 출고 상품 및 규격별 부위 생산 계획</h3>
+                <span className="slip-weight-notice-badge">
+                  ※ 진공세트와 오미트 세트는 팩당 중량 규격이 상이하여 독립 구분하여 작업합니다.
+                </span>
+              </div>
+              <div className="slip-pill-totals-group">
+                <span className="slip-pill-total vacuum">진공: {cutCalc.totalVacuumPacks}팩</span>
+                <span className="slip-pill-total omeat">오미트: {cutCalc.totalOmeatPacks}팩</span>
+              </div>
             </div>
 
-            {/* 상품별 수량 목록 */}
-            <div className="slip-product-badges-row">
-              <div className="slip-product-group">
-                <span className="slip-group-label">진공세트:</span>
-                {cutCalc.vacuumProducts.length ? (
-                  cutCalc.vacuumProducts.map((p) => (
-                    <span key={p.name} className="slip-prod-tag">
-                      {p.name} <strong>{p.quantity}개</strong>
-                    </span>
-                  ))
-                ) : (
-                  <span className="slip-muted">없음</span>
-                )}
+            {/* 중량 규격별 2단 독립 생산 계획 그리드 */}
+            <div className="slip-cuts-split-grid">
+              {/* 1) 진공세트 생산 계획 (스킨팩 150~200g 규격) */}
+              <div className="slip-plan-card vacuum-card">
+                <div className="slip-plan-card-header">
+                  <div className="slip-plan-title-box">
+                    <span className="slip-plan-tag vacuum">스킨 진공팩</span>
+                    <h4>진공세트 부위 준비</h4>
+                  </div>
+                  <span className="slip-weight-guide">팩당 약 150~200g 규격</span>
+                </div>
+
+                {/* 해당 세트 상품 목록 */}
+                <div className="slip-plan-products">
+                  <span className="slip-plan-sub-label">대상 상품:</span>
+                  {cutCalc.vacuumProducts.length > 0 ? (
+                    cutCalc.vacuumProducts.map((p) => (
+                      <span key={p.name} className="slip-prod-badge vacuum">
+                        <strong>{p.name}</strong> {p.quantity}개
+                        {p.weightSpec && <em className="slip-prod-spec">({p.weightSpec})</em>}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="slip-muted-text">오늘 예약 없음</span>
+                  )}
+                </div>
+
+                {/* 진공세트 전용 부위별 팩수 테이블 */}
+                <table className="slip-plan-table vacuum-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">부위명</th>
+                      <th scope="col" className="highlight-col vacuum">
+                        진공 준비 팩수
+                      </th>
+                      <th scope="col" className="check-th">
+                        확인
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cutCalc.vacuumCuts.map((cut) => (
+                      <tr key={cut.cutName}>
+                        <td className="cut-name-cell">
+                          <strong>{cut.cutName}</strong>
+                        </td>
+                        <td className="highlight-col vacuum">
+                          <strong>{cut.packs}팩</strong>
+                        </td>
+                        <td className="check-col">
+                          <span className="paper-check-box">☐</span>
+                        </td>
+                      </tr>
+                    ))}
+                    {cutCalc.vacuumCuts.length === 0 && (
+                      <tr>
+                        <td colSpan={3} className="empty-cell">
+                          예약된 진공세트가 없습니다.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                  {cutCalc.vacuumCuts.length > 0 && (
+                    <tfoot>
+                      <tr>
+                        <td>
+                          <strong>진공 소계</strong>
+                        </td>
+                        <td className="highlight-col vacuum">
+                          <strong>{cutCalc.totalVacuumPacks}팩</strong>
+                        </td>
+                        <td className="check-col">✓</td>
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
               </div>
 
-              <div className="slip-product-group">
-                <span className="slip-group-label">오미트세트:</span>
-                {cutCalc.omeatProducts.length ? (
-                  cutCalc.omeatProducts.map((p) => (
-                    <span key={p.name} className="slip-prod-tag omeat">
-                      {p.name} <strong>{p.quantity}개</strong>
-                    </span>
-                  ))
-                ) : (
-                  <span className="slip-muted">없음</span>
-                )}
-              </div>
+              {/* 2) 오미트 세트 생산 계획 (오미트 전용 215~230g 규격) */}
+              <div className="slip-plan-card omeat-card">
+                <div className="slip-plan-card-header">
+                  <div className="slip-plan-title-box">
+                    <span className="slip-plan-tag omeat">오미트 전용</span>
+                    <h4>오미트(O&apos;meat) 부위 준비</h4>
+                  </div>
+                  <span className="slip-weight-guide">팩당 약 215~230g 규격</span>
+                </div>
 
-              {cutCalc.otherProducts.length > 0 && (
-                <div className="slip-product-group">
-                  <span className="slip-group-label">기타 상품:</span>
+                {/* 해당 세트 상품 목록 */}
+                <div className="slip-plan-products">
+                  <span className="slip-plan-sub-label">대상 상품:</span>
+                  {cutCalc.omeatProducts.length > 0 ? (
+                    cutCalc.omeatProducts.map((p) => (
+                      <span key={p.name} className="slip-prod-badge omeat">
+                        <strong>{p.name}</strong> {p.quantity}개
+                        {p.weightSpec && <em className="slip-prod-spec">({p.weightSpec})</em>}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="slip-muted-text">오늘 예약 없음</span>
+                  )}
+                </div>
+
+                {/* 오미트세트 전용 부위별 팩수 테이블 */}
+                <table className="slip-plan-table omeat-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">부위명</th>
+                      <th scope="col" className="highlight-col omeat">
+                        오미트 준비 팩수
+                      </th>
+                      <th scope="col" className="check-th">
+                        확인
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cutCalc.omeatCuts.map((cut) => (
+                      <tr key={cut.cutName}>
+                        <td className="cut-name-cell">
+                          <strong>{cut.cutName}</strong>
+                        </td>
+                        <td className="highlight-col omeat">
+                          <strong>{cut.packs}팩</strong>
+                        </td>
+                        <td className="check-col">
+                          <span className="paper-check-box">☐</span>
+                        </td>
+                      </tr>
+                    ))}
+                    {cutCalc.omeatCuts.length === 0 && (
+                      <tr>
+                        <td colSpan={3} className="empty-cell">
+                          예약된 오미트 세트가 없습니다.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                  {cutCalc.omeatCuts.length > 0 && (
+                    <tfoot>
+                      <tr>
+                        <td>
+                          <strong>오미트 소계</strong>
+                        </td>
+                        <td className="highlight-col omeat">
+                          <strong>{cutCalc.totalOmeatPacks}팩</strong>
+                        </td>
+                        <td className="check-col">✓</td>
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
+              </div>
+            </div>
+
+            {/* 기타 상품 (LA갈비, 뼈세트 등) */}
+            {cutCalc.otherProducts.length > 0 && (
+              <div className="slip-other-products-bar">
+                <span className="slip-other-label">기타 상품:</span>
+                <div className="slip-other-list">
                   {cutCalc.otherProducts.map((p) => (
-                    <span key={p.name} className="slip-prod-tag other">
-                      {p.name} <strong>{p.quantity}개</strong>
+                    <span key={p.name} className="slip-prod-badge other">
+                      <strong>{p.name}</strong> {p.quantity}개
+                      {p.weightSpec && <em className="slip-prod-spec">({p.weightSpec})</em>}
                     </span>
                   ))}
                 </div>
-              )}
-            </div>
-
-            {/* 부위별 필요 팩 수 테이블 */}
-            <table className="slip-cuts-table">
-              <thead>
-                <tr>
-                  <th scope="col">부위명</th>
-                  <th scope="col">진공세트 팩수 (봉황/팔영 등)</th>
-                  <th scope="col">오미트 세트 팩수</th>
-                  {cutCalc.otherProducts.length > 0 && <th scope="col">기타 팩수</th>}
-                  <th scope="col" className="highlight-col">
-                    부위별 총 필요 팩수
-                  </th>
-                  <th scope="col" className="print-only">
-                    준비 확인
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {cutCalc.cuts.map((cut) => (
-                  <tr key={cut.cutName}>
-                    <td className="cut-name-cell">
-                      <strong>{cut.cutName}</strong>
-                    </td>
-                    <td>{cut.vacuumPacks ? `${cut.vacuumPacks}팩` : "-"}</td>
-                    <td>{cut.omeatPacks ? `${cut.omeatPacks}팩` : "-"}</td>
-                    {cutCalc.otherProducts.length > 0 && (
-                      <td>{cut.otherPacks ? `${cut.otherPacks}팩` : "-"}</td>
-                    )}
-                    <td className="highlight-col">
-                      <strong>{cut.totalPacks}팩</strong>
-                    </td>
-                    <td className="print-only check-col">
-                      <span className="paper-check-box">☐</span>
-                    </td>
-                  </tr>
-                ))}
-                {cutCalc.cuts.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="empty-cell">
-                      당일 예약된 세트 구성 상품이 없습니다.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-              {cutCalc.cuts.length > 0 && (
-                <tfoot>
-                  <tr>
-                    <td>
-                      <strong>합계</strong>
-                    </td>
-                    <td>
-                      <strong>{cutCalc.totalVacuumPacks}팩</strong>
-                    </td>
-                    <td>
-                      <strong>{cutCalc.totalOmeatPacks}팩</strong>
-                    </td>
-                    {cutCalc.otherProducts.length > 0 && <td>-</td>}
-                    <td className="highlight-col">
-                      <strong>{cutCalc.totalAllPacks}팩</strong>
-                    </td>
-                    <td className="print-only check-col">✓</td>
-                  </tr>
-                </tfoot>
-              )}
-            </table>
+              </div>
+            )}
           </section>
 
           {/* 2. 시간대별 / 수령유형별 출고 검수 목록 */}
