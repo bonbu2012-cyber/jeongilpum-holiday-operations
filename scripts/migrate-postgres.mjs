@@ -5,8 +5,9 @@ import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://vpyedzjycmphoutztxnr.supabase.co";
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL || "https://vpyedzjycmphoutztxnr.supabase.co").replace(/^\uFEFF/, "").trim();
+const rawKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const supabaseServiceKey = rawKey ? rawKey.replace(/^\uFEFF/, "").trim() : "";
 
 if (!supabaseServiceKey) {
   console.log("[migrate-postgres] SUPABASE_SERVICE_ROLE_KEY not found in environment. Skipping build-time DB check.");

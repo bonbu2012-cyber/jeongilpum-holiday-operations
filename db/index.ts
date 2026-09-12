@@ -1,9 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://vpyedzjycmphoutztxnr.supabase.co";
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZweWVkemp5Y21waG91dHp0eG5yIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM1MzY4NjgsImV4cCI6MjA5OTExMjg2OH0.u0iUtRnlIUoi8nzrYH1xMLSWIk5f1xGxJ_--pCX9Qo0";
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || supabaseAnonKey;
+const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL || "https://vpyedzjycmphoutztxnr.supabase.co").replace(/^\uFEFF/, "").trim();
+const supabaseAnonKey = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZweWVkemp5Y21waG91dHp0eG5yIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM1MzY4NjgsImV4cCI6MjA5OTExMjg2OH0.u0iUtRnlIUoi8nzrYH1xMLSWIk5f1xGxJ_--pCX9Qo0").replace(/^\uFEFF/, "").trim();
+const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || supabaseAnonKey).replace(/^\uFEFF/, "").trim();
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
