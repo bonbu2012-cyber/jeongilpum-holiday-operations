@@ -153,7 +153,7 @@ async function loadOverview(date: string) {
       WHERE substr(due_at,1,10)=?
         AND work_status!='cancelled'
       GROUP BY product_id,product_name_snapshot
-      ORDER BY product_name_snapshot COLLATE NOCASE,product_id
+      ORDER BY product_name_snapshot,product_id
     `).bind(date),
     runtimeEnv.DB.prepare(`
       SELECT component_code,COUNT(*) AS quantity

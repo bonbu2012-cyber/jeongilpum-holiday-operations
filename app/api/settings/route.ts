@@ -505,7 +505,7 @@ export async function GET() {
         LEFT JOIN products p ON p.category = c.name
         WHERE c.active = 1
         GROUP BY c.id
-        ORDER BY c.sort_order, c.name COLLATE NOCASE
+        ORDER BY c.sort_order, c.name
       `).all<CategoryRow>(),
     ]);
 

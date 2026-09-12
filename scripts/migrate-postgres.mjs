@@ -20,6 +20,13 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey, {
 
 console.log("[migrate-postgres] Checking Supabase database tables and seed data...");
 
+// 0. Ensure nocase collation exists in PostgreSQL
+try {
+  await supabase.rpc("exec_dml", { statement: "CREATE COLLATION IF NOT EXISTS nocase (provider = icu, locale = 'und-u-ks-level2', deterministic = false);" });
+} catch (e) {
+  // Ignore if already exists or permission
+}
+
 // 1. Check if products exist, otherwise seed from data/catalog.json
 try {
   const { data: existingProducts, error: prodErr } = await supabase.from("products").select("id").limit(1);

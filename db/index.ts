@@ -35,7 +35,8 @@ function formatSqlWithParams(sql: string, params: unknown[]): string {
     .replace(/\bcustomer_arrived\s*=\s*1\b/gi, "customer_arrived = true")
     .replace(/\bcustomer_arrived\s*=\s*0\b/gi, "customer_arrived = false")
     .replace(/\bINSERT\s+OR\s+IGNORE\b/gi, "INSERT")
-    .replace(/\bINSERT\s+OR\s+REPLACE\b/gi, "INSERT");
+    .replace(/\bINSERT\s+OR\s+REPLACE\b/gi, "INSERT")
+    .replace(/\bCOLLATE\s+NOCASE\b/gi, "");
 
   return formatted;
 }

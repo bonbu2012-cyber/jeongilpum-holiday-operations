@@ -99,7 +99,7 @@ const TODAY_PRODUCT_TOTALS_SQL = `
   WHERE substr(w.due_at,1,10)=?
     AND w.work_status!='cancelled'
   GROUP BY w.product_id,w.product_name_snapshot
-  ORDER BY pending_quantity DESC,w.product_name_snapshot COLLATE NOCASE,w.product_id
+  ORDER BY pending_quantity DESC,w.product_name_snapshot,w.product_id
   LIMIT 500
 `;
 
