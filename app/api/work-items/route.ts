@@ -102,6 +102,38 @@ type CurrentWorkItem = Pick<
 
 type Dashboard = Record<PipelineWorkStatus, Record<DeliveryMethod, number>>;
 
+export type PaymentSummary = {
+  unpaidCount: number;
+  unpaidAmount: number;
+  partialCount: number;
+  partialAmount: number;
+  paidCount: number;
+  paidAmount: number;
+  totalOutstandingAmount: number;
+};
+
+type PaymentSummaryRow = {
+  unpaid_count: number;
+  unpaid_amount: number;
+  partial_count: number;
+  partial_amount: number;
+  paid_count: number;
+  paid_amount: number;
+  total_outstanding_amount: number;
+};
+
+function createPaymentSummary(row?: PaymentSummaryRow | null): PaymentSummary {
+  return {
+    unpaidCount: Number(row?.unpaid_count ?? 0),
+    unpaidAmount: Number(row?.unpaid_amount ?? 0),
+    partialCount: Number(row?.partial_count ?? 0),
+    partialAmount: Number(row?.partial_amount ?? 0),
+    paidCount: Number(row?.paid_count ?? 0),
+    paidAmount: Number(row?.paid_amount ?? 0),
+    totalOutstandingAmount: Number(row?.total_outstanding_amount ?? 0),
+  };
+}
+
 const runtimeEnv = { DB: getDb() };
 const WORK_STATUSES: WorkStatus[] = ["received", "confirmed", "in_progress", "ready", "completed", "cancelled"];
 const DELIVERY_METHODS: DeliveryMethod[] = ["onsite_sale", "onsite_reservation", "delivery"];
@@ -339,6 +371,8 @@ function queryFilters(params: URLSearchParams) {
 
   const workStatus = clean(params.get("workStatus"));
   const deliveryMethod = clean(params.get("deliveryMethod"));
+  const rawPaymentFilter = clean(params.get("paymentFilter") || params.get("paymentStatus"));
+  const paymentFilter = rawPaymentFilter || "all";
   const dateFrom = clean(params.get("dateFrom"));
   const dateTo = clean(params.get("dateTo"));
   const query = clean(params.get("q"));
@@ -350,6 +384,9 @@ function queryFilters(params: URLSearchParams) {
   }
   if (deliveryMethod && !DELIVERY_METHODS.includes(deliveryMethod as DeliveryMethod)) {
     throw new RequestError("수령방법 필터를 확인해주세요.");
+  }
+  if (!["all", "outstanding", "unpaid", "partial", "paid"].includes(paymentFilter)) {
+    throw new RequestError("결제 상태 필터를 확인해주세요.");
   }
   if ((dateFrom && !validDate(dateFrom)) || (dateTo && !validDate(dateTo)) || (dateFrom && dateTo && dateFrom > dateTo)) {
     throw new RequestError("조회 날짜 범위를 확인해주세요.");
@@ -383,6 +420,13 @@ function queryFilters(params: URLSearchParams) {
   if (deliveryMethod) {
     predicates.push("w.delivery_method=?");
     values.push(deliveryMethod);
+  }
+  if (paymentFilter === "outstanding") {
+    predicates.push(`o.payment_status IN (${PAYMENT_COLLECTION_STATUSES.map(() => "?").join(",")})`);
+    values.push(...PAYMENT_COLLECTION_STATUSES);
+  } else if (paymentFilter !== "all") {
+    predicates.push("o.payment_status=?");
+    values.push(paymentFilter);
   }
 
   const paymentCollectionOrderBy = {
@@ -427,6 +471,7 @@ function queryFilters(params: URLSearchParams) {
     orderBy,
     workStatus,
     deliveryMethod,
+    paymentFilter,
     dateFrom,
     dateTo,
     query,
@@ -458,6 +503,46 @@ function customerOrderFilters(filters: ReturnType<typeof queryFilters>) {
     predicates.push(`EXISTS(SELECT 1 FROM work_items w WHERE ${workPredicates.join(" AND ")})`);
     values.push(...workValues);
   }
+  if (filters.paymentFilter === "outstanding") {
+    predicates.push(`o.payment_status IN (${PAYMENT_COLLECTION_STATUSES.map(() => "?").join(",")})`);
+    values.push(...PAYMENT_COLLECTION_STATUSES);
+  } else if (filters.paymentFilter !== "all") {
+    predicates.push("o.payment_status=?");
+    values.push(filters.paymentFilter);
+  }
+  if (filters.query) {
+    const like = `%${filters.query}%`;
+    predicates.push(`
+      (
+        o.buyer_name LIKE ? OR o.buyer_phone LIKE ? OR o.order_no LIKE ?
+        OR EXISTS(
+          SELECT 1 FROM work_items w
+          WHERE w.order_id=o.id
+            AND (w.recipient_name LIKE ? OR w.recipient_phone LIKE ? OR w.product_name_snapshot LIKE ?)
+        )
+      )
+    `);
+    values.push(like, like, like, like, like, like);
+  }
+  return { where: predicates.join(" AND "), values };
+}
+
+function paymentSummaryFilters(filters: ReturnType<typeof queryFilters>) {
+  const predicates: string[] = [];
+  const values: string[] = [];
+  const workPredicates = ["w.order_id=o.id", "w.work_status!='cancelled'"];
+  const workValues: string[] = [];
+  if (filters.dateFrom) {
+    workPredicates.push("substr(w.due_at,1,10)>=?");
+    workValues.push(filters.dateFrom);
+  }
+  if (filters.dateTo) {
+    workPredicates.push("substr(w.due_at,1,10)<=?");
+    workValues.push(filters.dateTo);
+  }
+  predicates.push(`EXISTS(SELECT 1 FROM work_items w WHERE ${workPredicates.join(" AND ")})`);
+  values.push(...workValues);
+
   if (filters.query) {
     const like = `%${filters.query}%`;
     predicates.push(`
@@ -563,9 +648,22 @@ export async function GET(request: Request) {
     const filters = queryFilters(new URL(request.url).searchParams);
     const where = filters.predicates.join(" AND ");
     const dashboardWhere = filters.dashboardPredicates.join(" AND ");
+    const summaryFilters = paymentSummaryFilters(filters);
+    const summarySql = `
+      SELECT
+        COUNT(CASE WHEN o.payment_status = 'unpaid' THEN 1 END) AS unpaid_count,
+        COALESCE(SUM(CASE WHEN o.payment_status = 'unpaid' THEN o.total_amount ELSE 0 END), 0) AS unpaid_amount,
+        COUNT(CASE WHEN o.payment_status = 'partial' THEN 1 END) AS partial_count,
+        COALESCE(SUM(CASE WHEN o.payment_status = 'partial' THEN (o.total_amount - o.paid_amount) ELSE 0 END), 0) AS partial_amount,
+        COUNT(CASE WHEN o.payment_status = 'paid' THEN 1 END) AS paid_count,
+        COALESCE(SUM(CASE WHEN o.payment_status = 'paid' THEN o.paid_amount ELSE 0 END), 0) AS paid_amount,
+        COALESCE(SUM(CASE WHEN o.payment_status IN ('unpaid', 'partial') THEN (o.total_amount - o.paid_amount) ELSE 0 END), 0) AS total_outstanding_amount
+      FROM orders o
+      WHERE ${summaryFilters.where}
+    `;
     if (filters.view === "customers") {
       const customerFilters = customerOrderFilters(filters);
-      const [orders, dashboardRows] = await Promise.all([
+      const [orders, dashboardRows, summaryRow] = await Promise.all([
         runtimeEnv.DB.prepare(`
           SELECT o.id,o.order_no,o.buyer_name,o.buyer_phone,o.payment_status,
             o.paid_amount,o.total_amount,o.version,o.created_at
@@ -580,6 +678,7 @@ export async function GET(request: Request) {
           WHERE ${dashboardWhere}
           GROUP BY w.work_status,w.delivery_method
         `).bind(...filters.dashboardValues).all<DashboardRow>(),
+        runtimeEnv.DB.prepare(summarySql).bind(...summaryFilters.values).first<PaymentSummaryRow>(),
       ]);
       const orderIds = orders.results.map((order) => order.id);
       const workItems = orderIds.length
@@ -590,7 +689,11 @@ export async function GET(request: Request) {
         `).bind(...orderIds).all<WorkItemRow>()
         : { results: [] as WorkItemRow[] };
       return Response.json(
-        { customers: customerRecords(orders.results, workItems.results), dashboard: createDashboard(dashboardRows.results) },
+        {
+          customers: customerRecords(orders.results, workItems.results),
+          dashboard: createDashboard(dashboardRows.results),
+          paymentSummary: createPaymentSummary(summaryRow),
+        },
         { headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } },
       );
     }
@@ -601,7 +704,7 @@ export async function GET(request: Request) {
         ORDER BY ${filters.orderBy.sql}
         LIMIT 500
       `;
-    const [items, dashboardRows] = await Promise.all([
+    const [items, dashboardRows, summaryRow] = await Promise.all([
       runtimeEnv.DB.prepare(itemQuery).bind(...filters.values, ...filters.orderBy.values).all<WorkItemRow>(),
       runtimeEnv.DB.prepare(`
         SELECT w.work_status,w.delivery_method,COUNT(*) AS count
@@ -610,9 +713,14 @@ export async function GET(request: Request) {
         WHERE ${dashboardWhere}
         GROUP BY w.work_status,w.delivery_method
       `).bind(...filters.dashboardValues).all<DashboardRow>(),
+      runtimeEnv.DB.prepare(summarySql).bind(...summaryFilters.values).first<PaymentSummaryRow>(),
     ]);
     return Response.json(
-      { workItems: items.results.map(workItemRecord), dashboard: createDashboard(dashboardRows.results) },
+      {
+        workItems: items.results.map(workItemRecord),
+        dashboard: createDashboard(dashboardRows.results),
+        paymentSummary: createPaymentSummary(summaryRow),
+      },
       { headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } },
     );
   } catch (error) {

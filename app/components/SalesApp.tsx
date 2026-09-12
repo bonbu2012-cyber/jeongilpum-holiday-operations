@@ -81,9 +81,20 @@ type WorkItem = {
 
 type Dashboard = Record<PipelineWorkStatus, Record<DeliveryMethod, number>>;
 
+type PaymentSummary = {
+  unpaidCount: number;
+  unpaidAmount: number;
+  partialCount: number;
+  partialAmount: number;
+  paidCount: number;
+  paidAmount: number;
+  totalOutstandingAmount: number;
+};
+
 type WorkResponse = {
   workItems: WorkItem[];
   dashboard: Dashboard;
+  paymentSummary?: PaymentSummary;
 };
 
 type CustomerOrder = {
@@ -113,7 +124,11 @@ type Customer = {
 
 type CustomerResponse = {
   customers: Customer[];
+  dashboard?: Dashboard;
+  paymentSummary?: PaymentSummary;
 };
+
+type SalesPaymentFilter = "all" | "outstanding" | "unpaid" | "partial" | "paid";
 
 type Selection = {
   id: string;
@@ -269,11 +284,9 @@ export default function SalesApp() {
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [workStatus, setWorkStatus] = useState("");
   const [deliveryMethod, setDeliveryMethod] = useState("");
-  const [outstandingOnly, setOutstandingOnly] = useState(false);
-  const [workDateFrom, setWorkDateFrom] = useState(today);
-  const [workDateTo, setWorkDateTo] = useState(today);
-  const [customerDateFrom, setCustomerDateFrom] = useState("");
-  const [customerDateTo, setCustomerDateTo] = useState("");
+  const [paymentFilter, setPaymentFilter] = useState<SalesPaymentFilter>("all");
+  const [dateFrom, setDateFrom] = useState(today);
+  const [dateTo, setDateTo] = useState(today);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
   const [selectedWorkItem, setSelectedWorkItem] = useState<WorkItem | null>(null);
@@ -291,19 +304,19 @@ export default function SalesApp() {
     return () => clearTimeout(timer);
   }, [query]);
 
-  const currentDateFrom = tab === "work" ? workDateFrom : customerDateFrom;
-  const currentDateTo = tab === "work" ? workDateTo : customerDateTo;
+  const currentDateFrom = dateFrom;
+  const currentDateTo = dateTo;
   const workResourceUrl = workUrl({
     view: "work",
-    dateFrom: workDateFrom,
-    dateTo: workDateTo,
+    dateFrom,
+    dateTo,
     query: debouncedQuery,
   });
   const customerResourceUrl = tab === "customers"
     ? workUrl({
       view: "customers",
-      dateFrom: customerDateFrom,
-      dateTo: customerDateTo,
+      dateFrom,
+      dateTo,
       query: debouncedQuery,
     })
     : null;
@@ -323,9 +336,16 @@ export default function SalesApp() {
     (!workStatus || item.workStatus === workStatus)
     && (!deliveryMethod || item.deliveryMethod === deliveryMethod)
   );
+  const matchesPaymentFilter = (status: PaymentStatus) => {
+    if (paymentFilter === "outstanding") return paymentRequiresCollection(status);
+    if (paymentFilter === "unpaid") return status === "unpaid";
+    if (paymentFilter === "partial") return status === "partial";
+    if (paymentFilter === "paid") return status === "paid";
+    return true;
+  };
   const filteredWorkItems = workItems.filter((item) => (
     matchesWorkFilters(item)
-    && (!outstandingOnly || paymentRequiresCollection(item.paymentStatus))
+    && matchesPaymentFilter(item.paymentStatus)
   ));
   const customerOrders = (customerData?.customers ?? []).flatMap((customer) => (
     customer.orders.map((order): CustomerOrderRow => ({
@@ -334,9 +354,21 @@ export default function SalesApp() {
       buyerPhone: customer.buyerPhone,
     }))
   )).filter((order) => (
-    (!outstandingOnly || paymentRequiresCollection(order.paymentStatus))
+    matchesPaymentFilter(order.paymentStatus)
     && (!workStatus && !deliveryMethod || order.workItems.some(matchesWorkFilters))
   ));
+  const activeSummary = (tab === "work" ? workData?.paymentSummary : customerData?.paymentSummary)
+    ?? workData?.paymentSummary
+    ?? customerData?.paymentSummary;
+  const paymentSummary: PaymentSummary = activeSummary ?? {
+    unpaidCount: 0,
+    unpaidAmount: 0,
+    partialCount: 0,
+    partialAmount: 0,
+    paidCount: 0,
+    paidAmount: 0,
+    totalOutstandingAmount: 0,
+  };
   const selectedWorkItems = filteredWorkItems.filter((item) => selectedIds.includes(item.id));
   const selectedCustomerOrders = customerOrders.filter((order) => selectedOrderIds.includes(order.id));
   const error = tab === "work" ? workError : customerError;
@@ -780,11 +812,11 @@ export default function SalesApp() {
             <button
               type="button"
               className="sales-work-table__filter-button"
-              aria-pressed={!workStatus && !deliveryMethod && !outstandingOnly}
+              aria-pressed={!workStatus && !deliveryMethod && paymentFilter === "all"}
               onClick={() => {
                 setWorkStatus("");
                 setDeliveryMethod("");
-                setOutstandingOnly(false);
+                setPaymentFilter("all");
                 setSelectedIds([]);
                 setSelectedOrderIds([]);
               }}
@@ -811,14 +843,15 @@ export default function SalesApp() {
             <button
               type="button"
               className="sales-work-table__filter-button"
-              aria-pressed={outstandingOnly}
+              aria-pressed={paymentFilter === "outstanding"}
               onClick={() => {
-                setOutstandingOnly((current) => !current);
+                setPaymentFilter((current) => current === "outstanding" ? "all" : "outstanding");
                 setSelectedIds([]);
                 setSelectedOrderIds([]);
               }}
             >
               <span>미수 결제</span>
+              <b>{paymentSummary.unpaidCount + paymentSummary.partialCount}</b>
             </button>
           </div>
           <span className="sales-work-table__filter-divider" aria-hidden="true" />
@@ -839,6 +872,93 @@ export default function SalesApp() {
                 <b>{stageTotals[status]}</b>
               </button>
             ))}
+          </div>
+        </section>
+
+        <section className="sales-payment-summary" aria-label="결제 및 미수 현황 요약">
+          <div className="sales-payment-summary__header">
+            <span className="sales-payment-summary__title">결제·미수 현황</span>
+            <span className="sales-payment-summary__hint">수령/출고 예정일 기준</span>
+          </div>
+          <div className="sales-payment-summary__chips">
+            <button
+              type="button"
+              className={`sales-payment-chip sales-payment-chip--total ${paymentFilter === "outstanding" ? "sales-payment-chip--active" : ""}`}
+              aria-pressed={paymentFilter === "outstanding"}
+              onClick={() => {
+                setPaymentFilter((current) => current === "outstanding" ? "all" : "outstanding");
+                setSelectedIds([]);
+                setSelectedOrderIds([]);
+              }}
+              title="미수 전체(미결제 + 부분결제) 건 필터"
+            >
+              <span className="sales-payment-chip__label">총 미수금</span>
+              <b className="sales-payment-chip__value">{won(paymentSummary.totalOutstandingAmount)}</b>
+              <span className="sales-payment-chip__badge">{paymentSummary.unpaidCount + paymentSummary.partialCount}건</span>
+            </button>
+
+            <button
+              type="button"
+              className={`sales-payment-chip sales-payment-chip--unpaid ${paymentFilter === "unpaid" ? "sales-payment-chip--active" : ""}`}
+              aria-pressed={paymentFilter === "unpaid"}
+              onClick={() => {
+                setPaymentFilter((current) => current === "unpaid" ? "all" : "unpaid");
+                setSelectedIds([]);
+                setSelectedOrderIds([]);
+              }}
+              title="미결제 건만 필터"
+            >
+              <span className="sales-payment-chip__label">미결제</span>
+              <b className="sales-payment-chip__value">{paymentSummary.unpaidCount}건</b>
+              <span className="sales-payment-chip__subtext">{won(paymentSummary.unpaidAmount)}</span>
+            </button>
+
+            <button
+              type="button"
+              className={`sales-payment-chip sales-payment-chip--partial ${paymentFilter === "partial" ? "sales-payment-chip--active" : ""}`}
+              aria-pressed={paymentFilter === "partial"}
+              onClick={() => {
+                setPaymentFilter((current) => current === "partial" ? "all" : "partial");
+                setSelectedIds([]);
+                setSelectedOrderIds([]);
+              }}
+              title="부분결제 건만 필터"
+            >
+              <span className="sales-payment-chip__label">부분결제</span>
+              <b className="sales-payment-chip__value">{paymentSummary.partialCount}건</b>
+              <span className="sales-payment-chip__subtext">잔여 {won(paymentSummary.partialAmount)}</span>
+            </button>
+
+            <button
+              type="button"
+              className={`sales-payment-chip sales-payment-chip--paid ${paymentFilter === "paid" ? "sales-payment-chip--active" : ""}`}
+              aria-pressed={paymentFilter === "paid"}
+              onClick={() => {
+                setPaymentFilter((current) => current === "paid" ? "all" : "paid");
+                setSelectedIds([]);
+                setSelectedOrderIds([]);
+              }}
+              title="결제완료 건 필터"
+            >
+              <span className="sales-payment-chip__label">결제완료</span>
+              <b className="sales-payment-chip__value">{paymentSummary.paidCount}건</b>
+              <span className="sales-payment-chip__subtext">수납 {won(paymentSummary.paidAmount)}</span>
+            </button>
+
+            {paymentFilter !== "all" ? (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="sales-payment-chip sales-payment-chip--reset"
+                onClick={() => {
+                  setPaymentFilter("all");
+                  setSelectedIds([]);
+                  setSelectedOrderIds([]);
+                }}
+              >
+                ✕ 필터 해제
+              </Button>
+            ) : null}
           </div>
         </section>
 
@@ -882,6 +1002,32 @@ export default function SalesApp() {
               <option value="">모든 수령방법</option>
               {Object.entries(DELIVERY_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
             </FieldSelect>
+            <div className="sales-date-presets" role="group" aria-label="조회 범위 프리셋">
+              <Button
+                size="sm"
+                variant={dateFrom === today && dateTo === today ? "primary" : "ghost"}
+                onClick={() => {
+                  setDateFrom(today);
+                  setDateTo(today);
+                  setSelectedIds([]);
+                  setSelectedOrderIds([]);
+                }}
+              >
+                오늘
+              </Button>
+              <Button
+                size="sm"
+                variant={!dateFrom && !dateTo ? "primary" : "ghost"}
+                onClick={() => {
+                  setDateFrom("");
+                  setDateTo("");
+                  setSelectedIds([]);
+                  setSelectedOrderIds([]);
+                }}
+              >
+                전체
+              </Button>
+            </div>
             <DateRangeNavigator
               ariaLabel="조회 기간"
               dateFrom={currentDateFrom}
@@ -890,15 +1036,10 @@ export default function SalesApp() {
               dateTo={currentDateTo}
               dateToId="sales-date-to"
               dateToLabel={<span className="sr-only">조회 종료일</span>}
-              onChange={(dateFrom, dateTo) => {
-                if (tab === "work") {
-                  setWorkDateFrom(dateFrom);
-                  setWorkDateTo(dateTo ?? "");
-                  setSelectedIds([]);
-                  return;
-                }
-                setCustomerDateFrom(dateFrom);
-                setCustomerDateTo(dateTo ?? "");
+              onChange={(nextFrom, nextTo) => {
+                setDateFrom(nextFrom);
+                setDateTo(nextTo ?? "");
+                setSelectedIds([]);
                 setSelectedOrderIds([]);
               }}
             />

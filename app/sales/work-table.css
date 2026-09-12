@@ -274,3 +274,138 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.sales-date-presets {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sales-payment-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--paper);
+}
+
+.sales-payment-summary__header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.sales-payment-summary__title {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-strong);
+  color: var(--ink);
+}
+
+.sales-payment-summary__hint {
+  font-size: var(--text-xs, 12px);
+  color: var(--muted);
+}
+
+.sales-payment-summary__chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.sales-payment-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.sales-payment-chip:hover {
+  border-color: var(--ink);
+  background: var(--badge-neutral-background);
+}
+
+.sales-payment-chip__label {
+  font-size: var(--text-xs, 12px);
+  color: var(--muted);
+}
+
+.sales-payment-chip__value {
+  font-weight: var(--weight-strong);
+}
+
+.sales-payment-chip__badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--badge-neutral-background);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.sales-payment-chip__subtext {
+  font-size: var(--text-xs, 12px);
+  color: var(--muted);
+}
+
+.sales-payment-chip--total .sales-payment-chip__value {
+  color: #9b312a;
+}
+
+.sales-payment-chip--total.sales-payment-chip--active {
+  border-color: #9b312a;
+  background: #fdf2f2;
+}
+
+.sales-payment-chip--total.sales-payment-chip--active .sales-payment-chip__badge {
+  background: #9b312a;
+  color: #fff;
+}
+
+.sales-payment-chip--unpaid .sales-payment-chip__value {
+  color: var(--ink);
+}
+
+.sales-payment-chip--unpaid.sales-payment-chip--active {
+  border-color: var(--wine);
+  background: var(--badge-wine-background);
+  color: var(--wine);
+}
+
+.sales-payment-chip--partial .sales-payment-chip__value {
+  color: #b45309;
+}
+
+.sales-payment-chip--partial.sales-payment-chip--active {
+  border-color: #b45309;
+  background: var(--badge-amber-background);
+}
+
+.sales-payment-chip--paid .sales-payment-chip__value {
+  color: #15803d;
+}
+
+.sales-payment-chip--paid.sales-payment-chip--active {
+  border-color: #15803d;
+  background: #f0fdf4;
+}
+
+.sales-payment-summary__reset {
+  min-height: 32px;
+  font-size: var(--text-xs, 12px);
+}
+
