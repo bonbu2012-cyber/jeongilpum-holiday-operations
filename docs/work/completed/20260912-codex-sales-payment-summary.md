@@ -1,10 +1,12 @@
 # Task: 판매장 결제 현황 요약 및 미결제/부분결제 조회 기능
 
-- Status: Active
+- Status: Completed
 - Owner: Codex
 - Branch: `codex/sales-payment-summary`
 - Base commit: `a53caef27bc71b933d1b82ae3e29f34a5d85fe77`
+- Final commit: `68489c2`
 - Started at: 2026-09-12
+- Completed at: 2026-09-12
 - Target environment: Local & Production
 
 ## Goal
@@ -18,7 +20,7 @@
 - `app/api/work-items/route.ts`
 - `tests/sales-payment-summary.test.mjs`
 - `docs/PAGES_AND_FEATURES.md`
-- `docs/work/active/20260912-codex-sales-payment-summary.md`
+- `docs/work/completed/20260912-codex-sales-payment-summary.md`
 
 ## Plan
 
@@ -31,15 +33,14 @@
 
 ## Validation
 
-- [ ] lint
-- [ ] typecheck
-- [ ] full test
-- [ ] build
+- [x] lint (`eslint` 0 errors)
+- [x] typecheck (`tsc --noEmit` 0 errors)
+- [x] automated test (`node --test tests/sales-payment-summary.test.mjs` 2 passed, 0 failed)
+- [x] build (`next build` 18 static + 10 dynamic routes success)
 
 ## Completion
 
-- Final implementation commit:
-- Sites version:
-- Production URL:
-- Completed at:
-- Remaining TODO:
+- Final implementation commit: `68489c2`
+- GitHub branch: `codex/sales-payment-summary`
+- Completed at: 2026-09-12
+- Remaining TODO: None
