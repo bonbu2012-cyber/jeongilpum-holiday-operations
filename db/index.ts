@@ -49,9 +49,13 @@ export class SupabaseDbWrapper implements DatabaseClient {
   private client = supabaseAdmin;
 
   prepare(query: string): PreparedRunner {
+    const isDml = /^\s*(INSERT|UPDATE|DELETE|CREATE|DROP|ALTER)\b/i.test(query);
     const createRunner = (...params: unknown[]): PreparedRunner => {
       const runner: PreparedRunner = {
         all: async <T = unknown>(): Promise<D1Result<T>> => {
+          if (isDml) {
+            return runner.run<T>();
+          }
           const formatted = formatSqlWithParams(query, params);
           const { data, error } = await this.client.rpc("exec_sql", { query: formatted });
           if (error) throw new Error(`Supabase SQL query failed: ${error.message}`);
@@ -104,10 +108,10 @@ export class SupabaseDbWrapper implements DatabaseClient {
   async batch<T = unknown>(statements: D1PreparedStatement[]): Promise<D1Result<T>[]> {
     const results: D1Result<T>[] = [];
     for (const stmt of statements) {
-      if (typeof (stmt as any)?.all === "function") {
-        results.push(await (stmt as any).all());
-      } else if (typeof stmt?.run === "function") {
+      if (typeof stmt?.run === "function") {
         results.push(await stmt.run());
+      } else if (typeof (stmt as any)?.all === "function") {
+        results.push(await (stmt as any).all());
       } else {
         results.push({ success: true as const, meta: { changes: 1 } as any, results: [] });
       }
