@@ -2,7 +2,7 @@ import { getDb } from "../../../../db";
 import { requireOperatorApi } from "../../../lib/operator-session";
 
 type WorkStatus = "received" | "confirmed" | "in_progress" | "ready" | "completed" | "cancelled";
-type DeliveryMethod = "onsite_reservation" | "delivery";
+type DeliveryMethod = "onsite_reservation" | "delivery" | "onsite_sale";
 
 type WorkItemRow = {
   id: string;
@@ -61,8 +61,8 @@ const TODAY_ONSITE_WORK_ITEMS_SQL = `
     COALESCE((SELECT SUM(reserved.quantity) FROM work_items reserved WHERE reserved.product_id=w.product_id AND substr(reserved.due_at,1,10)=substr(w.due_at,1,10) AND reserved.work_status!='cancelled'),0) AS product_scheduled_quantity
   FROM work_items w
   JOIN orders o ON o.id=w.order_id
-  JOIN products p ON p.id=w.product_id
-  WHERE w.delivery_method='onsite_reservation'
+  LEFT JOIN products p ON p.id=w.product_id
+  WHERE w.delivery_method IN ('onsite_reservation', 'onsite_sale')
     AND substr(w.due_at,1,10)=?
     AND w.work_status!='cancelled'
   ORDER BY CASE WHEN o.payment_status='paid' THEN 1 ELSE 0 END,w.due_at ASC,w.created_at ASC,w.id ASC
@@ -78,7 +78,7 @@ const TODAY_DELIVERY_WORK_ITEMS_SQL = `
     COALESCE((SELECT SUM(reserved.quantity) FROM work_items reserved WHERE reserved.product_id=w.product_id AND substr(reserved.due_at,1,10)=substr(w.due_at,1,10) AND reserved.work_status!='cancelled'),0) AS product_scheduled_quantity
   FROM work_items w
   JOIN orders o ON o.id=w.order_id
-  JOIN products p ON p.id=w.product_id
+  LEFT JOIN products p ON p.id=w.product_id
   WHERE w.delivery_method='delivery'
     AND substr(w.due_at,1,10)=?
     AND w.work_status!='cancelled'

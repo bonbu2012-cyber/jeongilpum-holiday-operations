@@ -29,7 +29,7 @@ try {
     CREATE OR REPLACE FUNCTION bool_neq_int(b boolean, i integer) RETURNS boolean LANGUAGE sql IMMUTABLE AS $$ SELECT b != (i != 0); $$;
     CREATE OR REPLACE FUNCTION int_neq_bool(i integer, b boolean) RETURNS boolean LANGUAGE sql IMMUTABLE AS $$ SELECT (i != 0) != b; $$;
   ` });
-} catch (e) {
+} catch {
   // Ignore if already exists
 }
 

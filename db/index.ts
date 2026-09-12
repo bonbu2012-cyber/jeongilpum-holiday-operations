@@ -110,10 +110,10 @@ export class SupabaseDbWrapper implements DatabaseClient {
   async batch<T = unknown>(statements: D1PreparedStatement[]): Promise<D1Result<T>[]> {
     const results: D1Result<T>[] = [];
     for (const stmt of statements) {
-      if (typeof stmt?.run === "function") {
-        results.push(await stmt.run());
-      } else if (typeof (stmt as any)?.all === "function") {
+      if (typeof (stmt as any)?.all === "function") {
         results.push(await (stmt as any).all());
+      } else if (typeof stmt?.run === "function") {
+        results.push(await stmt.run());
       } else {
         results.push({ success: true as const, meta: { changes: 1 } as any, results: [] });
       }

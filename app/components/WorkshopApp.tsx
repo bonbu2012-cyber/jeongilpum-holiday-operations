@@ -35,7 +35,7 @@ import WorkStatusSelect from "./WorkStatusSelect";
 import "../workshop-flow.css";
 
 type WorkItem = EditableWorkItem & {
-  deliveryMethod: "onsite_reservation" | "delivery";
+  deliveryMethod: "onsite_reservation" | "delivery" | "onsite_sale";
   address: string;
   events: Array<{
     id: string;
