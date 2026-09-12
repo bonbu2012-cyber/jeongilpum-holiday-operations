@@ -811,6 +811,20 @@ export default function SalesApp() {
           <div className="sales-work-table__filter-group">
             <button
               type="button"
+              className="sales-work-table__filter-button sales-work-table__filter-button--outstanding"
+              aria-pressed={paymentFilter === "outstanding"}
+              onClick={() => {
+                setPaymentFilter((current) => current === "outstanding" ? "all" : "outstanding");
+                setSelectedIds([]);
+                setSelectedOrderIds([]);
+              }}
+              title="미수고객(미결제 + 부분결제) 목록 조회"
+            >
+              <span>미수고객 조회</span>
+              <b>{paymentSummary.unpaidCount + paymentSummary.partialCount}</b>
+            </button>
+            <button
+              type="button"
               className="sales-work-table__filter-button"
               aria-pressed={!workStatus && !deliveryMethod && paymentFilter === "all"}
               onClick={() => {
@@ -840,19 +854,6 @@ export default function SalesApp() {
                 <b>{dashboardTotals[method]}</b>
               </button>
             ))}
-            <button
-              type="button"
-              className="sales-work-table__filter-button"
-              aria-pressed={paymentFilter === "outstanding"}
-              onClick={() => {
-                setPaymentFilter((current) => current === "outstanding" ? "all" : "outstanding");
-                setSelectedIds([]);
-                setSelectedOrderIds([]);
-              }}
-            >
-              <span>미수 결제</span>
-              <b>{paymentSummary.unpaidCount + paymentSummary.partialCount}</b>
-            </button>
           </div>
           <span className="sales-work-table__filter-divider" aria-hidden="true" />
           <div className="sales-work-table__filter-group">

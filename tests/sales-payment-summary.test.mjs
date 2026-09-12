@@ -117,6 +117,7 @@ test("sales API and SalesApp UI expose payment summary chips, payment filter, an
 
   // SalesApp UI checks
   assert.match(salesApp, /sales-payment-summary/);
+  assert.match(salesApp, /미수고객 조회/);
   assert.match(salesApp, /총 미수금/);
   assert.match(salesApp, /미결제/);
   assert.match(salesApp, /부분결제/);
@@ -137,4 +138,5 @@ test("sales API and SalesApp UI expose payment summary chips, payment filter, an
   assert.match(css, /\.sales-payment-summary/);
   assert.match(css, /\.sales-payment-chip/);
   assert.match(css, /\.sales-date-presets/);
+  assert.match(css, /\.sales-work-table__filter-button--outstanding/);
 });

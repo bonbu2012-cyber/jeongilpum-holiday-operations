@@ -99,6 +99,46 @@
   outline-offset: 2px;
 }
 
+.sales-work-table__filter-button--outstanding {
+  border-color: #f59e0b;
+  background: #fffbeb;
+  color: #92400e;
+  font-weight: var(--weight-strong);
+}
+
+.sales-work-table__filter-button--outstanding span {
+  color: #92400e;
+  font-weight: var(--weight-strong);
+}
+
+.sales-work-table__filter-button--outstanding b {
+  color: #b45309;
+  background: #fde68a;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs, 12px);
+}
+
+.sales-work-table__filter-button--outstanding:hover {
+  background: #fef3c7;
+  border-color: #d97706;
+}
+
+.sales-work-table__filter-button--outstanding[aria-pressed="true"] {
+  border-color: #b45309;
+  background: #b45309;
+  color: #ffffff;
+}
+
+.sales-work-table__filter-button--outstanding[aria-pressed="true"] span {
+  color: #ffffff;
+}
+
+.sales-work-table__filter-button--outstanding[aria-pressed="true"] b {
+  color: #b45309;
+  background: #ffffff;
+}
+
 .sales-work-table__filter-divider {
   width: 1px;
   height: 20px;
