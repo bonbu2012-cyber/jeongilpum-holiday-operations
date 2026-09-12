@@ -305,7 +305,31 @@ export default function WorkshopApp() {
       header: "예약 시각",
       cell: (item) => <strong>{formatTime(item.dueAt)}</strong>,
       sortValue: (item) => item.dueAt,
-      width: "112px",
+      width: "104px",
+    },
+    {
+      id: "customer",
+      header: "주문자",
+      cell: (item) => (
+        <>
+          <strong>
+            {item.buyerName || "주문자 미입력"}
+            {item.recipientName && item.recipientName !== item.buyerName ? (
+              <span className="workshop-subtext"> (수령: {item.recipientName})</span>
+            ) : null}
+          </strong>
+          <small>
+            {[item.buyerPhone, item.orderNo].filter(Boolean).join(" · ")}
+          </small>
+          {item.note?.trim() ? (
+            <small className="workshop-customer-note">요청: {item.note.trim()}</small>
+          ) : null}
+        </>
+      ),
+      sortValue: (item) => item.buyerName || "",
+      exportValue: (item) => `${item.buyerName || ""} ${item.buyerPhone || ""} · ${item.orderNo}`.trim(),
+      width: "180px",
+      cellLayout: "stacked",
     },
     {
       id: "product",
@@ -321,13 +345,40 @@ export default function WorkshopApp() {
       cell: (item) => <strong>{item.quantity.toLocaleString()}개</strong>,
       sortValue: (item) => item.quantity,
       align: "right",
-      width: "96px",
+      width: "92px",
     },
     statusColumn,
   ];
 
   const deliveryColumns: DataTableColumn<WorkItem>[] = [
     {
+      id: "customer",
+      header: "주문자 / 수령인",
+      cell: (item) => {
+        const hasRecipient = Boolean(item.recipientName && item.recipientName !== item.buyerName);
+        return (
+          <>
+            <strong>
+              {item.recipientName ? `수령: ${item.recipientName}` : (item.buyerName || "주문자 미입력")}
+              {hasRecipient && item.buyerName ? (
+                <span className="workshop-subtext"> (주문: {item.buyerName})</span>
+              ) : null}
+            </strong>
+            <small>
+              {[item.recipientPhone || item.buyerPhone, item.orderNo].filter(Boolean).join(" · ")}
+            </small>
+            {item.note?.trim() ? (
+              <small className="workshop-customer-note">요청: {item.note.trim()}</small>
+            ) : null}
+          </>
+        );
+      },
+      sortValue: (item) => item.recipientName || item.buyerName || "",
+      exportValue: (item) => `${item.recipientName || item.buyerName || ""} ${item.recipientPhone || item.buyerPhone || ""} · ${item.orderNo}`.trim(),
+      width: "190px",
+      cellLayout: "stacked",
+    },
+    {
       id: "product",
       header: "상품",
       cell: (item) => item.productId === "custom-order"
@@ -341,7 +392,7 @@ export default function WorkshopApp() {
       cell: (item) => <strong>{item.quantity.toLocaleString()}개</strong>,
       sortValue: (item) => item.quantity,
       align: "right",
-      width: "96px",
+      width: "92px",
     },
     {
       id: "address",

@@ -762,3 +762,774 @@
     text-align: left;
   }
 }
+
+.workshop-subtext {
+  font-weight: 400;
+  color: var(--muted);
+  font-size: 0.85em;
+  margin-left: 4px;
+}
+
+.workshop-customer-note {
+  color: var(--wine);
+  font-weight: var(--weight-medium, 500);
+}
+
+/* 상태 행 셀 & 라벨 버튼 */
+.workshop-status-row-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.workshop-row-label-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--line, #e2e8f0);
+  border-radius: var(--radius-sm, 4px);
+  background: #fff;
+  color: var(--ink-secondary, #475569);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.workshop-row-label-btn:hover {
+  border-color: var(--wine, #8f241d);
+  color: var(--wine, #8f241d);
+  background: #fff8f7;
+}
+
+.workshop-toolbar-action-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ==========================================================================
+   출고 검수표 (A4 인쇄 모달) 스타일
+   ========================================================================== */
+.packing-slip-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(4px);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  overflow-y: auto;
+  padding: 24px 16px;
+}
+
+.packing-slip-window {
+  background: #fff;
+  width: 100%;
+  max-width: 1020px;
+  border-radius: 8px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  margin-bottom: 40px;
+}
+
+.packing-slip-toolbar {
+  padding: 14px 20px;
+  background: #1e293b;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #334155;
+}
+
+.packing-slip-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.packing-slip-toolbar-left h2 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.packing-slip-badge-date {
+  font-size: 0.82rem;
+  background: #334155;
+  color: #94a3b8;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+
+.packing-slip-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.packing-slip-printable-document {
+  padding: 28px 32px;
+  background: #fff;
+  color: #0f172a;
+}
+
+.slip-doc-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  border-bottom: 2px solid #0f172a;
+  padding-bottom: 12px;
+  margin-bottom: 20px;
+}
+
+.slip-brand h1 {
+  font-size: 1.55rem;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  margin: 0 0 4px;
+  color: #0f172a;
+}
+
+.slip-subtitle {
+  font-size: 0.9rem;
+  color: #475569;
+  margin: 0;
+}
+
+.slip-meta {
+  text-align: right;
+  font-size: 0.82rem;
+  color: #64748b;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.slip-check-box-guide {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.slip-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.slip-section-title h3 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+}
+
+.slip-pill-total {
+  font-size: 0.85rem;
+  font-weight: 700;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #1e293b;
+  padding: 3px 10px;
+  border-radius: 12px;
+}
+
+.slip-summary-section {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 14px 16px;
+  margin-bottom: 24px;
+}
+
+.slip-product-badges-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+  border-bottom: 1px dashed #cbd5e1;
+}
+
+.slip-product-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.slip-group-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #334155;
+}
+
+.slip-prod-tag {
+  font-size: 0.82rem;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  padding: 2px 7px;
+  border-radius: 4px;
+  color: #1e293b;
+}
+
+.slip-prod-tag strong {
+  color: var(--wine, #8f241d);
+}
+
+.slip-prod-tag.omeat {
+  background: #fdf4ff;
+  border-color: #f0abfc;
+  color: #701a75;
+}
+
+.slip-prod-tag.omeat strong {
+  color: #a21caf;
+}
+
+.slip-cuts-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+}
+
+.slip-cuts-table th,
+.slip-cuts-table td {
+  padding: 6px 10px;
+  border: 1px solid #cbd5e1;
+  text-align: center;
+}
+
+.slip-cuts-table th {
+  background: #f1f5f9;
+  font-weight: 700;
+  color: #334155;
+}
+
+.slip-cuts-table td.cut-name-cell {
+  text-align: left;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.slip-cuts-table .highlight-col {
+  background: #fef2f2;
+  color: #991b1b;
+  font-weight: 700;
+}
+
+.slip-cuts-table tfoot {
+  background: #f1f5f9;
+  font-weight: 700;
+}
+
+.slip-orders-section {
+  margin-top: 16px;
+}
+
+.slip-filters {
+  display: flex;
+  gap: 6px;
+}
+
+.slip-filter-btn {
+  font-size: 0.8rem;
+  padding: 4px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  background: #fff;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.slip-filter-btn.active {
+  background: #0f172a;
+  border-color: #0f172a;
+  color: #fff;
+  font-weight: 700;
+}
+
+.slip-orders-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  margin-top: 8px;
+}
+
+.slip-orders-table th,
+.slip-orders-table td {
+  padding: 8px 10px;
+  border: 1px solid #cbd5e1;
+  vertical-align: middle;
+}
+
+.slip-orders-table th {
+  background: #f1f5f9;
+  font-weight: 700;
+  color: #1e293b;
+  text-align: left;
+}
+
+.slip-orders-table th.check-box-th {
+  width: 44px;
+  text-align: center;
+}
+
+.slip-orders-table td.check-box-td {
+  text-align: center;
+  font-size: 1.25rem;
+}
+
+.paper-check-box {
+  display: inline-block;
+  font-size: 1.35rem;
+  line-height: 1;
+  font-family: monospace;
+  color: #334155;
+  user-select: none;
+}
+
+.slip-time-badge-box {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.slip-badge-time {
+  font-size: 0.88rem;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: #0f172a;
+}
+
+.slip-badge-type {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 3px;
+  width: fit-content;
+}
+
+.slip-badge-type.onsite {
+  background: #e0f2fe;
+  color: #0369a1;
+  border: 1px solid #bae6fd;
+}
+
+.slip-badge-type.shipping {
+  background: #ffedd5;
+  color: #c2410c;
+  border: 1px solid #fed7aa;
+}
+
+.slip-badge-type.delivery {
+  background: #f3e8ff;
+  color: #7e22ce;
+  border: 1px solid #e9d5ff;
+}
+
+.slip-phone {
+  display: block;
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+.slip-sub-recipient {
+  display: block;
+  font-size: 0.72rem;
+  color: #2563eb;
+  margin-top: 2px;
+}
+
+.slip-prod-name {
+  color: #0f172a;
+  display: block;
+}
+
+.slip-qty-tag {
+  display: inline-block;
+  font-size: 0.78rem;
+  font-weight: 700;
+  background: #fee2e2;
+  color: #b91c1c;
+  padding: 1px 5px;
+  border-radius: 3px;
+  margin-top: 2px;
+}
+
+.slip-address-text {
+  font-size: 0.78rem;
+  color: #334155;
+  line-height: 1.25;
+  display: block;
+}
+
+.slip-pay-badge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+.slip-pay-badge.paid {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+
+.slip-pay-badge.unpaid {
+  background: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+
+.slip-note-text {
+  font-size: 0.75rem;
+  color: #b45309;
+  background: #fef3c7;
+  padding: 2px 5px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+.slip-quick-complete-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 4px 8px;
+  border: 1px solid #16a34a;
+  border-radius: 4px;
+  background: #22c55e;
+  color: #fff;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.slip-quick-complete-btn:hover:not(:disabled) {
+  background: #16a34a;
+}
+
+.slip-quick-complete-btn.completed {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #94a3b8;
+  cursor: default;
+}
+
+.slip-orders-table tr.row-done td {
+  background: #fafafa;
+  color: #94a3b8;
+}
+
+.slip-doc-footer {
+  margin-top: 24px;
+  border-top: 1px solid #cbd5e1;
+  padding-top: 8px;
+  font-size: 0.78rem;
+  color: #64748b;
+  text-align: center;
+}
+
+/* ==========================================================================
+   50*50 감열 상품정보 라벨 모달 스타일
+   ========================================================================== */
+.label-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(4px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 24px 16px;
+}
+
+.label-modal-window {
+  background: #fff;
+  width: 100%;
+  max-width: 820px;
+  max-height: 90vh;
+  border-radius: 8px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.label-modal-toolbar {
+  padding: 14px 20px;
+  background: #0f172a;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #334155;
+}
+
+.label-modal-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.label-icon-badge {
+  width: 34px;
+  height: 34px;
+  border-radius: 6px;
+  background: #1e293b;
+  display: grid;
+  place-items: center;
+  color: #38bdf8;
+}
+
+.label-modal-header-left h2 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin: 0 0 2px;
+}
+
+.label-modal-header-left p {
+  font-size: 0.78rem;
+  color: #94a3b8;
+  margin: 0;
+}
+
+.label-modal-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.label-preview-container {
+  padding: 20px;
+  overflow-y: auto;
+  flex: 1;
+  background: #f8fafc;
+}
+
+.label-preview-guide {
+  font-size: 0.8rem;
+  color: #475569;
+  background: #e2e8f0;
+  border-left: 3px solid #0284c7;
+  padding: 8px 12px;
+  border-radius: 4px;
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.label-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+/* 50x50mm 미리보기 카드 */
+.label-card-preview {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  background: #fff;
+  border: 1.5px solid #0f172a;
+  border-radius: 4px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.preview-label-header {
+  border-bottom: 1.5px solid #000;
+  padding-bottom: 4px;
+  margin-bottom: 4px;
+}
+
+.preview-title {
+  font-size: 0.85rem;
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.3px;
+  color: #000;
+}
+
+.preview-qty {
+  display: inline-block;
+  margin-left: 4px;
+  color: #dc2626;
+}
+
+.preview-meta-line {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.68rem;
+  font-weight: 600;
+  margin-top: 4px;
+  color: #333;
+}
+
+.preview-type-badge {
+  font-weight: 800;
+  border: 1px solid #000;
+  padding: 0 3px;
+  border-radius: 2px;
+}
+
+.preview-pay-badge {
+  font-weight: 800;
+}
+
+.preview-pay-badge.paid {
+  color: #16a34a;
+}
+
+.preview-pay-badge.unpaid {
+  color: #dc2626;
+}
+
+.preview-label-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  font-size: 0.72rem;
+  line-height: 1.25;
+  overflow: hidden;
+}
+
+.preview-shipping-box {
+  background: #f4f4f5;
+  border: 1px solid #27272a;
+  padding: 4px 6px;
+  border-radius: 3px;
+  font-size: 0.68rem;
+}
+
+.preview-shipping-box p {
+  margin: 0 0 2px;
+}
+
+.preview-shipping-box p:last-child {
+  margin: 0;
+}
+
+.preview-onsite-box p {
+  margin: 0 0 2px;
+}
+
+.preview-label-footer {
+  border-top: 1px dashed #71717a;
+  padding-top: 4px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.65rem;
+  color: #52525b;
+}
+
+.preview-copy-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #71717a;
+  padding: 2px;
+}
+
+.preview-copy-btn:hover {
+  color: #000;
+}
+
+.print-only {
+  display: none !important;
+}
+
+/* ==========================================================================
+   A4 인쇄 전용 스타일 (@media print)
+   ========================================================================== */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm 10mm;
+  }
+
+  /* 인쇄 시 화면용 UI 전부 숨김 */
+  body * {
+    visibility: hidden;
+  }
+
+  .packing-slip-backdrop,
+  .packing-slip-window,
+  .packing-slip-printable-document,
+  .packing-slip-printable-document * {
+    visibility: visible;
+  }
+
+  .packing-slip-backdrop {
+    position: absolute;
+    inset: 0;
+    padding: 0;
+    margin: 0;
+    background: transparent;
+    overflow: visible;
+  }
+
+  .packing-slip-window {
+    width: 100%;
+    max-width: 100%;
+    box-shadow: none;
+    border: none;
+    border-radius: 0;
+    margin: 0;
+  }
+
+  .packing-slip-printable-document {
+    padding: 0;
+    margin: 0;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .print-only {
+    display: table-cell !important;
+  }
+
+  footer.print-only {
+    display: block !important;
+  }
+
+  /* 테이블 줄바꿈 제어 */
+  .slip-cuts-table tr,
+  .slip-orders-table tr {
+    page-break-inside: avoid;
+  }
+
+  .slip-summary-section {
+    page-break-inside: avoid;
+  }
+}
+
