@@ -997,30 +997,74 @@
   font-weight: 700;
   color: #0f172a;
 }
-
-.slip-plan-tag {
+.slip-container-badge {
+  display: inline-block;
   font-size: 0.72rem;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 4px;
+  letter-spacing: -0.2px;
+}
+
+.slip-container-badge.b-162202 {
+  background: #1e40af;
+  color: #fff;
+}
+
+.slip-container-badge.b-241702 {
+  background: #701a75;
+  color: #fff;
+}
+
+.slip-container-badge.b-v8 {
+  background: #047857;
+  color: #fff;
+}
+
+.slip-container-badge.b-223003 {
+  background: #c2410c;
+  color: #fff;
+}
+
+.slip-container-badge.b-basket {
+  background: #374151;
+  color: #fff;
+}
+
+.slip-pill-total.container-162202 {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #1e40af;
+}
+
+.slip-pill-total.container-241702 {
+  background: #fdf4ff;
+  border-color: #f0abfc;
+  color: #701a75;
+}
+
+.slip-pill-total.container-other {
+  background: #f0fdf4;
+  border-color: #86efac;
+  color: #166534;
+}
+
+.slip-weight-guide.highlight-blue {
+  font-size: 0.76rem;
   font-weight: 700;
+  color: #1e40af;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
   padding: 2px 6px;
   border-radius: 4px;
 }
 
-.slip-plan-tag.vacuum {
-  background: #dbeafe;
-  color: #1d4ed8;
-}
-
-.slip-plan-tag.omeat {
-  background: #fae8ff;
-  color: #86198f;
-}
-
-.slip-weight-guide {
+.slip-weight-guide.highlight-purple {
   font-size: 0.76rem;
   font-weight: 700;
-  color: #dc2626;
-  background: #fef2f2;
-  border: 1px solid #fee2e2;
+  color: #701a75;
+  background: #fdf4ff;
+  border: 1px solid #f5d0fe;
   padding: 2px 6px;
   border-radius: 4px;
 }
@@ -1097,6 +1141,14 @@
   font-size: 0.78rem;
 }
 
+.slip-plan-table th.weight-th {
+  width: 75px;
+}
+
+.slip-plan-table th.container-th {
+  width: 65px;
+}
+
 .slip-plan-table th.check-th {
   width: 44px;
 }
@@ -1105,6 +1157,33 @@
   text-align: left;
   font-weight: 600;
   color: #0f172a;
+}
+
+.cut-item-note {
+  display: block;
+  font-size: 0.7rem;
+  color: #dc2626;
+  font-weight: normal;
+}
+
+.weight-cell {
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.weight-cell.special-weight {
+  color: #dc2626;
+  background: #fef2f2;
+}
+
+.tiny-container-tag {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #475569;
+  background: #f1f5f9;
+  padding: 1px 5px;
+  border-radius: 3px;
 }
 
 .slip-plan-table .highlight-col.vacuum {
@@ -1124,28 +1203,141 @@
   font-weight: 700;
 }
 
-.slip-other-products-bar {
-  margin-top: 10px;
+/* 실속 V8 / LA갈비 223003 특수 용기 카드 */
+.slip-special-container-row {
+  margin-top: 14px;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 12px 14px;
+}
+
+.slip-special-container-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.slip-special-container-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 10px;
+}
+
+.slip-special-box {
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
   padding: 8px 12px;
   background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 4px;
+}
+
+.slip-special-box.v8 {
+  border-left: 3px solid #047857;
+}
+
+.slip-special-box.la {
+  border-left: 3px solid #c2410c;
+}
+
+.slip-box-head {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
+  margin-bottom: 4px;
 }
 
-.slip-other-label {
+.slip-box-head strong {
+  font-size: 0.85rem;
+  color: #0f172a;
+}
+
+.slip-box-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.78rem;
+  color: #334155;
+}
+
+.slip-box-qty {
+  margin-top: 4px;
+  font-size: 0.85rem;
+  color: #0f172a;
+}
+
+.slip-box-qty strong {
+  color: #dc2626;
+}
+
+/* 바구니 전체 계량 섹션 */
+.slip-basket-orders-section {
+  margin-top: 14px;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 12px 14px;
+}
+
+.slip-basket-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 10px;
+}
+
+.slip-basket-card {
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  padding: 10px 12px;
+  background: #fafaf9;
+  border-left: 3px solid #44403c;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.slip-basket-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2px;
+}
+
+.slip-basket-qty-badge {
   font-size: 0.8rem;
   font-weight: 700;
-  color: #475569;
+  background: #fee2e2;
+  color: #b91c1c;
+  padding: 1px 6px;
+  border-radius: 3px;
 }
 
-.slip-other-list {
+.slip-basket-meta {
   display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
+  justify-content: space-between;
+  font-size: 0.78rem;
+  color: #44403c;
+}
+
+.slip-basket-instruction {
+  font-size: 0.75rem;
+  background: #fef3c7;
+  color: #92400e;
+  padding: 3px 6px;
+  border-radius: 3px;
+  border: 1px solid #fde68a;
+  line-height: 1.3;
+}
+
+.slip-basket-cuts {
+  font-size: 0.72rem;
+  color: #64748b;
+  margin-top: 2px;
 }
 
 .slip-prod-badge.other {

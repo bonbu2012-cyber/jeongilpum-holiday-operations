@@ -88,75 +88,105 @@ test("calculateSetCutRequirements accurately calculates packs for Bonghwang, Pal
   // 전체 총 팩수: 46 + 12 = 58팩
   assert.equal(result.totalAllPacks, 58);
 
-  // 상품별 중량 규격 안내(weightSpec) 검증
+  // 상품별 지침서 기반 중량 및 용기 규격 안내(weightSpec) 검증
   const bh = result.vacuumProducts.find((p) => p.name === "봉황세트");
-  assert.equal(bh?.weightSpec, "1.0kg (200g/팩)");
+  assert.ok(bh?.weightSpec.includes("1,000g"));
+  assert.ok(bh?.weightSpec.includes("162202"));
   const py = result.vacuumProducts.find((p) => p.name === "팔영세트");
-  assert.equal(py?.weightSpec, "1.26kg (180g/팩)");
+  assert.ok(py?.weightSpec.includes("1,260g"));
+  assert.ok(py?.weightSpec.includes("162202"));
   const om = result.omeatProducts.find((p) => p.name === "O'meat Signature");
-  assert.equal(om?.weightSpec, "1.3kg (~217g/팩)");
+  assert.ok(om?.weightSpec.includes("1,300g"));
+  assert.ok(om?.weightSpec.includes("241702"));
 
-  // 독립 진공 부위별 목록 (vacuumCuts) 검증 - 스킨팩 150~200g 규격
-  const vacCutsMap = Object.fromEntries(result.vacuumCuts.map((c) => [c.cutName, c.packs]));
-  assert.equal(vacCutsMap["치마살"], 8);
-  assert.equal(vacCutsMap["갈비살"], 8);
-  assert.equal(vacCutsMap["부채살"], 8);
-  assert.equal(vacCutsMap["제비추리"], 8);
-  assert.equal(vacCutsMap["차돌박이"], 5);
-  assert.equal(vacCutsMap["업진살"], 3);
-  assert.equal(vacCutsMap["살치살"], 3);
-  assert.equal(vacCutsMap["채끝"], 3);
+  // 162202 용기 정밀 스킨팩 목록 검증 (봉황·팔영)
+  const sp162 = Object.fromEntries(result.skinPacks162202.map((c) => [`${c.cutName}_${c.weight}`, c]));
+  assert.equal(sp162["치마살_180g"]?.packs, 8);
+  assert.equal(sp162["치마살_180g"]?.container, "162202");
+  assert.equal(sp162["차돌박이_280g"]?.packs, 5); // 봉황 차돌박이는 280g 특수중량
+  assert.equal(sp162["차돌박이_280g"]?.container, "162202");
+  assert.equal(sp162["업진살_180g"]?.packs, 3);
+  assert.equal(sp162["살치살_180g"]?.packs, 3);
+  assert.equal(sp162["채끝_180g"]?.packs, 3);
 
-  // 독립 오미트 부위별 목록 (omeatCuts) 검증 - 오미트 전용 215~230g 규격
-  const omeatCutsMap = Object.fromEntries(result.omeatCuts.map((c) => [c.cutName, c.packs]));
-  assert.equal(omeatCutsMap["치마살"], 2);
-  assert.equal(omeatCutsMap["갈비살"], 2);
-  assert.equal(omeatCutsMap["부채살"], 2);
-  assert.equal(omeatCutsMap["제비추리"], 2);
-  assert.equal(omeatCutsMap["차돌박이"], 2);
-  assert.equal(omeatCutsMap["채끝"], 2);
-  assert.equal(omeatCutsMap["업진살"], undefined); // 시그니처에는 업진살 없음
+  // 241702 용기 정밀 스킨팩 목록 검증 (오미트 시그니처)
+  const sp241 = Object.fromEntries(result.skinPacks241702.map((c) => [`${c.cutName}_${c.weight}`, c]));
+  assert.equal(sp241["치마살_200g"]?.packs, 2);
+  assert.equal(sp241["치마살_200g"]?.container, "241702");
+  assert.equal(sp241["차돌박이_300g"]?.packs, 2); // 오미트 차돌박이는 300g 특수중량
+  assert.equal(sp241["차돌박이_300g"]?.container, "241702");
+  assert.equal(sp241["채끝_200g"]?.packs, 2);
 
+  // 하위 호환용 cuts 및 cutPack 검증
   const cutPacks = Object.fromEntries(result.cuts.map((c) => [c.cutName, c]));
-
-  // 치마살: 봉황(5) + 팔영(3) = 진공 8팩, 오미트(2) = 2팩 -> 총 10팩
   assert.equal(cutPacks["치마살"].vacuumPacks, 8);
   assert.equal(cutPacks["치마살"].omeatPacks, 2);
-  assert.equal(cutPacks["치마살"].totalPacks, 10);
-
-  // 갈비살: 봉황(5) + 팔영(3) = 진공 8팩, 오미트(2) = 2팩 -> 총 10팩
-  assert.equal(cutPacks["갈비살"].vacuumPacks, 8);
-  assert.equal(cutPacks["갈비살"].omeatPacks, 2);
-  assert.equal(cutPacks["갈비살"].totalPacks, 10);
-
-  // 부채살: 봉황(5) + 팔영(3) = 진공 8팩, 오미트(2) = 2팩 -> 총 10팩
-  assert.equal(cutPacks["부채살"].vacuumPacks, 8);
-  assert.equal(cutPacks["부채살"].omeatPacks, 2);
-  assert.equal(cutPacks["부채살"].totalPacks, 10);
-
-  // 제비추리: 봉황(5) + 팔영(3) = 진공 8팩, 오미트(2) = 2팩 -> 총 10팩
-  assert.equal(cutPacks["제비추리"].vacuumPacks, 8);
-  assert.equal(cutPacks["제비추리"].omeatPacks, 2);
-  assert.equal(cutPacks["제비추리"].totalPacks, 10);
-
-  // 차돌박이: 봉황(5) = 진공 5팩, 오미트(2) = 2팩 -> 총 7팩
   assert.equal(cutPacks["차돌박이"].vacuumPacks, 5);
   assert.equal(cutPacks["차돌박이"].omeatPacks, 2);
-  assert.equal(cutPacks["차돌박이"].totalPacks, 7);
+});
 
-  // 업진살: 팔영(3) = 진공 3팩 -> 총 3팩
-  assert.equal(cutPacks["업진살"].vacuumPacks, 3);
-  assert.equal(cutPacks["업진살"].omeatPacks, 0);
-  assert.equal(cutPacks["업진살"].totalPacks, 3);
+test("calculateSetCutRequirements accurately groups V8 practical, 223003 LA, and basket orders", () => {
+  const mockItems = [
+    {
+      id: "w-v8",
+      orderNo: "JI-260912-0010",
+      productId: "practical",
+      productName: "실속세트",
+      quantity: 3,
+      deliveryMethod: "onsite_reservation",
+      dueAt: "2026-09-12T10:00:00+09:00",
+      workStatus: "confirmed",
+      note: "",
+      buyerName: "홍길동",
+      buyerPhone: "01011112222",
+    },
+    {
+      id: "w-la",
+      orderNo: "JI-260912-0011",
+      productId: "la-1",
+      productName: "LA갈비 1호",
+      quantity: 2,
+      deliveryMethod: "delivery",
+      dueAt: "2026-09-12T14:00:00+09:00",
+      workStatus: "confirmed",
+      note: "",
+      buyerName: "이순신",
+      buyerPhone: "01022223333",
+    },
+    {
+      id: "w-basket",
+      orderNo: "JI-260912-0012",
+      productId: "jin",
+      productName: "진",
+      quantity: 1,
+      deliveryMethod: "onsite_reservation",
+      dueAt: "2026-09-12T16:00:00+09:00",
+      workStatus: "confirmed",
+      note: "",
+      buyerName: "강감찬",
+      buyerPhone: "01033334444",
+    },
+  ];
 
-  // 살치살: 팔영(3) = 진공 3팩 -> 총 3팩
-  assert.equal(cutPacks["살치살"].vacuumPacks, 3);
-  assert.equal(cutPacks["살치살"].totalPacks, 3);
+  const result = calculateSetCutRequirements(mockItems);
 
-  // 채끝: 팔영(3) = 진공 3팩, 오미트(2) = 2팩 -> 총 5팩
-  assert.equal(cutPacks["채끝"].vacuumPacks, 3);
-  assert.equal(cutPacks["채끝"].omeatPacks, 2);
-  assert.equal(cutPacks["채끝"].totalPacks, 5);
+  // V8 실속형 3세트 -> V8 용기 3팩
+  assert.equal(result.skinPacksV8.length, 1);
+  assert.equal(result.skinPacksV8[0].packs, 3);
+  assert.equal(result.skinPacksV8[0].container, "V8");
+  assert.equal(result.skinPacksV8[0].weight, "600g (150g×4)");
+
+  // 223003 LA갈비 1호 2세트 -> 223003 용기 4팩 (세트당 2팩)
+  assert.equal(result.skinPacksLA223003.length, 1);
+  assert.equal(result.skinPacksLA223003[0].packs, 4);
+  assert.equal(result.skinPacksLA223003[0].container, "223003");
+  assert.equal(result.skinPacksLA223003[0].weight, "900g 이상");
+
+  // 바구니 계량 주문 (진 1세트)
+  assert.equal(result.basketOrders.length, 1);
+  assert.equal(result.basketOrders[0].productName, "진");
+  assert.equal(result.basketOrders[0].containerSummary, "4호 바구니");
+  assert.ok(result.basketOrders[0].instruction.includes("바구니 전체 중량만 계량"));
 });
 
 test("generatePackingLabels creates exact (n/N) labels with sender/receiver details for shipping", () => {

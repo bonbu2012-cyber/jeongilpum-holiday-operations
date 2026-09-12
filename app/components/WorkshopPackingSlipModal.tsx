@@ -104,51 +104,70 @@ export default function WorkshopPackingSlipModal({
           <section className="slip-summary-section">
             <div className="slip-section-title">
               <div className="slip-section-title-left">
-                <h3>1. 오늘 출고 상품 및 규격별 부위 생산 계획</h3>
+                <h3>1. 오늘 출고 상품 및 용기·중량별 스킨팩 생산 지시서</h3>
                 <span className="slip-weight-notice-badge">
-                  ※ 진공세트와 오미트 세트는 팩당 중량 규격이 상이하여 독립 구분하여 작업합니다.
+                  2026 추석 지침서: 용기 규격 및 팩당 실측 중량 기준 준수
                 </span>
               </div>
               <div className="slip-pill-totals-group">
-                <span className="slip-pill-total vacuum">진공: {cutCalc.totalVacuumPacks}팩</span>
-                <span className="slip-pill-total omeat">오미트: {cutCalc.totalOmeatPacks}팩</span>
+                <span className="slip-pill-total container-162202">
+                  162202 용기: {cutCalc.skinPacks162202.reduce((s, i) => s + i.packs, 0)}팩
+                </span>
+                <span className="slip-pill-total container-241702">
+                  241702 용기: {cutCalc.skinPacks241702.reduce((s, i) => s + i.packs, 0)}팩
+                </span>
+                {(cutCalc.skinPacksV8.length > 0 || cutCalc.skinPacksLA223003.length > 0) && (
+                  <span className="slip-pill-total container-other">
+                    기타용기: {cutCalc.skinPacksV8.reduce((s, i) => s + i.packs, 0) + cutCalc.skinPacksLA223003.reduce((s, i) => s + i.packs, 0)}팩
+                  </span>
+                )}
               </div>
             </div>
 
             {/* 중량 규격별 2단 독립 생산 계획 그리드 */}
             <div className="slip-cuts-split-grid">
-              {/* 1) 진공세트 생산 계획 (스킨팩 150~200g 규격) */}
+              {/* [카드 1] 162202 용기 스킨팩 준비 (봉황·팔영 세트) */}
               <div className="slip-plan-card vacuum-card">
                 <div className="slip-plan-card-header">
                   <div className="slip-plan-title-box">
-                    <span className="slip-plan-tag vacuum">스킨 진공팩</span>
-                    <h4>진공세트 부위 준비</h4>
+                    <span className="slip-container-badge b-162202">162202 용기</span>
+                    <h4>봉황·팔영 진공 스킨팩</h4>
                   </div>
-                  <span className="slip-weight-guide">팩당 약 150~200g 규격</span>
+                  <span className="slip-weight-guide highlight-blue">
+                    일반 180g / 차돌 280g
+                  </span>
                 </div>
 
                 {/* 해당 세트 상품 목록 */}
                 <div className="slip-plan-products">
-                  <span className="slip-plan-sub-label">대상 상품:</span>
-                  {cutCalc.vacuumProducts.length > 0 ? (
-                    cutCalc.vacuumProducts.map((p) => (
-                      <span key={p.name} className="slip-prod-badge vacuum">
-                        <strong>{p.name}</strong> {p.quantity}개
-                        {p.weightSpec && <em className="slip-prod-spec">({p.weightSpec})</em>}
-                      </span>
-                    ))
+                  <span className="slip-plan-sub-label">소요 세트:</span>
+                  {cutCalc.vacuumProducts.filter((p) => /봉황|팔영/.test(p.name)).length > 0 ? (
+                    cutCalc.vacuumProducts
+                      .filter((p) => /봉황|팔영/.test(p.name))
+                      .map((p) => (
+                        <span key={p.name} className="slip-prod-badge vacuum">
+                          <strong>{p.name}</strong> {p.quantity}개
+                          <em className="slip-prod-spec">({p.weightSpec})</em>
+                        </span>
+                      ))
                   ) : (
-                    <span className="slip-muted-text">오늘 예약 없음</span>
+                    <span className="slip-muted-text">오늘 봉황/팔영 예약 없음</span>
                   )}
                 </div>
 
-                {/* 진공세트 전용 부위별 팩수 테이블 */}
+                {/* 162202 용기 전용 부위별 팩수 테이블 */}
                 <table className="slip-plan-table vacuum-table">
                   <thead>
                     <tr>
                       <th scope="col">부위명</th>
+                      <th scope="col" className="weight-th">
+                        실측 중량
+                      </th>
+                      <th scope="col" className="container-th">
+                        용기
+                      </th>
                       <th scope="col" className="highlight-col vacuum">
-                        진공 준비 팩수
+                        필요 팩수
                       </th>
                       <th scope="col" className="check-th">
                         확인
@@ -156,35 +175,42 @@ export default function WorkshopPackingSlipModal({
                     </tr>
                   </thead>
                   <tbody>
-                    {cutCalc.vacuumCuts.map((cut) => (
-                      <tr key={cut.cutName}>
+                    {cutCalc.skinPacks162202.map((item) => (
+                      <tr key={`${item.cutName}_${item.weight}`}>
                         <td className="cut-name-cell">
-                          <strong>{cut.cutName}</strong>
+                          <strong>{item.cutName}</strong>
+                          {item.note && <span className="cut-item-note">({item.note})</span>}
+                        </td>
+                        <td className={`weight-cell ${item.weight === "280g" ? "special-weight" : ""}`}>
+                          <strong>{item.weight}</strong>
+                        </td>
+                        <td className="container-cell">
+                          <span className="tiny-container-tag">{item.container}</span>
                         </td>
                         <td className="highlight-col vacuum">
-                          <strong>{cut.packs}팩</strong>
+                          <strong>{item.packs}팩</strong>
                         </td>
                         <td className="check-col">
                           <span className="paper-check-box">☐</span>
                         </td>
                       </tr>
                     ))}
-                    {cutCalc.vacuumCuts.length === 0 && (
+                    {cutCalc.skinPacks162202.length === 0 && (
                       <tr>
-                        <td colSpan={3} className="empty-cell">
-                          예약된 진공세트가 없습니다.
+                        <td colSpan={5} className="empty-cell">
+                          오늘 162202 용기 스킨팩 대상 세트가 없습니다.
                         </td>
                       </tr>
                     )}
                   </tbody>
-                  {cutCalc.vacuumCuts.length > 0 && (
+                  {cutCalc.skinPacks162202.length > 0 && (
                     <tfoot>
                       <tr>
-                        <td>
-                          <strong>진공 소계</strong>
+                        <td colSpan={3}>
+                          <strong>162202 용기 합계</strong>
                         </td>
                         <td className="highlight-col vacuum">
-                          <strong>{cutCalc.totalVacuumPacks}팩</strong>
+                          <strong>{cutCalc.skinPacks162202.reduce((s, i) => s + i.packs, 0)}팩</strong>
                         </td>
                         <td className="check-col">✓</td>
                       </tr>
@@ -193,38 +219,46 @@ export default function WorkshopPackingSlipModal({
                 </table>
               </div>
 
-              {/* 2) 오미트 세트 생산 계획 (오미트 전용 215~230g 규격) */}
+              {/* [카드 2] 241702 용기 오미트팩 준비 (시그니처·프레스티지) */}
               <div className="slip-plan-card omeat-card">
                 <div className="slip-plan-card-header">
                   <div className="slip-plan-title-box">
-                    <span className="slip-plan-tag omeat">오미트 전용</span>
-                    <h4>오미트(O&apos;meat) 부위 준비</h4>
+                    <span className="slip-container-badge b-241702">241702 용기</span>
+                    <h4>오미트(O&apos;meat) 전용팩</h4>
                   </div>
-                  <span className="slip-weight-guide">팩당 약 215~230g 규격</span>
+                  <span className="slip-weight-guide highlight-purple">
+                    시그니처 200g(차돌300g) / 프레스티지 230g
+                  </span>
                 </div>
 
                 {/* 해당 세트 상품 목록 */}
                 <div className="slip-plan-products">
-                  <span className="slip-plan-sub-label">대상 상품:</span>
+                  <span className="slip-plan-sub-label">소요 세트:</span>
                   {cutCalc.omeatProducts.length > 0 ? (
                     cutCalc.omeatProducts.map((p) => (
                       <span key={p.name} className="slip-prod-badge omeat">
                         <strong>{p.name}</strong> {p.quantity}개
-                        {p.weightSpec && <em className="slip-prod-spec">({p.weightSpec})</em>}
+                        <em className="slip-prod-spec">({p.weightSpec})</em>
                       </span>
                     ))
                   ) : (
-                    <span className="slip-muted-text">오늘 예약 없음</span>
+                    <span className="slip-muted-text">오늘 오미트 예약 없음</span>
                   )}
                 </div>
 
-                {/* 오미트세트 전용 부위별 팩수 테이블 */}
+                {/* 241702 용기 전용 부위별 팩수 테이블 */}
                 <table className="slip-plan-table omeat-table">
                   <thead>
                     <tr>
                       <th scope="col">부위명</th>
+                      <th scope="col" className="weight-th">
+                        실측 중량
+                      </th>
+                      <th scope="col" className="container-th">
+                        용기
+                      </th>
                       <th scope="col" className="highlight-col omeat">
-                        오미트 준비 팩수
+                        필요 팩수
                       </th>
                       <th scope="col" className="check-th">
                         확인
@@ -232,35 +266,42 @@ export default function WorkshopPackingSlipModal({
                     </tr>
                   </thead>
                   <tbody>
-                    {cutCalc.omeatCuts.map((cut) => (
-                      <tr key={cut.cutName}>
+                    {cutCalc.skinPacks241702.map((item) => (
+                      <tr key={`${item.cutName}_${item.weight}`}>
                         <td className="cut-name-cell">
-                          <strong>{cut.cutName}</strong>
+                          <strong>{item.cutName}</strong>
+                          {item.note && <span className="cut-item-note">({item.note})</span>}
+                        </td>
+                        <td className={`weight-cell ${item.weight === "300g" ? "special-weight" : ""}`}>
+                          <strong>{item.weight}</strong>
+                        </td>
+                        <td className="container-cell">
+                          <span className="tiny-container-tag">{item.container}</span>
                         </td>
                         <td className="highlight-col omeat">
-                          <strong>{cut.packs}팩</strong>
+                          <strong>{item.packs}팩</strong>
                         </td>
                         <td className="check-col">
                           <span className="paper-check-box">☐</span>
                         </td>
                       </tr>
                     ))}
-                    {cutCalc.omeatCuts.length === 0 && (
+                    {cutCalc.skinPacks241702.length === 0 && (
                       <tr>
-                        <td colSpan={3} className="empty-cell">
-                          예약된 오미트 세트가 없습니다.
+                        <td colSpan={5} className="empty-cell">
+                          오늘 241702 용기 오미트 세트가 없습니다.
                         </td>
                       </tr>
                     )}
                   </tbody>
-                  {cutCalc.omeatCuts.length > 0 && (
+                  {cutCalc.skinPacks241702.length > 0 && (
                     <tfoot>
                       <tr>
-                        <td>
-                          <strong>오미트 소계</strong>
+                        <td colSpan={3}>
+                          <strong>241702 용기 합계</strong>
                         </td>
                         <td className="highlight-col omeat">
-                          <strong>{cutCalc.totalOmeatPacks}팩</strong>
+                          <strong>{cutCalc.skinPacks241702.reduce((s, i) => s + i.packs, 0)}팩</strong>
                         </td>
                         <td className="check-col">✓</td>
                       </tr>
@@ -270,16 +311,75 @@ export default function WorkshopPackingSlipModal({
               </div>
             </div>
 
-            {/* 기타 상품 (LA갈비, 뼈세트 등) */}
-            {cutCalc.otherProducts.length > 0 && (
-              <div className="slip-other-products-bar">
-                <span className="slip-other-label">기타 상품:</span>
-                <div className="slip-other-list">
-                  {cutCalc.otherProducts.map((p) => (
-                    <span key={p.name} className="slip-prod-badge other">
-                      <strong>{p.name}</strong> {p.quantity}개
-                      {p.weightSpec && <em className="slip-prod-spec">({p.weightSpec})</em>}
-                    </span>
+            {/* [카드 3] 실속형(V8 용기) 및 LA갈비 1호(223003 용기) 정밀 표기 */}
+            {(cutCalc.skinPacksV8.length > 0 || cutCalc.skinPacksLA223003.length > 0) && (
+              <div className="slip-special-container-row">
+                <div className="slip-special-container-header">
+                  <span className="slip-sub-title-icon">📦</span>
+                  <strong>기타 규격 용기 스킨팩 (V8 / 223003)</strong>
+                </div>
+                <div className="slip-special-container-cards">
+                  {cutCalc.skinPacksV8.map((item) => (
+                    <div key={item.cutName} className="slip-special-box v8">
+                      <div className="slip-box-head">
+                        <span className="slip-container-badge b-v8">V8 용기</span>
+                        <strong>{item.cutName}</strong>
+                      </div>
+                      <div className="slip-box-body">
+                        <span>규격: <strong>{item.weight}</strong></span>
+                        <span>지침: <em>{item.note}</em></span>
+                        <span className="slip-box-qty">
+                          준비 수량: <strong>{item.packs}팩</strong> (☐ 확인)
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+
+                  {cutCalc.skinPacksLA223003.map((item) => (
+                    <div key={item.cutName} className="slip-special-box la">
+                      <div className="slip-box-head">
+                        <span className="slip-container-badge b-223003">223003 용기</span>
+                        <strong>{item.cutName}</strong>
+                      </div>
+                      <div className="slip-box-body">
+                        <span>규격: <strong>{item.weight}</strong></span>
+                        <span>지침: <em>세트당 2팩</em></span>
+                        <span className="slip-box-qty">
+                          준비 수량: <strong>{item.packs}팩</strong> (☐ 확인)
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* [카드 4] 바구니 전체 계량 세트 (프리미엄 진·선·미, LA 2호, 뼈세트) */}
+            {cutCalc.basketOrders.length > 0 && (
+              <div className="slip-basket-orders-section">
+                <div className="slip-special-container-header">
+                  <span className="slip-sub-title-icon">🧺</span>
+                  <strong>바구니 전체 계량 세트 (지침: 개별 부위 중량 맞추지 않고 바구니 전체 중량만 계량)</strong>
+                </div>
+                <div className="slip-basket-grid">
+                  {cutCalc.basketOrders.map((b) => (
+                    <div key={b.productName} className="slip-basket-card">
+                      <div className="slip-basket-card-top">
+                        <span className="slip-container-badge b-basket">{b.containerSummary}</span>
+                        <strong>{b.productName}</strong>
+                        <span className="slip-basket-qty-badge">{b.quantity}세트</span>
+                      </div>
+                      <div className="slip-basket-meta">
+                        <span>기준 총중량: <strong>{b.totalWeight}</strong></span>
+                        <span>부자재: {b.finishingSummary}</span>
+                      </div>
+                      <div className="slip-basket-instruction">
+                        <strong>계량 및 꽃 작업 지침:</strong> {b.instruction}
+                      </div>
+                      <div className="slip-basket-cuts">
+                        구성 부위: {b.cuts.map((c) => c.cutName).join(" · ")}
+                      </div>
+                    </div>
                   ))}
                 </div>
               </div>
