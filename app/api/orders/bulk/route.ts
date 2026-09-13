@@ -288,10 +288,20 @@ export async function POST(request: Request) {
     const codes = [...new Set(pending.flatMap((group) => group.items.map((item) => item.productCode)))];
     const products = await catalogForCodes(codes);
     const productsByCode = new Map(products.map((product) => [product.code.toUpperCase(), product]));
+    if (!productsByCode.has("CUSTOM")) {
+      productsByCode.set("CUSTOM", {
+        id: "custom-order",
+        code: "CUSTOM",
+        name: "맞춤주문",
+        price: 0,
+        daily_limit: null,
+        active: 1,
+      });
+    }
     const soldOutIds = await soldOutProductIds(products.map((product) => product.id));
     const productErrors = pending.flatMap((group) => group.items.flatMap((item) => {
       const product = productsByCode.get(item.productCode);
-      if (product?.active && !soldOutIds.has(product.id)) return [];
+      if (item.productCode === "CUSTOM" || (product?.active && !soldOutIds.has(product.id))) return [];
       return item.rowNumbers.map((rowNumber) => ({
         rowNumber,
         field: "상품코드",
@@ -308,6 +318,7 @@ export async function POST(request: Request) {
     const requested = new Map<string, { quantity: number; groups: Set<string>; product: ProductRow; date: string }>();
     for (const group of pending) {
       for (const item of group.items) {
+        if (item.productCode === "CUSTOM") continue;
         const product = productsByCode.get(item.productCode)!;
         const key = `${group.scheduleDate}\u0000${product.id}`;
         const current = requested.get(key) ?? { quantity: 0, groups: new Set<string>(), product, date: group.scheduleDate };
@@ -345,10 +356,30 @@ export async function POST(request: Request) {
       const orderNo = orderNumbers[index];
       const now = new Date().toISOString();
       const pricedItems = group.items.map((item) => {
-        const product = productsByCode.get(item.productCode)!;
-        return { id: crypto.randomUUID(), product, quantity: item.quantity, lineTotal: product.price * item.quantity };
+        const product = productsByCode.get(item.productCode) || {
+          id: "custom-order",
+          code: "CUSTOM",
+          name: "맞춤주문",
+          price: 0,
+          daily_limit: null,
+          active: 1,
+        };
+        const unitPrice = typeof item.unitPrice === "number" && item.unitPrice > 0 ? item.unitPrice : product.price;
+        const lineTotal = typeof item.lineTotal === "number" && item.lineTotal > 0 ? item.lineTotal : unitPrice * item.quantity;
+        const productName = item.productName || product.name;
+        return {
+          id: crypto.randomUUID(),
+          product,
+          productName,
+          unitPrice,
+          quantity: item.quantity,
+          lineTotal,
+          isCustom: item.productCode === "CUSTOM" || item.isCustom,
+        };
       });
-      const totalAmount = pricedItems.reduce((sum, item) => sum + item.lineTotal, 0);
+      const totalAmount = group.totalAmount > 0 ? group.totalAmount : pricedItems.reduce((sum, item) => sum + item.lineTotal, 0);
+      const paymentStatus = group.paymentStatus || "unpaid";
+      const paidAmount = paymentStatus === "paid" ? totalAmount : 0;
       const normalizedName = normalizeCustomerName(group.buyerName);
       const existingCustomer = await runtimeEnv.DB.prepare(`
         SELECT id FROM customer_accounts
@@ -357,11 +388,11 @@ export async function POST(request: Request) {
       `).bind(normalizedName, group.buyerPhone).first<{ id: string }>();
       const customerAccountId = existingCustomer?.id ?? await primaryCustomerAccountId(normalizedName, group.buyerPhone);
       const pickupAt = group.fulfillmentType === "pickup"
-        ? `${group.scheduleDate}T${group.pickupTime}:00+09:00`
+        ? `${group.scheduleDate}T${group.pickupTime || "10:00"}:00+09:00`
         : null;
       const shipDate = group.fulfillmentType === "shipping" ? group.scheduleDate : null;
       const dueAt = pickupAt ?? `${group.scheduleDate}T00:00:00+09:00`;
-      const deliveryMethod = group.fulfillmentType === "shipping" ? "delivery" : "onsite_reservation";
+      const deliveryMethod = group.deliveryMethod || (group.fulfillmentType === "shipping" ? "delivery" : "onsite_reservation");
       const shipping = group.fulfillmentType === "shipping";
       const statements: D1PreparedStatement[] = [
         runtimeEnv.DB.prepare(`
@@ -376,12 +407,13 @@ export async function POST(request: Request) {
             fulfillment_type,schedule_label,recipient_name,recipient_phone,road_address,
             detail_address,buyer_name,buyer_phone,payment_status,paid_amount,customer_arrived_at,
             customer_note,total_amount,idempotency_key,version,submitted_at,created_at,updated_at
-          ) VALUES(?,?,?,?,?,'submitted',?,?,?,?,?,?,?,?,'unpaid',0,NULL,?,?,?,1,?,?,?)
+          ) VALUES(?,?,?,?,?,'submitted',?,?,?,?,?,?,?,?,?,?,NULL,?,?,?,1,?,?,?)
         `).bind(
           orderId, orderNo, season.id, group.buyerName, group.buyerPhone,
           group.fulfillmentType, scheduleLabel(group), shipping ? group.recipientName : null,
           shipping ? group.recipientPhone : null, shipping ? group.roadAddr : null,
           shipping ? group.detailAddr : null, group.buyerName, group.buyerPhone,
+          paymentStatus, paidAmount,
           group.note, totalAmount, key, now, now, now,
         ),
         runtimeEnv.DB.prepare(`
@@ -393,7 +425,7 @@ export async function POST(request: Request) {
             id,order_id,product_id,product_name_snapshot,list_price_snapshot,
             sale_unit_price,quantity,line_total,created_at
           ) VALUES(?,?,?,?,?,?,?,?,?)
-        `).bind(item.id, orderId, item.product.id, item.product.name, item.product.price, item.product.price, item.quantity, item.lineTotal, now)),
+        `).bind(item.id, orderId, item.product.id, item.productName, item.unitPrice, item.unitPrice, item.quantity, item.lineTotal, now)),
         ...pricedItems.map((item) => runtimeEnv.DB.prepare(`
           INSERT INTO work_items(
             id,order_id,product_id,product_name_snapshot,unit_price_snapshot,quantity,line_total,
@@ -405,8 +437,8 @@ export async function POST(request: Request) {
           item.id,
           orderId,
           item.product.id,
-          item.product.name,
-          item.product.price,
+          item.productName,
+          item.unitPrice,
           item.quantity,
           item.lineTotal,
           deliveryMethod,
@@ -418,7 +450,7 @@ export async function POST(request: Request) {
           shipping ? group.roadAddrReference || null : null,
           shipping ? group.jibunAddr || null : null,
           shipping ? group.detailAddr : null,
-          null,
+          item.isCustom ? item.productName : null,
           group.note,
           now,
           now,

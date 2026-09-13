@@ -58,10 +58,12 @@ test("shipping rows group into one order and duplicate products merge", () => {
   assert.equal(result.groups[0].fulfillmentType, "shipping");
   assert.equal(result.groups[0].postalCode, "06234");
   assert.equal(result.groups[0].buyerPhone, "01012345678");
-  assert.deepEqual(result.groups[0].items, [
-    { productCode: "VAC-BH", quantity: 3, rowNumbers: [6, 7] },
-    { productCode: "PRE-MI", quantity: 1, rowNumbers: [8] },
-  ]);
+  assert.equal(result.groups[0].items[0].productCode, "VAC-BH");
+  assert.equal(result.groups[0].items[0].quantity, 3);
+  assert.deepEqual(result.groups[0].items[0].rowNumbers, [6, 7]);
+  assert.equal(result.groups[0].items[1].productCode, "PRE-MI");
+  assert.equal(result.groups[0].items[1].quantity, 1);
+  assert.deepEqual(result.groups[0].items[1].rowNumbers, [8]);
 });
 
 test("pickup rows require a date and 30-minute pickup time but no shipping address", () => {
@@ -132,6 +134,72 @@ test("committed combined workbook has the required upload sheet and no accidenta
   assert.deepEqual(await readBulkOrderWorkbook(buffer), []);
   assert.equal(excelSerialToIsoDate(46280), "2026-09-15");
   assert.equal(excelSerialToTime(0.4375), "10:30");
+});
+
+test("new 15-column format parses custom products, manual prices, and payment status", () => {
+  const result = validateAndGroupBulkOrderRows([
+    {
+      rowNumber: 6,
+      scheduleDate: "2026-09-14",
+      fulfillmentMethod: "현장수령",
+      buyerName: "홍길동",
+      buyerPhone: "010-1234-5678",
+      productName: "봉황세트",
+      quantity: 2,
+      unitPrice: 200000,
+      totalAmount: 400000,
+      recipientName: "",
+      recipientPhone: "",
+      roadAddr: "",
+      pickupTime: "15:00",
+      deliveryMemo: "",
+      paymentStatus: "결제완료",
+      note: "매장 픽업",
+    },
+    {
+      rowNumber: 7,
+      scheduleDate: "2026-09-15",
+      fulfillmentMethod: "택배",
+      buyerName: "박신자",
+      buyerPhone: "010-3333-4444",
+      productName: "기타",
+      quantity: 1,
+      unitPrice: 150000,
+      totalAmount: 150000,
+      recipientName: "이영희",
+      recipientPhone: "010-7777-8888",
+      roadAddr: "서울 강남구 테헤란로 123 4층",
+      pickupTime: "",
+      deliveryMemo: "배송 전 연락",
+      paymentStatus: "미결제",
+      note: "구이용 15만원 세트(선물세트x)",
+    },
+  ], "2026-09-06");
+
+  assert.deepEqual(result.errors, []);
+  assert.equal(result.groups.length, 2);
+
+  // Group 1: 현장수령, 결제완료
+  assert.equal(result.groups[0].fulfillmentType, "pickup");
+  assert.equal(result.groups[0].paymentStatus, "paid");
+  assert.equal(result.groups[0].buyerName, "홍길동");
+  assert.equal(result.groups[0].pickupTime, "15:00");
+  assert.equal(result.groups[0].totalAmount, 400000);
+  assert.equal(result.groups[0].items[0].productCode, "VAC-BH");
+  assert.equal(result.groups[0].items[0].unitPrice, 200000);
+  assert.equal(result.groups[0].items[0].lineTotal, 400000);
+
+  // Group 2: 택배, 미결제, 기타 맞춤주문
+  assert.equal(result.groups[1].fulfillmentType, "shipping");
+  assert.equal(result.groups[1].paymentStatus, "unpaid");
+  assert.equal(result.groups[1].buyerName, "박신자");
+  assert.equal(result.groups[1].recipientName, "이영희");
+  assert.equal(result.groups[1].roadAddr, "서울 강남구 테헤란로 123 4층");
+  assert.equal(result.groups[1].items[0].productCode, "CUSTOM");
+  assert.equal(result.groups[1].items[0].isCustom, true);
+  assert.equal(result.groups[1].items[0].unitPrice, 150000);
+  assert.equal(result.groups[1].items[0].lineTotal, 150000);
+  assert.equal(result.groups[1].totalAmount, 150000);
 });
 
 test("bulk route stays operator-only, idempotent, atomic, auditable, and writes current order records", async () => {

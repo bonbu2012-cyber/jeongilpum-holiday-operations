@@ -95,7 +95,7 @@ export default function BulkOrderUploadApp() {
   const productErrors = useMemo(() => {
     if (legacyOrders.length > 0) return [];
     return groups.flatMap((group) => group.items.flatMap((item) => (
-      products.length && !productsByCode.has(item.productCode)
+      products.length && item.productCode !== "CUSTOM" && !productsByCode.has(item.productCode)
         ? item.rowNumbers.map((rowNumber) => ({ rowNumber, field: "상품코드", message: "현재 상품코드표에 없는 상품입니다." }))
         : []
     )));
@@ -107,10 +107,15 @@ export default function BulkOrderUploadApp() {
     : groups.reduce((sum, group) => sum + group.items.reduce((itemSum, item) => itemSum + item.quantity, 0), 0);
   const amountTotal = legacyOrders.length > 0
     ? legacyOrders.reduce((sum, order) => sum + order.totalAmount, 0)
-    : groups.reduce((sum, group) => sum + group.items.reduce((itemSum, item) => {
-        const product = productsByCode.get(item.productCode);
-        return itemSum + (product ? product.price * item.quantity : 0);
-      }, 0), 0);
+    : groups.reduce((sum, group) => sum + (
+        group.totalAmount > 0
+          ? group.totalAmount
+          : group.items.reduce((itemSum, item) => {
+              const product = productsByCode.get(item.productCode);
+              const unitPrice = item.unitPrice ?? product?.price ?? 0;
+              return itemSum + unitPrice * item.quantity;
+            }, 0)
+      ), 0);
   const pickupCount = groups.filter((group) => group.fulfillmentType === "pickup").length;
   const shippingCount = groups.length - pickupCount;
 
@@ -161,6 +166,7 @@ export default function BulkOrderUploadApp() {
         const legacyGroups: BulkOrderGroup[] = orders.map((order) => ({
           groupKey: order.orderNo,
           fulfillmentType: order.fulfillmentType,
+          deliveryMethod: order.deliveryMethod,
           buyerName: order.buyerName,
           buyerPhone: order.buyerPhone,
           recipientName: order.recipientName,
@@ -173,9 +179,15 @@ export default function BulkOrderUploadApp() {
           scheduleDate: order.scheduleDate,
           pickupTime: order.pickupTime,
           note: order.note,
+          paymentStatus: order.paymentStatus === "paid" ? "paid" : "unpaid",
+          totalAmount: order.totalAmount,
           rowNumbers: [order.rawRowNumber],
           items: [{
             productCode: order.productCode,
+            productName: order.productName,
+            unitPrice: order.unitPrice,
+            lineTotal: order.lineTotal,
+            isCustom: order.productId === "custom-order",
             quantity: order.quantity,
             rowNumbers: [order.rawRowNumber],
           }],
@@ -329,6 +341,7 @@ export default function BulkOrderUploadApp() {
                     <th scope="col">일정</th>
                     <th scope="col">상품</th>
                     <th scope="col">금액</th>
+                    <th scope="col">결제상태</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -336,12 +349,18 @@ export default function BulkOrderUploadApp() {
                     const legacy = legacyOrders[gIdx];
                     const total = legacy
                       ? legacy.totalAmount
-                      : group.items.reduce((sum, item) => sum + (productsByCode.get(item.productCode)?.price ?? 0) * item.quantity, 0);
-                    const displayName = group.fulfillmentType === "pickup" ? group.buyerName : group.recipientName;
-                    const displayPhone = group.fulfillmentType === "pickup" ? group.buyerPhone : group.recipientPhone;
+                      : (group.totalAmount > 0
+                          ? group.totalAmount
+                          : group.items.reduce((sum, item) => {
+                              const unitPrice = item.unitPrice ?? productsByCode.get(item.productCode)?.price ?? 0;
+                              return sum + unitPrice * item.quantity;
+                            }, 0));
+                    const displayName = group.fulfillmentType === "pickup" ? group.buyerName : (group.recipientName || group.buyerName);
+                    const displayPhone = group.fulfillmentType === "pickup" ? group.buyerPhone : (group.recipientPhone || group.buyerPhone);
                     const productText = legacy
                       ? `${legacy.productName} × ${legacy.quantity}`
-                      : group.items.map((item) => `${productsByCode.get(item.productCode)?.name ?? item.productCode} × ${item.quantity}`).join(", ");
+                      : group.items.map((item) => `${item.productName || productsByCode.get(item.productCode)?.name || item.productCode} × ${item.quantity}`).join(", ");
+                    const isPaid = group.paymentStatus === "paid" || legacy?.paymentStatus === "paid";
                     return (
                       <tr key={group.groupKey}>
                         <th scope="row">{group.groupKey}</th>
@@ -350,6 +369,11 @@ export default function BulkOrderUploadApp() {
                         <td>{scheduleLabel(group)}</td>
                         <td>{productText}</td>
                         <td>{won(total)}</td>
+                        <td>
+                          <span className={`ui-badge ${isPaid ? "ui-badge--success" : "ui-badge--neutral"}`}>
+                            {isPaid ? "결제완료" : "미결제"}
+                          </span>
+                        </td>
                       </tr>
                     );
                   })}
@@ -357,7 +381,7 @@ export default function BulkOrderUploadApp() {
               </table>
             </div>
             <div className="bulk-order-submit">
-              <p>모든 주문은 미결제이며 현장수령 예약 또는 택배발송 작업으로 접수됩니다.</p>
+              <p>양식에 입력된 결제상태(결제완료/미결제) 및 수령방식(현장/택배/배달)에 맞춰 접수됩니다.</p>
               <button className="bulk-order-upload-button" disabled={uploading || catalogLoading || Boolean(catalogError)} onClick={() => void upload()}>
                 <Upload size={17} aria-hidden="true" />
                 {uploading ? "일괄 주문 업로드 중" : `일괄 주문 업로드 (${groups.length}건)`}
