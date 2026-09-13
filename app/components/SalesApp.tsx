@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
+import { Truck } from "lucide-react";
 import AppNav from "./AppNav";
+import { downloadCourierInvoiceCsvFile, type CourierWorkItemLike } from "../lib/courier-invoice-csv";
 import {
   Badge,
   Button,
@@ -1059,37 +1061,107 @@ export default function SalesApp() {
 
         {error ? <p className="sales-work-table__error" role="alert">{error.message}</p> : null}
 
-        {tab === "work" ? (
-          <section className="sales-work-table__section" aria-label="작업 목록">
-            <DataTable
-              ariaLabel="판매장 작업 목록"
-              rows={filteredWorkItems}
-              columns={columns}
-              getRowId={(item) => item.id}
-              exportName="판매장-작업-목록"
-              rowClassName={workItemRowClass}
-              onRowClick={setSelectedWorkItem}
-              selectedIds={selectedIds}
-              onSelectedIdsChange={setSelectedIds}
-              emptyMessage="조건에 맞는 작업이 없습니다."
-            />
-          </section>
-        ) : (
-          <section className="sales-work-table__section" aria-label="주문 목록">
-            <DataTable
-              ariaLabel="판매장 주문 목록"
-              rows={customerOrders}
-              columns={orderColumns}
-              getRowId={(order) => order.id}
-              exportName="판매장-주문-목록"
-              rowClassName={outstandingPaymentRowClass}
-              onRowClick={(order) => setSelectedOrder({ order, buyerName: order.buyerName, buyerPhone: order.buyerPhone })}
-              selectedIds={selectedOrderIds}
-              onSelectedIdsChange={setSelectedOrderIds}
-              emptyMessage="조건에 맞는 주문이 없습니다."
-            />
-          </section>
-        )}
+        {(() => {
+          const handleCourierExport = () => {
+            let itemsToExport: CourierWorkItemLike[] = [];
+            if (tab === "work") {
+              const source = selectedWorkItems.length ? selectedWorkItems : filteredWorkItems;
+              itemsToExport = source.map((item) => ({
+                id: item.id,
+                orderId: item.orderId,
+                buyerName: item.buyerName,
+                buyerPhone: item.buyerPhone,
+                recipientName: item.recipientName,
+                recipientPhone: item.recipientPhone,
+                postalCode: item.postalCode,
+                roadAddr: item.roadAddr,
+                jibunAddr: item.jibunAddr,
+                detailAddr: item.detailAddr,
+                deliveryMethod: item.deliveryMethod,
+                workStatus: item.workStatus,
+                quantity: item.quantity,
+                productName: item.productName,
+                customerNote: item.customerNote,
+                note: item.note,
+              }));
+            } else {
+              const source = selectedCustomerOrders.length ? selectedCustomerOrders : customerOrders;
+              itemsToExport = source.flatMap((order) =>
+                (order.workItems || []).map((item) => ({
+                  id: item.id,
+                  orderId: order.id,
+                  orderNo: order.orderNo,
+                  buyerName: order.buyerName,
+                  buyerPhone: order.buyerPhone,
+                  recipientName: item.recipientName,
+                  recipientPhone: item.recipientPhone,
+                  postalCode: item.postalCode,
+                  roadAddr: item.roadAddr,
+                  jibunAddr: item.jibunAddr,
+                  detailAddr: item.detailAddr,
+                  deliveryMethod: item.deliveryMethod,
+                  workStatus: item.workStatus,
+                  quantity: item.quantity,
+                  productName: item.productName,
+                  customerNote: item.customerNote,
+                  note: item.note,
+                }))
+              );
+            }
+
+            const dateLabel = [dateFrom, dateTo].filter(Boolean).join("~") || "전체";
+            const success = downloadCourierInvoiceCsvFile(itemsToExport, dateLabel);
+            if (!success) {
+              alert("선택 또는 조회된 내역 중 택배발송 주문이 없습니다.");
+            }
+          };
+
+          const courierExportBtn = (
+            <Button
+              variant="ghost"
+              size="sm"
+              leadingIcon={<Truck size={16} />}
+              onClick={handleCourierExport}
+              title="택배사 송장 출력 프로그램 업로드용 전용 엑셀(CSV) 다운로드"
+            >
+              택배 송장 엑셀
+            </Button>
+          );
+
+          return tab === "work" ? (
+            <section className="sales-work-table__section" aria-label="작업 목록">
+              <DataTable
+                ariaLabel="판매장 작업 목록"
+                rows={filteredWorkItems}
+                columns={columns}
+                getRowId={(item) => item.id}
+                exportName="판매장-작업-목록"
+                exportExtra={courierExportBtn}
+                rowClassName={workItemRowClass}
+                onRowClick={setSelectedWorkItem}
+                selectedIds={selectedIds}
+                onSelectedIdsChange={setSelectedIds}
+                emptyMessage="조건에 맞는 작업이 없습니다."
+              />
+            </section>
+          ) : (
+            <section className="sales-work-table__section" aria-label="주문 목록">
+              <DataTable
+                ariaLabel="판매장 주문 목록"
+                rows={customerOrders}
+                columns={orderColumns}
+                getRowId={(order) => order.id}
+                exportName="판매장-주문-목록"
+                exportExtra={courierExportBtn}
+                rowClassName={outstandingPaymentRowClass}
+                onRowClick={(order) => setSelectedOrder({ order, buyerName: order.buyerName, buyerPhone: order.buyerPhone })}
+                selectedIds={selectedOrderIds}
+                onSelectedIdsChange={setSelectedOrderIds}
+                emptyMessage="조건에 맞는 주문이 없습니다."
+              />
+            </section>
+          );
+        })()}
       </main>
 
       {selectedWorkItem ? (

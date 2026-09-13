@@ -10,7 +10,7 @@
         "build": "node scripts/migrate-postgres.mjs && next build",
         "start": "next start",
         "test": "node --experimental-strip-types --test tests/design-system.test.mjs tests/v2-spec.test.mjs tests/legacy-fulfillment.test.mjs tests/commerce.test.mjs tests/sales-operations.test.mjs tests/workshop-operations.test.mjs tests/package-traceability.test.mjs",
-        "lint": "eslint . --ignore-pattern dist --ignore-pattern .next --ignore-pattern .wrangler",
+        "lint": "eslint . --ignore-pattern dist --ignore-pattern .next --ignore-pattern .wrangler --ignore-pattern .vercel",
         "db:local": "node scripts/db-local.mjs",
         "db:seed": "node scripts/seed-local.mjs",
         "db:generate": "drizzle-kit generate && node scripts/build-catalog-sql.mjs",

@@ -9,11 +9,13 @@ import {
   Route,
   ScanLine,
   Tag,
+  Truck,
 } from "lucide-react";
 import { useState } from "react";
 import type { ReactNode } from "react";
 import type { DataTableColumn } from "../ui";
 import AppNav from "./AppNav";
+import { downloadCourierInvoiceCsvFile, type CourierWorkItemLike } from "../lib/courier-invoice-csv";
 import CustomOrderDetails from "./CustomOrderDetails";
 import WorkshopLabelModal from "./WorkshopLabelModal";
 import WorkshopPackingSlipModal from "./WorkshopPackingSlipModal";
@@ -502,6 +504,40 @@ export default function WorkshopApp() {
                   }}
                 >
                   {selectedWorkItems.length ? `선택 라벨 인쇄 (${selectedWorkItems.length})` : "라벨 인쇄 (50×50)"}
+                </Button>
+                <Button
+                  variant="ghost"
+                  leadingIcon={<Truck size={16} />}
+                  onClick={() => {
+                    const targets = selectedWorkItems.length ? selectedWorkItems : activeRows;
+                    const itemsToExport: CourierWorkItemLike[] = targets.map((item) => ({
+                      id: item.id,
+                      orderId: item.orderId,
+                      buyerName: item.buyerName,
+                      buyerPhone: item.buyerPhone,
+                      recipientName: item.recipientName,
+                      recipientPhone: item.recipientPhone,
+                      postalCode: item.postalCode,
+                      roadAddr: item.roadAddr,
+                      roadAddress: item.address,
+                      jibunAddr: item.jibunAddr,
+                      detailAddr: item.detailAddr,
+                      deliveryMethod: item.deliveryMethod,
+                      workStatus: item.workStatus,
+                      quantity: item.quantity,
+                      productName: item.productName,
+                      note: item.note,
+                    }));
+                    const success = downloadCourierInvoiceCsvFile(itemsToExport, date);
+                    if (!success) {
+                      setNotice("해당 일자(또는 선택 항목)에 택배발송 작업이 없습니다.");
+                    } else {
+                      setNotice("택배 송장 엑셀 파일이 다운로드되었습니다.");
+                    }
+                  }}
+                  title="택배사 송장 출력 프로그램 업로드용 전용 엑셀(CSV) 다운로드"
+                >
+                  택배 송장 (엑셀)
                 </Button>
                 {selectedWorkItems.length ? (
                   <Button

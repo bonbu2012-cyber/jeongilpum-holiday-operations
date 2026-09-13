@@ -76,6 +76,7 @@ type DataTableFlatProps<Row> = {
   emptyMessage?: ReactNode;
   ariaLabel?: string;
   exportName?: string;
+  exportExtra?: ReactNode;
 };
 
 type DataTableHierarchyProps = {
@@ -142,6 +143,7 @@ function FlatDataTable<Row>({
   emptyMessage = "표시할 항목이 없습니다.",
   ariaLabel,
   exportName,
+  exportExtra,
 }: DataTableFlatProps<Row>) {
   const [internalSelectedIds, setInternalSelectedIds] = useState<string[]>([]);
   const [sort, setSort] = useState<SortState>(
@@ -282,9 +284,12 @@ function FlatDataTable<Row>({
       {exportName ? (
         <Toolbar
           actions={(
-            <Button variant="ghost" size="sm" leadingIcon={<Download size={16} />} onClick={downloadCsv}>
-              엑셀 다운로드
-            </Button>
+            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+              {exportExtra}
+              <Button variant="ghost" size="sm" leadingIcon={<Download size={16} />} onClick={downloadCsv}>
+                엑셀 다운로드
+              </Button>
+            </div>
           )}
         />
       ) : null}
