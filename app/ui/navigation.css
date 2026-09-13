@@ -99,25 +99,36 @@
 .app-nav {
   align-items: center;
   position: fixed;
-  inset-block: 0;
-  right: 14px;
+  bottom: 16px;
+  right: 16px;
+  top: auto;
+  inset-block: auto;
   height: fit-content;
-  margin-block: auto;
   z-index: 70;
   display: flex;
-  flex-direction: column;
-  gap: 5px;
-  padding: 8px;
+  flex-direction: row;
+  gap: 4px;
+  padding: 5px 6px;
   border: 1px solid #d9d1c5;
   border-radius: var(--radius-lg);
-  background: #fffffff2;
-  box-shadow: 0 14px 38px #38271924;
-  backdrop-filter: blur(10px);
+  background: #fffffff5;
+  box-shadow: 0 10px 30px #38271924;
+  backdrop-filter: blur(12px);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
+
+.app-nav__links {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+}
+
 .app-nav a {
-  width: 76px;
-  min-height: 44px;
-  padding: 8px 6px;
+  width: auto;
+  min-width: 64px;
+  min-height: 38px;
+  padding: 6px 12px;
   border: 0;
   border-radius: var(--radius-md);
   display: flex;
@@ -129,24 +140,77 @@
   color: #514b43;
   font-size: var(--text-sm);
   font-weight: var(--weight-strong);
+  text-decoration: none;
+  transition: background-color 0.15s, color 0.15s;
 }
+
+.app-nav a:hover {
+  background: #f4efe9;
+  color: #211c18;
+}
+
 .app-nav a.current {
   background: var(--wine);
   color: #fff;
-  box-shadow: 0 5px 14px #681e1b38;
+  box-shadow: 0 4px 12px #681e1b38;
+}
+
+.app-nav__collapse-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: #8c827a;
+  cursor: pointer;
+  padding: 0;
+  margin-left: 2px;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.app-nav__collapse-btn:hover {
+  background: #ede7df;
+  color: #2b2520;
+}
+
+.app-nav--collapsed {
+  padding: 3px;
+  border-radius: 9999px;
+  box-shadow: 0 6px 20px #3827191f;
+}
+
+.app-nav__toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border: 0;
+  border-radius: 9999px;
+  background: transparent;
+  color: #4a423b;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-strong);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.app-nav__toggle-btn:hover {
+  background: #f4efe9;
+  color: var(--wine);
 }
 
 @media (max-width: 1180px) {
   .app-nav {
-    top: auto;
-    right: 14px;
-    bottom: 14px;
-    transform: none;
-    flex-direction: row;
+    right: 12px;
+    bottom: 12px;
   }
   .app-nav a {
-    width: auto;
-    min-width: 64px;
+    min-width: 58px;
+    padding: 5px 8px;
   }
   .kiosk-app > .app-nav {
     bottom: 100px;
@@ -156,18 +220,22 @@
 @media (max-width: 700px) {
   .app-nav {
     right: 8px;
-    bottom: 10px;
-    padding: 5px;
-    border-radius: var(--radius-lg);
+    bottom: 8px;
+    padding: 4px;
+    gap: 2px;
   }
   .kiosk-app > .app-nav {
     bottom: 94px;
   }
   .app-nav a {
-    min-width: 57px;
-    min-height: 40px;
-    padding: 6px 4px;
-    font-size: var(--text-sm);
+    min-width: 50px;
+    min-height: 34px;
+    padding: 4px 6px;
+    font-size: var(--text-xs);
+  }
+  .app-nav__collapse-btn {
+    width: 24px;
+    height: 24px;
   }
 }
 
