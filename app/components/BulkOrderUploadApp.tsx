@@ -12,6 +12,11 @@ import {
   type BulkOrderValidationError,
 } from "../lib/bulk-order-import";
 import { readBulkOrderWorkbook } from "../lib/xlsx-order-reader";
+import {
+  isLegacyOrderCsv,
+  parseLegacyOrderRows,
+  type LegacyParsedOrder,
+} from "../lib/legacy-order-csv-importer";
 
 type Product = {
   id: string;
@@ -67,6 +72,7 @@ export default function BulkOrderUploadApp() {
   const [fileName, setFileName] = useState("");
   const [fileHash, setFileHash] = useState("");
   const [rows, setRows] = useState<BulkOrderRowInput[]>([]);
+  const [legacyOrders, setLegacyOrders] = useState<LegacyParsedOrder[]>([]);
   const [groups, setGroups] = useState<BulkOrderGroup[]>([]);
   const [errors, setErrors] = useState<BulkOrderValidationError[]>([]);
   const [reading, setReading] = useState(false);
@@ -86,17 +92,25 @@ export default function BulkOrderUploadApp() {
   }, []);
 
   const productsByCode = useMemo(() => new Map(products.map((product) => [product.code.toUpperCase(), product])), [products]);
-  const productErrors = useMemo(() => groups.flatMap((group) => group.items.flatMap((item) => (
-    products.length && !productsByCode.has(item.productCode)
-      ? item.rowNumbers.map((rowNumber) => ({ rowNumber, field: "상품코드", message: "현재 상품코드표에 없는 상품입니다." }))
-      : []
-  ))), [groups, products.length, productsByCode]);
+  const productErrors = useMemo(() => {
+    if (legacyOrders.length > 0) return [];
+    return groups.flatMap((group) => group.items.flatMap((item) => (
+      products.length && !productsByCode.has(item.productCode)
+        ? item.rowNumbers.map((rowNumber) => ({ rowNumber, field: "상품코드", message: "현재 상품코드표에 없는 상품입니다." }))
+        : []
+    )));
+  }, [groups, products.length, productsByCode, legacyOrders.length]);
+
   const allErrors = [...errors, ...productErrors];
-  const quantityTotal = groups.reduce((sum, group) => sum + group.items.reduce((itemSum, item) => itemSum + item.quantity, 0), 0);
-  const amountTotal = groups.reduce((sum, group) => sum + group.items.reduce((itemSum, item) => {
-    const product = productsByCode.get(item.productCode);
-    return itemSum + (product ? product.price * item.quantity : 0);
-  }, 0), 0);
+  const quantityTotal = legacyOrders.length > 0
+    ? legacyOrders.reduce((sum, order) => sum + order.quantity, 0)
+    : groups.reduce((sum, group) => sum + group.items.reduce((itemSum, item) => itemSum + item.quantity, 0), 0);
+  const amountTotal = legacyOrders.length > 0
+    ? legacyOrders.reduce((sum, order) => sum + order.totalAmount, 0)
+    : groups.reduce((sum, group) => sum + group.items.reduce((itemSum, item) => {
+        const product = productsByCode.get(item.productCode);
+        return itemSum + (product ? product.price * item.quantity : 0);
+      }, 0), 0);
   const pickupCount = groups.filter((group) => group.fulfillmentType === "pickup").length;
   const shippingCount = groups.length - pickupCount;
 
@@ -104,6 +118,7 @@ export default function BulkOrderUploadApp() {
     setFileName("");
     setFileHash("");
     setRows([]);
+    setLegacyOrders([]);
     setGroups([]);
     setErrors([]);
     setResults([]);
@@ -113,8 +128,11 @@ export default function BulkOrderUploadApp() {
   const chooseFile = async (file: File | undefined) => {
     resetSelection();
     if (!file) return;
-    if (!file.name.toLowerCase().endsWith(".xlsx")) {
-      setErrors([{ rowNumber: null, field: "파일", message: ".xlsx 파일만 업로드할 수 있습니다." }]);
+    const lowerName = file.name.toLowerCase();
+    const isCsv = lowerName.endsWith(".csv");
+    const isXlsx = lowerName.endsWith(".xlsx");
+    if (!isCsv && !isXlsx) {
+      setErrors([{ rowNumber: null, field: "파일", message: ".xlsx 또는 .csv 파일만 업로드할 수 있습니다." }]);
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
@@ -125,15 +143,55 @@ export default function BulkOrderUploadApp() {
     setFileName(file.name);
     try {
       const buffer = await file.arrayBuffer();
-      const [parsedRows, digest] = await Promise.all([readBulkOrderWorkbook(buffer), sha256(buffer)]);
-      const validation = validateAndGroupBulkOrderRows(parsedRows, todayInSeoul());
-      setRows(parsedRows);
-      setGroups(validation.groups);
-      setErrors(validation.errors);
+      const digest = await sha256(buffer);
       setFileHash(digest);
-      setNotice(validation.errors.length ? "오류를 수정한 뒤 파일을 다시 선택해주세요." : "업로드 전 검사가 끝났습니다.");
+
+      if (isCsv) {
+        const text = new TextDecoder("utf-8").decode(buffer);
+        if (!isLegacyOrderCsv(text)) {
+          setErrors([{ rowNumber: null, field: "파일", message: "기존 앱 명단 서식(주문번호, 출고일, 상품 등 16개 열)이 아닙니다." }]);
+          return;
+        }
+        const { orders, errors: parseErrors } = parseLegacyOrderRows(text, products);
+        if (parseErrors.length > 0) {
+          setErrors(parseErrors.map((msg) => ({ rowNumber: null, field: "CSV", message: msg })));
+          return;
+        }
+        setLegacyOrders(orders);
+        const legacyGroups: BulkOrderGroup[] = orders.map((order) => ({
+          groupKey: order.orderNo,
+          fulfillmentType: order.fulfillmentType,
+          buyerName: order.buyerName,
+          buyerPhone: order.buyerPhone,
+          recipientName: order.recipientName,
+          recipientPhone: order.recipientPhone,
+          postalCode: "",
+          roadAddr: order.roadAddr,
+          roadAddrReference: "",
+          jibunAddr: "",
+          detailAddr: order.detailAddr,
+          scheduleDate: order.scheduleDate,
+          pickupTime: order.pickupTime,
+          note: order.note,
+          rowNumbers: [order.rawRowNumber],
+          items: [{
+            productCode: order.productCode,
+            quantity: order.quantity,
+            rowNumbers: [order.rawRowNumber],
+          }],
+        }));
+        setGroups(legacyGroups);
+        setNotice(`기존 앱 명단 ${orders.length}건을 읽었습니다. 접수 내용을 확인 후 업로드해주세요.`);
+      } else {
+        const parsedRows = await readBulkOrderWorkbook(buffer);
+        const validation = validateAndGroupBulkOrderRows(parsedRows, todayInSeoul());
+        setRows(parsedRows);
+        setGroups(validation.groups);
+        setErrors(validation.errors);
+        setNotice(validation.errors.length ? "오류를 수정한 뒤 파일을 다시 선택해주세요." : "업로드 전 검사가 끝났습니다.");
+      }
     } catch (caught) {
-      setErrors([{ rowNumber: null, field: "파일", message: caught instanceof Error ? caught.message : "엑셀 파일을 읽지 못했습니다." }]);
+      setErrors([{ rowNumber: null, field: "파일", message: caught instanceof Error ? caught.message : "파일을 읽지 못했습니다." }]);
     } finally {
       setReading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -141,15 +199,18 @@ export default function BulkOrderUploadApp() {
   };
 
   const upload = async () => {
-    if (!fileHash || !rows.length || allErrors.length || uploading || catalogLoading || catalogError) return;
+    if (!fileHash || (!rows.length && !legacyOrders.length) || allErrors.length || uploading || catalogLoading || catalogError) return;
     setUploading(true);
     setNotice("");
     setResults([]);
     try {
+      const body = legacyOrders.length > 0
+        ? { fileHash, legacyOrders }
+        : { fileHash, rows };
       const response = await fetch("/api/orders/bulk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fileHash, rows }),
+        body: JSON.stringify(body),
       });
       const data = await response.json() as ImportResponse;
       if (!response.ok) {
@@ -194,7 +255,7 @@ export default function BulkOrderUploadApp() {
               <span>1</span>
               <div>
                 <h2 id="bulk-file-title">파일 선택</h2>
-                <p>주문입력 시트의 6행부터 작성된 .xlsx 파일을 읽습니다.</p>
+                <p>주문입력 .xlsx 파일 또는 기존 앱의 .csv 파일을 읽습니다.</p>
               </div>
             </div>
             <small>최대 200행 · 5MB</small>
@@ -204,12 +265,12 @@ export default function BulkOrderUploadApp() {
             className="sr-only"
             id="bulk-order-file"
             type="file"
-            accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             onChange={(event) => void chooseFile(event.target.files?.[0])}
           />
           <label className="bulk-order-dropzone" htmlFor="bulk-order-file">
             <FileSpreadsheet size={30} aria-hidden="true" />
-            <strong>{reading ? "파일을 확인하는 중입니다" : fileName || "엑셀 파일 선택"}</strong>
+            <strong>{reading ? "파일을 확인하는 중입니다" : fileName || "엑셀(.xlsx) 또는 명단(.csv) 파일 선택"}</strong>
             <span>{fileName ? "다른 파일을 선택하려면 다시 누르세요." : "파일은 브라우저 저장소에 보관하지 않습니다."}</span>
           </label>
           {catalogLoading ? <p className="bulk-order-message" role="status">상품 정보를 불러오는 중입니다.</p> : null}
@@ -271,17 +332,23 @@ export default function BulkOrderUploadApp() {
                   </tr>
                 </thead>
                 <tbody>
-                  {groups.map((group) => {
-                    const total = group.items.reduce((sum, item) => sum + (productsByCode.get(item.productCode)?.price ?? 0) * item.quantity, 0);
+                  {groups.map((group, gIdx) => {
+                    const legacy = legacyOrders[gIdx];
+                    const total = legacy
+                      ? legacy.totalAmount
+                      : group.items.reduce((sum, item) => sum + (productsByCode.get(item.productCode)?.price ?? 0) * item.quantity, 0);
                     const displayName = group.fulfillmentType === "pickup" ? group.buyerName : group.recipientName;
                     const displayPhone = group.fulfillmentType === "pickup" ? group.buyerPhone : group.recipientPhone;
+                    const productText = legacy
+                      ? `${legacy.productName} × ${legacy.quantity}`
+                      : group.items.map((item) => `${productsByCode.get(item.productCode)?.name ?? item.productCode} × ${item.quantity}`).join(", ");
                     return (
                       <tr key={group.groupKey}>
                         <th scope="row">{group.groupKey}</th>
                         <td><strong>{fulfillmentLabel(group.fulfillmentType)}</strong></td>
                         <td><strong>{displayName}</strong><small>{displayPhone}</small></td>
                         <td>{scheduleLabel(group)}</td>
-                        <td>{group.items.map((item) => `${productsByCode.get(item.productCode)?.name ?? item.productCode} × ${item.quantity}`).join(", ")}</td>
+                        <td>{productText}</td>
                         <td>{won(total)}</td>
                       </tr>
                     );

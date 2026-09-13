@@ -4,6 +4,7 @@ import { normalizeCustomerName, primaryCustomerAccountId } from "../../../lib/cu
 import { latestProductAvailability } from "../../../lib/product-availability";
 import { OPERATOR_ACTOR, requireOperatorApi } from "../../../lib/operator-session";
 import { nextOrderNo, orderNumberPrefix } from "../../../lib/order-number";
+import type { LegacyParsedOrder } from "../../../lib/legacy-order-csv-importer";
 
 type ProductRow = {
   id: string;
@@ -103,18 +104,157 @@ async function allocatedOrderNumbers(count: number) {
   });
 }
 
+async function handleLegacyBulkOrders(fileHash: string, orders: LegacyParsedOrder[]) {
+  const season = await runtimeEnv.DB.prepare(`
+    SELECT id,sales_start_date,sales_end_date
+    FROM sales_seasons WHERE active=1
+    ORDER BY sales_start_date DESC LIMIT 1
+  `).first<SeasonRow>();
+  if (!season) return Response.json({ error: "현재 예약 가능한 판매 시즌이 없습니다." }, { status: 409 });
+
+  const results: ImportResult[] = [];
+  for (const order of orders) {
+    const key = `bulk-legacy:${fileHash}:${order.orderNo}`;
+    const existing = await runtimeEnv.DB.prepare(`
+      SELECT order_no FROM orders WHERE order_no = ? OR idempotency_key = ?
+    `).bind(order.orderNo, key).first<{ order_no: string }>();
+
+    if (existing) {
+      results.push({ groupKey: order.orderNo, status: "existing", orderNo: existing.order_no });
+      continue;
+    }
+
+    const orderId = crypto.randomUUID();
+    const orderItemId = crypto.randomUUID();
+    const fulfillmentId = crypto.randomUUID();
+    const now = new Date().toISOString();
+
+    const isPickup = order.fulfillmentType === "pickup";
+    const pickupAt = isPickup ? `${order.scheduleDate}T${order.pickupTime || "10:00"}:00+09:00` : null;
+    const shipDate = !isPickup ? order.scheduleDate : null;
+    const dueAt = pickupAt ?? `${order.scheduleDate}T00:00:00+09:00`;
+    const scheduleLabel = isPickup
+      ? `${order.scheduleDate} · ${order.pickupTime || "10:00"}`
+      : `${order.scheduleDate} 발송 예정`;
+
+    const normalizedName = normalizeCustomerName(order.buyerName);
+    const customerAccountId = `cust_${normalizedName}_${order.buyerPhone || "01000000000"}`;
+
+    try {
+      await runtimeEnv.DB.prepare(`
+        INSERT INTO customer_accounts(
+          id, normalized_name, normalized_phone, display_name, display_phone, ledger_sequence,
+          ledger_label, is_primary, created_at, updated_at
+        ) VALUES(?,?,?,?,?,1,'',true,?,?)
+        ON CONFLICT DO NOTHING
+      `).bind(customerAccountId, normalizedName, order.buyerPhone, order.buyerName, order.buyerPhone, now, now).run();
+
+      await runtimeEnv.DB.prepare(`
+        INSERT INTO orders(
+          id, order_no, season_id, buyer_name_snapshot, buyer_phone_snapshot, order_status,
+          fulfillment_type, schedule_label, recipient_name, recipient_phone, road_address,
+          detail_address, buyer_name, buyer_phone, payment_status, paid_amount, customer_arrived_at,
+          customer_note, total_amount, idempotency_key, version, submitted_at, created_at, updated_at
+        ) VALUES(?,?,?,?,?,'submitted',?,?,?,?,?,?,?,?,?,?,NULL,?,?,?,1,?,?,?)
+        ON CONFLICT (order_no) DO NOTHING
+      `).bind(
+        orderId, order.orderNo, season.id, order.buyerName, order.buyerPhone,
+        order.fulfillmentType, scheduleLabel, order.recipientName || null,
+        order.recipientPhone || null, order.roadAddr || null, order.detailAddr || null,
+        order.buyerName, order.buyerPhone, order.paymentStatus, order.paidAmount,
+        order.note, order.totalAmount, key, now, now, now
+      ).run();
+
+      await runtimeEnv.DB.prepare(`
+        INSERT INTO order_items(
+          id, order_id, product_id, product_name_snapshot, list_price_snapshot,
+          sale_unit_price, quantity, line_total, created_at
+        ) VALUES(?,?,?,?,?,?,?,?,?)
+        ON CONFLICT DO NOTHING
+      `).bind(
+        orderItemId, orderId, order.productId, order.productName,
+        order.unitPrice, order.unitPrice, order.quantity, order.lineTotal, now
+      ).run();
+
+      await runtimeEnv.DB.prepare(`
+        INSERT INTO work_items(
+          id, order_id, product_id, product_name_snapshot, unit_price_snapshot, quantity, line_total,
+          delivery_method, due_at, work_status, recipient_name, recipient_phone, postal_code,
+          road_addr, road_addr_reference, jibun_addr, detail_addr, customization_json, note,
+          version, created_at, updated_at
+        ) VALUES(?,?,?,?,?,?,?, ?,?, ?,?,?,?,?,?,?,?,?,?,1,?,?)
+        ON CONFLICT DO NOTHING
+      `).bind(
+        orderItemId, orderId, order.productId, order.productName, order.unitPrice,
+        order.quantity, order.lineTotal, order.deliveryMethod, dueAt, order.workStatus,
+        order.recipientName || null, order.recipientPhone || null, null,
+        order.roadAddr || null, null, null, order.detailAddr || null,
+        order.productId === "custom-order" ? order.rawProduct : null,
+        order.note, now, now
+      ).run();
+
+      await runtimeEnv.DB.prepare(`
+        INSERT INTO fulfillments(
+          id, order_id, fulfillment_type, pickup_at, ship_date, recipient_name, recipient_phone,
+          postal_code, road_addr, road_addr_reference, jibun_addr, detail_addr, status,
+          customer_arrived, note, created_at, updated_at
+        ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,'scheduled',false,?,?,?)
+        ON CONFLICT DO NOTHING
+      `).bind(
+        fulfillmentId, orderId, order.fulfillmentType, pickupAt, shipDate,
+        order.recipientName || null, order.recipientPhone || null, null,
+        order.roadAddr || null, null, null, order.detailAddr || null,
+        order.note, now, now
+      ).run();
+
+      await runtimeEnv.DB.prepare(`
+        INSERT INTO fulfillment_items(id, fulfillment_id, order_item_id, quantity, created_at)
+        VALUES(?,?,?,?,?)
+        ON CONFLICT DO NOTHING
+      `).bind(crypto.randomUUID(), fulfillmentId, orderItemId, order.quantity, now).run();
+
+      await runtimeEnv.DB.prepare(`
+        INSERT INTO work_item_events(
+          id, work_item_id, order_id, event_type, from_value, to_value, actor, created_at
+        ) VALUES(?,?,?,'work_item_created',NULL,?,'legacy_csv',?)
+      `).bind(
+        crypto.randomUUID(), orderItemId, orderId,
+        JSON.stringify({ source: "legacy_csv", orderNo: order.orderNo }), now
+      ).run();
+
+      results.push({ groupKey: order.orderNo, status: "created", orderNo: order.orderNo });
+    } catch (err) {
+      results.push({ groupKey: order.orderNo, status: "failed", message: err instanceof Error ? err.message : "저장 실패" });
+    }
+  }
+
+  const createdCount = results.filter((result) => result.status === "created").length;
+  const existingCount = results.filter((result) => result.status === "existing").length;
+  const failedCount = results.filter((result) => result.status === "failed").length;
+  return Response.json(
+    { summary: { createdCount, existingCount, failedCount }, results },
+    { status: failedCount ? 207 : 201 },
+  );
+}
+
 export async function POST(request: Request) {
   const denied = await requireOperatorApi();
   if (denied) return denied;
 
-  let payload: { fileHash?: unknown; rows?: unknown };
+  let payload: { fileHash?: unknown; rows?: unknown; legacyOrders?: unknown };
   try {
-    payload = await request.json() as { fileHash?: unknown; rows?: unknown };
+    payload = await request.json() as { fileHash?: unknown; rows?: unknown; legacyOrders?: unknown };
   } catch {
     return Response.json({ error: "업로드 요청을 읽지 못했습니다." }, { status: 400 });
   }
 
   const fileHash = typeof payload.fileHash === "string" ? payload.fileHash.trim().toLowerCase() : "";
+
+  // Support legacy CSV orders
+  if (Array.isArray(payload.legacyOrders)) {
+    return handleLegacyBulkOrders(fileHash, payload.legacyOrders as LegacyParsedOrder[]);
+  }
+
   if (!/^[a-f0-9]{64}$/.test(fileHash) || !Array.isArray(payload.rows)) {
     return Response.json({ error: "엑셀 파일 정보와 주문 행을 확인해주세요." }, { status: 400 });
   }
