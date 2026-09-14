@@ -20,6 +20,7 @@ import CustomOrderDetails from "./CustomOrderDetails";
 import WorkshopLabelModal from "./WorkshopLabelModal";
 import WorkshopPackingSlipModal from "./WorkshopPackingSlipModal";
 import {
+  Badge,
   Button,
   DataTable,
   DateRangeNavigator,
@@ -339,6 +340,23 @@ export default function WorkshopApp() {
     align: "center",
   };
 
+  const paymentColumn: DataTableColumn<WorkItem> = {
+    id: "payment",
+    header: "결제",
+    cell: (item) => {
+      const isPaid = item.paymentStatus === "paid";
+      return (
+        <Badge tone={isPaid ? "green" : "amber"}>
+          {isPaid ? "결제완료" : "미결제"}
+        </Badge>
+      );
+    },
+    sortValue: (item) => item.paymentStatus || "unpaid",
+    exportValue: (item) => (item.paymentStatus === "paid" ? "결제완료" : "미결제"),
+    width: "88px",
+    align: "center",
+  };
+
   const onsiteColumns: DataTableColumn<WorkItem>[] = [
     {
       id: "time",
@@ -387,6 +405,7 @@ export default function WorkshopApp() {
       align: "right",
       width: "92px",
     },
+    paymentColumn,
     statusColumn,
     labelColumn,
   ];
@@ -441,6 +460,7 @@ export default function WorkshopApp() {
       cell: (item) => item.address || "주소 미입력",
       sortValue: (item) => item.address,
     },
+    paymentColumn,
     statusColumn,
     labelColumn,
   ];

@@ -98,6 +98,7 @@ type CurrentWorkItem = Pick<
   | "version"
   | "customer_arrived_at"
   | "order_version"
+  | "payment_status"
 >;
 
 type Dashboard = Record<PipelineWorkStatus, Record<DeliveryMethod, number>>;
@@ -593,12 +594,18 @@ function auditPayload(
     dueAt: string;
     workStatus: WorkStatus;
     customerArrivedAt: string | null;
+    paymentStatus?: PaymentStatus;
   },
   changedFields: string[],
 ) {
   const fromValue: Record<string, unknown> = { changedFields };
   const toValue: Record<string, unknown> = { changedFields };
-  const safeFields = new Set(["productId", "quantity", "deliveryMethod", "dueAt", "workStatus", "customerArrivedAt"]);
+  const safeFields = new Set(["productId", "quantity", "deliveryMethod", "dueAt", "workStatus", "customerArrivedAt", "paymentStatus"]);
+
+  if (changedFields.includes("paymentStatus") && next.paymentStatus) {
+    fromValue.paymentStatus = current.payment_status;
+    toValue.paymentStatus = next.paymentStatus;
+  }
 
   if (changedFields.includes("productId")) {
     fromValue.productId = current.product_id;
@@ -859,7 +866,19 @@ export async function PATCH(request: Request) {
     const lineTotalChanged = lineTotal !== current.line_total;
     const customerArrivedChanged = hasOwn(changes, "customerArrivedAt")
       && customerArrivedAt !== current.customer_arrived_at;
-    const requiresOrderUpdate = lineTotalChanged || customerArrivedChanged;
+    let paymentStatus = current.payment_status;
+    let paymentStatusChanged = false;
+    if (hasOwn(changes, "paymentStatus")) {
+      const ps = typeof changes.paymentStatus === "string" ? changes.paymentStatus.trim() : "";
+      if (ps && !["unpaid", "paid", "partial"].includes(ps)) {
+        throw new RequestError("결제 상태를 확인해주세요.");
+      }
+      if (ps) {
+        paymentStatus = ps as PaymentStatus;
+        paymentStatusChanged = paymentStatus !== current.payment_status;
+      }
+    }
+    const requiresOrderUpdate = lineTotalChanged || customerArrivedChanged || paymentStatusChanged;
     const statusTransition = hasOwn(changes, "workStatus")
       ? prepareWorkStatusTransition(runtimeEnv.DB, {
         nextStatus: workStatus,
@@ -875,14 +894,16 @@ export async function PATCH(request: Request) {
     const workStatusChanged = Boolean(statusTransition && workStatus !== current.work_status);
     const audit = auditPayload(
       current,
-      { productId, unitPrice, quantity, lineTotal, deliveryMethod, dueAt, workStatus, customerArrivedAt },
+      { productId, unitPrice, quantity, lineTotal, deliveryMethod, dueAt, workStatus, customerArrivedAt, paymentStatus },
       changedFields,
     );
     const eventType = workStatusChanged
       ? workItemEventType("work_status_changed", clean(payload.idempotencyKey) || crypto.randomUUID())
       : changedFields.length === 1 && changedFields[0] === "customerArrivedAt"
         ? workItemEventType("customer_arrival_changed")
-        : workItemEventType("work_item_updated");
+        : changedFields.length === 1 && changedFields[0] === "paymentStatus"
+          ? workItemEventType("payment_changed")
+          : workItemEventType("work_item_updated");
     const statements: D1PreparedStatement[] = [
       runtimeEnv.DB.prepare(`
         UPDATE work_items
@@ -922,12 +943,14 @@ export async function PATCH(request: Request) {
       statements.push(runtimeEnv.DB.prepare(`
         UPDATE orders
         SET total_amount=total_amount+?
+          ${paymentStatusChanged ? ",payment_status=?,paid_amount=CASE WHEN ?='paid' THEN total_amount+? ELSE 0 END" : ""}
           ${customerArrivedChanged ? ",customer_arrived_at=?" : ""},
           version=version+1,updated_at=?
         WHERE id=? AND version=?
           AND EXISTS(SELECT 1 FROM work_items WHERE id=? AND version=?)
       `).bind(
         lineTotal - current.line_total,
+        ...(paymentStatusChanged ? [paymentStatus, paymentStatus, lineTotal - current.line_total] : []),
         ...(customerArrivedChanged ? [customerArrivedAt] : []),
         now,
         current.order_id,

@@ -232,6 +232,7 @@ function emptyWorkDraft(): WorkDraft {
     customizationJson: "",
     workStatus: "received",
     note: "",
+    paymentStatus: "unpaid",
   };
 }
 

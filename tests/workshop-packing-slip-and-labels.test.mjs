@@ -318,3 +318,12 @@ test("prepareInspectionItems orders chronologically and separates onsite, shippi
   assert.equal(prepared[1].id, "w-late");  // 15:00 현장
   assert.equal(prepared[2].id, "w-ship");  // 택배
 });
+
+test("formatPaymentStatus handles null, undefined, and valid statuses gracefully", () => {
+  assert.deepEqual(formatPaymentStatus("paid"), { label: "결제완료", isPaid: true });
+  assert.deepEqual(formatPaymentStatus("unpaid"), { label: "미결제", isPaid: false });
+  assert.deepEqual(formatPaymentStatus("partial"), { label: "부분결제", isPaid: false });
+  assert.deepEqual(formatPaymentStatus(null), { label: "미결제", isPaid: false });
+  assert.deepEqual(formatPaymentStatus(undefined), { label: "미결제", isPaid: false });
+});
+

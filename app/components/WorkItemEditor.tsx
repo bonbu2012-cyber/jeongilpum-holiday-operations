@@ -36,6 +36,7 @@ export type EditableWorkItem = {
   buyerPhone: string;
   productDailyLimit: number | null;
   productScheduledQuantity: number;
+  paymentStatus?: string | null;
 };
 
 export type WorkItemDraft = {
@@ -54,6 +55,7 @@ export type WorkItemDraft = {
   customizationJson: string;
   workStatus: WorkStatus;
   note: string;
+  paymentStatus?: "unpaid" | "paid";
 };
 
 type Product = {
@@ -101,6 +103,7 @@ export function draftForWorkItem(item: EditableWorkItem): WorkItemDraft {
     customizationJson: item.customizationJson ?? "",
     workStatus: item.workStatus,
     note: item.note,
+    paymentStatus: item.paymentStatus === "paid" ? "paid" : "unpaid",
   };
 }
 
@@ -134,6 +137,7 @@ export function toWorkItemChanges(draft: WorkItemDraft) {
     customizationJson: nullable(draft.customizationJson),
     workStatus: draft.workStatus,
     note: draft.note,
+    paymentStatus: draft.paymentStatus ?? "unpaid",
   };
 }
 
@@ -260,6 +264,15 @@ export function WorkItemFields({
         </FieldSelect>
         <FieldInput id={`${idPrefix}-due-at`} label="수령일시" type="datetime-local" value={draft.dueAt} onChange={(event) => onChange("dueAt", event.target.value)} />
         <WorkStatusSelect id={`${idPrefix}-status`} label="작업 상태" value={draft.workStatus} onChange={(status) => onChange("workStatus", status)} />
+        <FieldSelect
+          id={`${idPrefix}-payment-status`}
+          label="결제 여부"
+          value={draft.paymentStatus ?? "unpaid"}
+          onChange={(event) => onChange("paymentStatus", event.target.value as "unpaid" | "paid")}
+        >
+          <option value="unpaid">미결제</option>
+          <option value="paid">결제완료</option>
+        </FieldSelect>
         <FieldInput id={`${idPrefix}-recipient-name`} label="수령자 성함" value={draft.recipientName} onChange={(event) => onChange("recipientName", event.target.value)} />
         <FieldInput id={`${idPrefix}-recipient-phone`} label="수령자 전화번호" format="phone" value={draft.recipientPhone} onValueChange={(value) => onChange("recipientPhone", value)} />
         <FieldInput id={`${idPrefix}-postal-code`} label="우편번호" value={draft.postalCode} onChange={(event) => onChange("postalCode", event.target.value)} />

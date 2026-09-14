@@ -13,7 +13,7 @@ export type WorkItemLike = {
   deliveryMethod: "onsite_reservation" | "delivery" | "onsite_sale" | string;
   dueAt: string;
   workStatus: string;
-  paymentStatus?: string;
+  paymentStatus?: string | null;
   customerNote?: string;
   note: string;
   recipientName?: string | null;
@@ -56,7 +56,7 @@ export function deliveryClassificationLabel(type: DeliveryClassification): strin
   }
 }
 
-export function formatPaymentStatus(status?: string): { label: string; isPaid: boolean } {
+export function formatPaymentStatus(status?: string | null): { label: string; isPaid: boolean } {
   if (status === "paid") return { label: "결제완료", isPaid: true };
   if (status === "partial") return { label: "부분결제", isPaid: false };
   if (status === "refunded") return { label: "환불", isPaid: false };
