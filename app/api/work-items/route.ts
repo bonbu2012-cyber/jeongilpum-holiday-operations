@@ -156,6 +156,7 @@ const EDITABLE_FIELDS = new Set([
   "note",
   "workStatus",
   "customerArrivedAt",
+  "paymentStatus",
 ]);
 const SENSITIVE_FIELDS = new Set([
   "recipientName",
