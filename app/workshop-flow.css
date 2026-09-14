@@ -1816,6 +1816,13 @@
     margin: 8mm 10mm;
   }
 
+  html,
+  body {
+    height: auto !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+
   /* 인쇄 시 기본 화면 UI 숨김 */
   body * {
     visibility: hidden;
@@ -1829,28 +1836,40 @@
   }
 
   .packing-slip-backdrop {
-    position: absolute;
-    inset: 0;
-    padding: 0;
-    margin: 0;
-    background: transparent;
-    overflow: visible;
+    position: static !important;
+    display: block !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: transparent !important;
+    width: 100% !important;
+    height: auto !important;
   }
 
   .packing-slip-window {
-    width: 100%;
-    max-width: 100%;
-    box-shadow: none;
-    border: none;
-    border-radius: 0;
-    margin: 0;
+    position: static !important;
+    display: block !important;
+    overflow: visible !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
   }
 
   .packing-slip-printable-document {
-    padding: 0;
-    margin: 0;
-    background: #fff;
-    color: #0f172a;
+    display: block !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    background: #fff !important;
+    color: #0f172a !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
@@ -1876,18 +1895,29 @@
     display: block !important;
   }
 
+  .slip-print-page-break {
+    display: block !important;
+    height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    page-break-before: always !important;
+    break-before: page !important;
+    clear: both !important;
+  }
+
   /* ==========================================================================
      [1페이지] 오늘 출고 스킨팩 부위별 생산 지시서
      ========================================================================== */
   .slip-page-production {
-    page-break-after: always;
-    break-after: page;
-    page-break-inside: avoid;
-    break-inside: avoid;
-    box-sizing: border-box;
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-start;
+    display: block !important;
+    position: static !important;
+    overflow: visible !important;
+    page-break-after: always !important;
+    break-after: page !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    box-sizing: border-box !important;
   }
 
   .slip-page-production .slip-doc-header {
@@ -1985,10 +2015,13 @@
      [2페이지] 시간대별 출고 검수 목록
      ========================================================================== */
   .slip-page-dispatch {
-    page-break-before: always;
-    break-before: page;
-    box-sizing: border-box;
-    padding-top: 2mm;
+    display: block !important;
+    position: static !important;
+    overflow: visible !important;
+    page-break-before: always !important;
+    break-before: page !important;
+    box-sizing: border-box !important;
+    padding-top: 4mm !important;
   }
 
   .slip-page-dispatch .slip-doc-header {
