@@ -78,7 +78,7 @@ export default function WorkshopPackingSlipModal({
               leadingIcon={<Printer size={18} />}
               onClick={handlePrint}
             >
-              A4 인쇄 (SAMSUNG)
+              A4 인쇄 (Samsung C56x Series)
             </Button>
             <Button variant="ghost" leadingIcon={<X size={18} />} onClick={onClose}>
               닫기
