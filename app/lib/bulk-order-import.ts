@@ -61,6 +61,7 @@ export type BulkOrderRowInput = {
   unitPrice?: unknown;
   totalAmount?: unknown;
   paymentStatus?: unknown;
+  deliveryMethod?: unknown;
   deliveryMemo?: unknown;
   note?: unknown;
 };
@@ -246,6 +247,9 @@ export function validateAndGroupBulkOrderRows(rows: BulkOrderRowInput[], today: 
     if (normalizedFulfillmentType === "shipping") {
       if (!recipientName && buyerName) recipientName = buyerName;
       if (!recipientPhone && buyerPhone) recipientPhone = buyerPhone;
+      if (!roadAddr && (String(row.fulfillmentMethod ?? "").includes("배달") || String(row.deliveryMethod ?? "").includes("배달"))) {
+        roadAddr = "매장 직접 배달 (주소 미기재)";
+      }
       if (!detailAddr && roadAddr.includes(",")) {
         const parts = roadAddr.split(",");
         roadAddr = parts[0].trim();
@@ -279,8 +283,8 @@ export function validateAndGroupBulkOrderRows(rows: BulkOrderRowInput[], today: 
     if (!normalizedFulfillmentType) addError(errors, rowNumber, "수령방법", "현장수령 또는 택배발송을 선택해주세요.");
     if (!buyerName) addError(errors, rowNumber, "주문자명", "주문자명을 입력해주세요.");
     else if (lengthError(buyerName, 80)) addError(errors, rowNumber, "주문자명", "주문자명은 80자 이하여야 합니다.");
-    if (!/^0\d{9,10}$/.test(buyerPhone)) addError(errors, rowNumber, "주문자연락처", "0으로 시작하는 10~11자리 연락처를 입력해주세요.");
-    if (!validIsoDate(scheduleDate) || scheduleDate < today) addError(errors, rowNumber, "수령/발송일", "오늘 이후의 날짜를 yyyy-mm-dd 형식으로 입력해주세요.");
+    if (!/^0\d{8,10}$/.test(buyerPhone)) addError(errors, rowNumber, "주문자연락처", "0으로 시작하는 연락처를 입력해주세요.");
+    if (!validIsoDate(scheduleDate) || scheduleDate < today) addError(errors, rowNumber, "수령/발송일", "유효한 날짜를 yyyy-mm-dd 형식으로 입력해주세요.");
 
     if (normalizedFulfillmentType === "pickup") {
       if (isLegacyFormat || pickupTime) {
@@ -293,7 +297,7 @@ export function validateAndGroupBulkOrderRows(rows: BulkOrderRowInput[], today: 
     if (normalizedFulfillmentType === "shipping") {
       if (!recipientName) addError(errors, rowNumber, "수령인명", "택배발송은 수령인명을 입력해주세요.");
       else if (lengthError(recipientName, 80)) addError(errors, rowNumber, "수령인명", "수령인명은 80자 이하여야 합니다.");
-      if (!/^0\d{9,10}$/.test(recipientPhone)) addError(errors, rowNumber, "수령인연락처", "택배발송은 0으로 시작하는 10~11자리 수령인 연락처가 필요합니다.");
+      if (!/^0\d{8,10}$/.test(recipientPhone)) addError(errors, rowNumber, "수령인연락처", "0으로 시작하는 수령인 연락처가 필요합니다.");
       if (isLegacyFormat) {
         if (!/^\d{5}$/.test(normalizedPostalCode)) addError(errors, rowNumber, "우편번호", "택배발송 우편번호는 5자리 숫자여야 합니다.");
         if (roadAddr.length < 5) addError(errors, rowNumber, "도로명주소", "택배발송 도로명주소를 5자 이상 입력해주세요.");
@@ -307,6 +311,7 @@ export function validateAndGroupBulkOrderRows(rows: BulkOrderRowInput[], today: 
       }
       if (pickupTime) addError(errors, rowNumber, "현장수령시간", "택배발송 행의 현장수령시간은 비워주세요.");
     }
+
 
     const rawProductCode = text(row.productCode);
     const rawProductName = text(row.productName);

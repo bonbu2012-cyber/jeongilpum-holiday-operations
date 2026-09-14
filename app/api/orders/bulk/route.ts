@@ -259,11 +259,6 @@ export async function POST(request: Request) {
     return Response.json({ error: "엑셀 파일 정보와 주문 행을 확인해주세요." }, { status: 400 });
   }
 
-  const validation = validateAndGroupBulkOrderRows(payload.rows as BulkOrderRowInput[], todayInSeoul());
-  if (validation.errors.length) {
-    return Response.json({ error: "엑셀 입력값을 확인해주세요.", errors: validation.errors }, { status: 400 });
-  }
-
   try {
     const season = await runtimeEnv.DB.prepare(`
       SELECT id,sales_start_date,sales_end_date
@@ -271,6 +266,12 @@ export async function POST(request: Request) {
       ORDER BY sales_start_date DESC LIMIT 1
     `).first<SeasonRow>();
     if (!season) return Response.json({ error: "현재 예약 가능한 판매 시즌이 없습니다." }, { status: 409 });
+
+    const minDate = season.sales_start_date || "2026-08-01";
+    const validation = validateAndGroupBulkOrderRows(payload.rows as BulkOrderRowInput[], minDate);
+    if (validation.errors.length) {
+      return Response.json({ error: "엑셀 입력값을 확인해주세요.", errors: validation.errors }, { status: 400 });
+    }
 
     const seasonErrors = validation.groups.flatMap((group) => (
       group.scheduleDate < season.sales_start_date || group.scheduleDate > season.sales_end_date

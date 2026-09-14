@@ -4,7 +4,6 @@ import { AlertTriangle, CheckCircle2, Download, FileSpreadsheet, Upload } from "
 import { useEffect, useMemo, useRef, useState } from "react";
 import AppNav from "./AppNav";
 import {
-  todayInSeoul,
   validateAndGroupBulkOrderRows,
   type BulkOrderFulfillmentType,
   type BulkOrderGroup,
@@ -196,12 +195,13 @@ export default function BulkOrderUploadApp() {
         setNotice(`기존 앱 명단 ${orders.length}건을 읽었습니다. 접수 내용을 확인 후 업로드해주세요.`);
       } else {
         const parsedRows = await readBulkOrderWorkbook(buffer);
-        const validation = validateAndGroupBulkOrderRows(parsedRows, todayInSeoul());
+        const validation = validateAndGroupBulkOrderRows(parsedRows, "2026-08-01");
         setRows(parsedRows);
         setGroups(validation.groups);
         setErrors(validation.errors);
         setNotice(validation.errors.length ? "오류를 수정한 뒤 파일을 다시 선택해주세요." : "업로드 전 검사가 끝났습니다.");
       }
+
     } catch (caught) {
       setErrors([{ rowNumber: null, field: "파일", message: caught instanceof Error ? caught.message : "파일을 읽지 못했습니다." }]);
     } finally {

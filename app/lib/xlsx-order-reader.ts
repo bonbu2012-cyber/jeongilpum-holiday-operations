@@ -1,5 +1,27 @@
 import type { BulkOrderRowInput } from "./bulk-order-import";
 
+function parseLegacyPickupTime(raw: string, isPickup: boolean): string {
+  const trimmed = (raw || "").trim();
+  if (!trimmed) return isPickup ? "10:00" : "";
+  const directMatch = /^(\d{1,2}):(\d{2})$/.exec(trimmed);
+  if (directMatch) {
+    const h = String(Number(directMatch[1])).padStart(2, "0");
+    const m = directMatch[2];
+    return `${h}:${m}`;
+  }
+  if (trimmed.includes("오후") && trimmed.includes("7")) return "19:00";
+  if (trimmed.includes("오후") && trimmed.includes("1")) return "13:00";
+  if (trimmed.includes("오후") && trimmed.includes("2")) return "14:00";
+  if (trimmed.includes("오후") && trimmed.includes("3")) return "15:00";
+  if (trimmed.includes("오후") && trimmed.includes("4")) return "16:00";
+  if (trimmed.includes("오후") && trimmed.includes("5")) return "17:00";
+  if (trimmed.includes("오후") && trimmed.includes("6")) return "18:00";
+  if (trimmed.includes("오전")) return "10:00";
+
+  return isPickup ? "10:00" : "";
+}
+
+
 type ZipEntry = { name: string; compression: number; compressedSize: number; localHeaderOffset: number };
 
 function resolveProductCode(nameOrCode: unknown): string {
@@ -142,7 +164,7 @@ function rowsFromWorksheet(xml: string, strings: string[]) {
   const valueName = element("v");
   const textName = element("t");
   const rowRegex = new RegExp(`<${rowName}\\b([^>]*)>([\\s\\S]*?)<\\/${rowName}>`, "g");
-  const cellRegex = new RegExp(`<${cellName}\\b([^>]*)>([\\s\\S]*?)<\\/${cellName}>`, "g");
+  const cellRegex = new RegExp(`<${cellName}\\b([^>]*?)(?:\\/>|>([\\s\\S]*?)<\\/${cellName}>)`, "g");
   const valueRegex = new RegExp(`<${valueName}\\b[^>]*>([\\s\\S]*?)<\\/${valueName}>`);
   const textRegex = new RegExp(`<${textName}\\b[^>]*>([\\s\\S]*?)<\\/${textName}>`);
   for (const rowMatch of xml.matchAll(rowRegex)) {
@@ -152,7 +174,7 @@ function rowsFromWorksheet(xml: string, strings: string[]) {
       const reference = attribute(cellMatch[1], "r");
       const type = attribute(cellMatch[1], "t");
       const index = columnIndex(reference);
-      const body = cellMatch[2];
+      const body = cellMatch[2] ?? "";
       const raw = valueRegex.exec(body)?.[1] ?? "";
       if (type === "s") values[index] = strings[Number(raw)] ?? "";
       else if (type === "inlineStr") values[index] = xmlText(textRegex.exec(body)?.[1] ?? "");
@@ -162,6 +184,7 @@ function rowsFromWorksheet(xml: string, strings: string[]) {
     }
     rows.push({ rowNumber, values });
   }
+
   return rows;
 }
 
@@ -211,6 +234,9 @@ export async function readBulkOrderWorkbook(buffer: ArrayBuffer): Promise<BulkOr
   let isNewFormat = false;
 
   for (let i = 0; i < rows.length; i++) {
+    const nonEmptyCount = rows[i].values.filter((v) => String(v ?? "").trim() !== "").length;
+    if (nonEmptyCount < 5) continue; // Skip title, description, and empty rows
+
     const cleaned = rows[i].values.map(cleanHeader);
     const hasDate = cleaned.some((c) => c.includes("출고일") || c.includes("희망수령일") || c.includes("수령발송일"));
     const hasMethod = cleaned.some((c) => c.includes("수령방식") || c.includes("수령방법"));
@@ -229,6 +255,7 @@ export async function readBulkOrderWorkbook(buffer: ArrayBuffer): Promise<BulkOr
       break;
     }
   }
+
 
   if (headerRowIndex === -1) {
     throw new Error("주문입력 시트의 열 이름이 양식과 다릅니다. 제공된 양식을 다시 내려받아 사용해주세요.");
@@ -288,7 +315,11 @@ export async function readBulkOrderWorkbook(buffer: ArrayBuffer): Promise<BulkOr
       if (!hasData) continue;
 
       const scheduleDate = typeof rawDate === "number" ? excelSerialToIsoDate(rawDate) : rawDate;
-      const pickupTime = typeof rawTime === "number" ? excelSerialToTime(rawTime) : rawTime;
+      const isPickup = String(rawMethod ?? "").includes("현장");
+      const pickupTime = isPickup
+        ? (typeof rawTime === "number" ? excelSerialToTime(rawTime) : parseLegacyPickupTime(String(rawTime ?? ""), true))
+        : "";
+
 
       let roadAddr = String(rawAddress ?? "").trim();
       let detailAddr = "";

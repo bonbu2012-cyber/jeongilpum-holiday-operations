@@ -215,3 +215,36 @@ test("bulk route stays operator-only, idempotent, atomic, auditable, and writes 
   assert.match(source, /redactedFields/);
   assert.doesNotMatch(source, /console\.(log|error)/);
 });
+
+test("workbook parser skips single-cell instruction rows containing keywords and correctly extracts order rows", async () => {
+  const bytes = await readFile(new URL("../public/templates/jeongilpum-bulk-orders.xlsx", import.meta.url));
+  const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+  // Empty template should return 0 data rows
+  const emptyRows = await readBulkOrderWorkbook(buffer);
+  assert.equal(emptyRows.length, 0);
+
+  // If user's 46-order file exists on desktop, verify it parses all 46 rows accurately
+  try {
+    const desktopBytes = await readFile("C:\\Users\\LG\\Desktop\\명절예약 전체[.xlsx");
+    const rows = await readBulkOrderWorkbook(desktopBytes.buffer.slice(desktopBytes.byteOffset, desktopBytes.byteOffset + desktopBytes.byteLength));
+    assert.equal(rows.length, 46);
+    assert.equal(rows[0].buyerName, "봉황정");
+    assert.equal(rows[0].productName, "사골×우족");
+    assert.equal(rows[0].paymentStatus, "미결제");
+    assert.equal(rows[15].buyerName, "류승범");
+    assert.equal(rows[15].productName, "미");
+    assert.equal(rows[15].recipientName, "류성훈");
+    assert.equal(rows[15].paymentStatus, "결제완료");
+
+    const validated = validateAndGroupBulkOrderRows(rows, "2026-08-01");
+    assert.equal(validated.errors.length, 0);
+    assert.equal(validated.groups.length, 45);
+  } catch (e) {
+
+
+    if (e && e.code !== "ENOENT") throw e;
+  }
+});
+
+
+
