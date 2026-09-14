@@ -331,9 +331,6 @@ export default function WorkshopPackingSlipModal({
             </footer>
           </div>
 
-          {/* 인쇄용 강제 페이지 분리자 (Chrome / Edge 인쇄 엔진 100% 호환) */}
-          <div className="slip-print-page-break print-only" aria-hidden="true" />
-
           {/* 화면용 페이지 구분 안내선 (인쇄 시 숨김) */}
           <div className="slip-screen-page-divider no-print" aria-hidden="true">
             <div className="divider-line" />

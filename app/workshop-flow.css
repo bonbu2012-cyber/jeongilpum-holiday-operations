@@ -1823,9 +1823,18 @@
     background: #fff !important;
   }
 
-  /* 인쇄 시 기본 화면 UI 숨김 */
-  body * {
-    visibility: hidden;
+  /* 인쇄 시 모달 외의 모든 페이지 요소를 완전히 레이아웃에서 제거 (0px 처리) */
+  .workshop-app > *:not(.packing-slip-backdrop):not(.label-modal-backdrop),
+  .operations-header,
+  .app-nav,
+  .app-header,
+  .workshop-main,
+  .desktop-vertical-banner,
+  .mobile-horizontal-banner,
+  .sales-app,
+  .kiosk-app,
+  .bulk-order-app {
+    display: none !important;
   }
 
   .packing-slip-backdrop,
@@ -1893,17 +1902,6 @@
 
   footer.print-only {
     display: block !important;
-  }
-
-  .slip-print-page-break {
-    display: block !important;
-    height: 0 !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    border: none !important;
-    page-break-before: always !important;
-    break-before: page !important;
-    clear: both !important;
   }
 
   /* ==========================================================================
@@ -2018,10 +2016,10 @@
     display: block !important;
     position: static !important;
     overflow: visible !important;
-    page-break-before: always !important;
-    break-before: page !important;
+    page-break-before: auto !important;
+    break-before: auto !important;
     box-sizing: border-box !important;
-    padding-top: 4mm !important;
+    padding-top: 0 !important;
   }
 
   .slip-page-dispatch .slip-doc-header {
