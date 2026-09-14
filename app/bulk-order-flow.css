@@ -100,6 +100,124 @@
 
 .passcode-card button:disabled { opacity: 0.55; }
 
+.bulk-order-success-box {
+  margin-bottom: 24px;
+  padding: 24px;
+  border: 2px solid #277153;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(180deg, #f2faf4 0%, #e6f5ec 100%);
+  box-shadow: 0 16px 40px rgba(39, 113, 83, 0.14);
+  animation: bulkSuccessSlideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes bulkSuccessSlideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.bulk-order-success-box__header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.bulk-order-success-box__icon-wrap {
+  width: 52px;
+  height: 52px;
+  flex: none;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: #277153;
+  color: #ffffff;
+  box-shadow: 0 6px 16px rgba(39, 113, 83, 0.28);
+}
+
+.bulk-order-success-box__title-wrap h2 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: var(--weight-strong);
+  color: #174e38;
+  letter-spacing: -0.02em;
+}
+
+.bulk-order-success-box__title-wrap p {
+  margin: 6px 0 0;
+  font-size: var(--text-md);
+  color: #375945;
+}
+
+.bulk-order-success-box__summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.bulk-order-success-box__card {
+  padding: 14px 18px;
+  background: #ffffff;
+  border: 1px solid #c3e5d1;
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bulk-order-success-box__card span {
+  font-size: var(--text-sm);
+  color: #55725f;
+  font-weight: 600;
+}
+
+.bulk-order-success-box__card strong {
+  font-size: 20px;
+  color: var(--ink);
+  font-weight: var(--weight-strong);
+}
+
+.bulk-order-success-box__accent {
+  color: #277153 !important;
+}
+
+.bulk-order-success-box__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding-top: 18px;
+  border-top: 1px solid #c3e5d1;
+}
+
+.bulk-order-success-box__btn {
+  min-height: 44px;
+  padding: 0 20px;
+  font-weight: var(--weight-strong);
+  font-size: var(--text-sm);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: transform 0.1s ease, filter 0.15s ease;
+}
+
+.bulk-order-success-box__btn:hover {
+  filter: brightness(1.05);
+}
+
+.bulk-order-success-box__btn:active {
+  transform: translateY(1px);
+}
+
 .bulk-order-panel {
   padding: 20px;
   border: 1px solid var(--line);

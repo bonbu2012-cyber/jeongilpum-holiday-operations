@@ -1,16 +1,11 @@
 import { readFile } from "node:fs/promises";
-import { resolve, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { resolve } from "node:path";
 import crypto from "node:crypto";
 import fs from "node:fs";
-import { getDb } from "../db/index.ts";
-import { readBulkOrderWorkbook } from "../app/lib/xlsx-order-reader.ts";
-import { validateAndGroupBulkOrderRows, type BulkOrderGroup } from "../app/lib/bulk-order-import.ts";
-import { normalizeCustomerName, primaryCustomerAccountId } from "../app/lib/customer-ledger-domain.ts";
-import { nextOrderNo, orderNumberPrefix } from "../app/lib/order-number.ts";
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const root = resolve(__dirname, "..");
+import { getDb } from "../db/index";
+import { readBulkOrderWorkbook } from "../app/lib/xlsx-order-reader";
+import { validateAndGroupBulkOrderRows, type BulkOrderGroup } from "../app/lib/bulk-order-import";
+import { normalizeCustomerName } from "../app/lib/customer-ledger-domain";
 
 function sha256(buffer: Buffer) {
   return crypto.createHash("sha256").update(buffer).digest("hex");
@@ -88,7 +83,7 @@ async function main() {
   const usedOrderNos = new Set(existingOrders.results.map((o) => o.order_no));
 
   let importedCount = 0;
-  for (const [idx, group] of validation.groups.entries()) {
+  for (const group of validation.groups) {
     const orderId = crypto.randomUUID();
     const fulfillmentId = crypto.randomUUID();
     const now = new Date().toISOString();

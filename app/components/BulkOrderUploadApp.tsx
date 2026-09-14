@@ -38,6 +38,15 @@ type ImportResponse = {
   results?: ImportResult[];
 };
 
+type UploadSuccessSummary = {
+  createdCount: number;
+  existingCount: number;
+  failedCount: number;
+  totalOrders: number;
+  totalAmount: number;
+  fileName: string;
+};
+
 function won(value: number) {
   return `${value.toLocaleString("ko-KR")}원`;
 }
@@ -78,6 +87,7 @@ export default function BulkOrderUploadApp() {
   const [uploading, setUploading] = useState(false);
   const [notice, setNotice] = useState("");
   const [results, setResults] = useState<ImportResult[]>([]);
+  const [uploadSuccess, setUploadSuccess] = useState<UploadSuccessSummary | null>(null);
 
   useEffect(() => {
     void fetch("/api/products", { cache: "no-store" })
@@ -127,6 +137,8 @@ export default function BulkOrderUploadApp() {
     setErrors([]);
     setResults([]);
     setNotice("");
+    setUploadSuccess(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const chooseFile = async (file: File | undefined) => {
@@ -232,9 +244,24 @@ export default function BulkOrderUploadApp() {
       }
       setResults(data.results ?? []);
       const summary = data.summary;
-      setNotice(summary
-        ? `${summary.createdCount}건 접수, ${summary.existingCount}건 기존 접수, ${summary.failedCount}건 실패`
-        : "업로드를 처리했습니다.");
+      if (summary) {
+        setNotice(
+          `${summary.createdCount}건 접수, ${summary.existingCount}건 기존 접수, ${summary.failedCount}건 실패`
+        );
+        setUploadSuccess({
+          createdCount: summary.createdCount,
+          existingCount: summary.existingCount,
+          failedCount: summary.failedCount,
+          totalOrders: groups.length || legacyOrders.length,
+          totalAmount: amountTotal,
+          fileName,
+        });
+        if (typeof window !== "undefined") {
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        }
+      } else {
+        setNotice("업로드를 처리했습니다.");
+      }
     } catch (caught) {
       setNotice(caught instanceof Error ? caught.message : "주문을 접수하지 못했습니다.");
     } finally {
@@ -260,6 +287,61 @@ export default function BulkOrderUploadApp() {
             엑셀 양식 받기
           </a>
         </section>
+
+        {uploadSuccess ? (
+          <section className="bulk-order-success-box" role="status" aria-labelledby="bulk-success-title">
+            <div className="bulk-order-success-box__header">
+              <div className="bulk-order-success-box__icon-wrap">
+                <CheckCircle2 size={32} aria-hidden="true" />
+              </div>
+              <div className="bulk-order-success-box__title-wrap">
+                <h2 id="bulk-success-title">대량 주문이 성공적으로 접수되었습니다!</h2>
+                <p>
+                  <strong>{uploadSuccess.fileName}</strong> 파일의 주문 내역이 시스템에 안전하게 저장되었습니다.
+                </p>
+              </div>
+            </div>
+
+            <div className="bulk-order-success-box__summary-grid">
+              <div className="bulk-order-success-box__card">
+                <span>신규 접수 완료</span>
+                <strong className="bulk-order-success-box__accent">{uploadSuccess.createdCount}건</strong>
+              </div>
+              {uploadSuccess.existingCount > 0 ? (
+                <div className="bulk-order-success-box__card">
+                  <span>기존 주문 (중복 방지)</span>
+                  <strong>{uploadSuccess.existingCount}건</strong>
+                </div>
+              ) : null}
+              {uploadSuccess.failedCount > 0 ? (
+                <div className="bulk-order-success-box__card">
+                  <span>접수 실패</span>
+                  <strong style={{ color: "#9d3029" }}>{uploadSuccess.failedCount}건</strong>
+                </div>
+              ) : null}
+              <div className="bulk-order-success-box__card">
+                <span>총 주문 금액</span>
+                <strong>{won(uploadSuccess.totalAmount)}</strong>
+              </div>
+            </div>
+
+            <div className="bulk-order-success-box__actions">
+              <a href="/sales" className="ui-button ui-button--primary bulk-order-success-box__btn">
+                판매장 주문목록 바로가기
+              </a>
+              <a href="/workshop" className="ui-button ui-button--secondary bulk-order-success-box__btn">
+                작업장 출고현황 보기
+              </a>
+              <button
+                type="button"
+                className="ui-button ui-button--ghost bulk-order-success-box__btn"
+                onClick={() => resetSelection()}
+              >
+                새 엑셀 파일 추가 접수
+              </button>
+            </div>
+          </section>
+        ) : null}
 
         <section className="bulk-order-panel" aria-labelledby="bulk-file-title">
           <div className="bulk-order-panel__heading">
@@ -313,7 +395,7 @@ export default function BulkOrderUploadApp() {
           </section>
         ) : null}
 
-        {groups.length && !allErrors.length ? (
+        {groups.length && !allErrors.length && !uploadSuccess ? (
           <section className="bulk-order-panel" aria-labelledby="bulk-preview-title">
             <div className="bulk-order-panel__heading">
               <div>
