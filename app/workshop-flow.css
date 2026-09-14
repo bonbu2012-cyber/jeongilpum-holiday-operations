@@ -1779,16 +1779,44 @@
   display: none !important;
 }
 
+/* 화면용 인쇄 페이지 구분선 */
+.slip-screen-page-divider {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 32px 0 24px;
+}
+
+.slip-screen-page-divider .divider-line {
+  flex: 1;
+  height: 1px;
+  background: #cbd5e1;
+  border-bottom: 1px dashed #94a3b8;
+}
+
+.slip-screen-page-divider .divider-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #475569;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  padding: 4px 14px;
+  border-radius: 9999px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
 /* ==========================================================================
    A4 인쇄 전용 스타일 (@media print)
+   - 1페이지: 스킨팩 부위별 생산 지시서 (봉황·팔영 162202 / 오미트 241702)
+   - 2페이지: 시간대별 출고 검수 목록
    ========================================================================== */
 @media print {
   @page {
     size: A4 portrait;
-    margin: 10mm 10mm;
+    margin: 8mm 10mm;
   }
 
-  /* 인쇄 시 화면용 UI 전부 숨김 */
+  /* 인쇄 시 기본 화면 UI 숨김 */
   body * {
     visibility: hidden;
   }
@@ -1821,6 +1849,10 @@
   .packing-slip-printable-document {
     padding: 0;
     margin: 0;
+    background: #fff;
+    color: #0f172a;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 
   .no-print {
@@ -1828,6 +1860,15 @@
   }
 
   .print-only {
+    display: block !important;
+  }
+
+  span.print-only {
+    display: inline !important;
+  }
+
+  th.print-only,
+  td.print-only {
     display: table-cell !important;
   }
 
@@ -1835,19 +1876,224 @@
     display: block !important;
   }
 
-  /* 테이블 줄바꿈 제어 */
-  .slip-cuts-table tr,
-  .slip-plan-table tr,
-  .slip-orders-table tr {
+  /* ==========================================================================
+     [1페이지] 오늘 출고 스킨팩 부위별 생산 지시서
+     ========================================================================== */
+  .slip-page-production {
+    page-break-after: always;
+    break-after: page;
     page-break-inside: avoid;
+    break-inside: avoid;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
   }
 
-  .slip-plan-card {
-    page-break-inside: avoid;
+  .slip-page-production .slip-doc-header {
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #0f172a;
+  }
+
+  .slip-page-production .slip-brand h1 {
+    font-size: 1.35rem;
+    margin: 0 0 2px;
+    color: #0f172a;
+  }
+
+  .slip-page-production .slip-subtitle {
+    font-size: 0.8rem;
+    color: #475569;
+  }
+
+  .slip-page-production .slip-meta {
+    font-size: 0.76rem;
+    color: #475569;
   }
 
   .slip-summary-section {
+    margin-top: 0;
     page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .slip-summary-section .slip-section-title {
+    margin-bottom: 6px;
+  }
+
+  .slip-summary-section .slip-section-title h3 {
+    font-size: 1rem;
+    margin: 0;
+  }
+
+  .slip-cuts-split-grid {
+    gap: 10px;
+    margin-top: 6px;
+  }
+
+  .slip-plan-card {
+    padding: 8px 10px;
+    border: 1px solid #475569;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .slip-plan-card-header {
+    margin-bottom: 4px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid #cbd5e1;
+  }
+
+  .slip-plan-title-box h4 {
+    font-size: 0.9rem;
+    margin: 0;
+  }
+
+  .slip-plan-products {
+    margin-bottom: 6px;
+    gap: 4px;
+  }
+
+  .slip-prod-badge {
+    font-size: 0.72rem;
+    padding: 1px 5px;
+  }
+
+  .slip-plan-table {
+    margin-top: 2px;
+  }
+
+  .slip-plan-table th,
+  .slip-plan-table td {
+    padding: 3px 5px;
+    font-size: 0.74rem;
+    border: 1px solid #94a3b8;
+  }
+
+  .slip-plan-table th {
+    background: #f1f5f9 !important;
+  }
+
+  .slip-plan-table tfoot td {
+    padding: 4px 6px;
+    font-size: 0.76rem;
+    background: #f8fafc !important;
+  }
+
+  /* ==========================================================================
+     [2페이지] 시간대별 출고 검수 목록
+     ========================================================================== */
+  .slip-page-dispatch {
+    page-break-before: always;
+    break-before: page;
+    box-sizing: border-box;
+    padding-top: 2mm;
+  }
+
+  .slip-page-dispatch .slip-doc-header {
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #0f172a;
+  }
+
+  .slip-page-dispatch .slip-brand h1 {
+    font-size: 1.35rem;
+    margin: 0 0 2px;
+    color: #0f172a;
+  }
+
+  .slip-page-dispatch .slip-subtitle {
+    font-size: 0.8rem;
+    color: #475569;
+  }
+
+  .slip-page-dispatch .slip-meta {
+    font-size: 0.76rem;
+    color: #475569;
+  }
+
+  .slip-orders-section {
+    margin-top: 4px;
+  }
+
+  .slip-orders-section .slip-section-title {
+    margin-bottom: 4px;
+  }
+
+  .slip-orders-section .slip-section-title h3 {
+    font-size: 0.95rem;
+    margin: 0;
+  }
+
+  .slip-orders-table {
+    margin-top: 4px;
+    font-size: 0.74rem;
+    border-collapse: collapse;
+    width: 100%;
+  }
+
+  .slip-orders-table th,
+  .slip-orders-table td {
+    padding: 4px 6px;
+    border: 1px solid #94a3b8;
+    line-height: 1.25;
+  }
+
+  .slip-orders-table th {
+    background: #f1f5f9 !important;
+  }
+
+  .slip-orders-table tr {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .slip-orders-table th.check-box-th,
+  .slip-orders-table td.check-box-td {
+    width: 32px;
+    padding: 2px;
+  }
+
+  .paper-check-box {
+    font-size: 1.15rem;
+  }
+
+  .slip-badge-time {
+    font-size: 0.78rem;
+  }
+
+  .slip-badge-type {
+    font-size: 0.68rem;
+    padding: 0 4px;
+  }
+
+  .slip-prod-name {
+    font-size: 0.78rem;
+    font-weight: 700;
+  }
+
+  .slip-qty-tag {
+    font-size: 0.72rem;
+    padding: 0 4px;
+  }
+
+  .slip-address-text {
+    font-size: 0.72rem;
+  }
+
+  .slip-pay-badge {
+    font-size: 0.68rem;
+    padding: 1px 4px;
+  }
+
+  .slip-doc-footer {
+    margin-top: 10px;
+    padding-top: 6px;
+    border-top: 1px solid #cbd5e1;
+    font-size: 0.72rem;
+    color: #64748b;
+    text-align: center;
   }
 }
 

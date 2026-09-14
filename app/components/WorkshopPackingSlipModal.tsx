@@ -45,6 +45,8 @@ export default function WorkshopPackingSlipModal({
     };
   }, [inspectionItems]);
 
+  const printDate = useMemo(() => new Date().toLocaleString("ko-KR"), []);
+
   if (!open) return null;
 
   const handlePrint = () => {
@@ -86,23 +88,37 @@ export default function WorkshopPackingSlipModal({
 
         {/* 인쇄 및 화면 공통 검수표 내용 영역 */}
         <div className="packing-slip-printable-document">
-          {/* 인쇄용 문서 헤더 */}
-          <div className="slip-doc-header">
-            <div className="slip-brand">
-              <h1>정일품 출고 검수표 (출고 작업지시서)</h1>
-              <p className="slip-subtitle">
-                작업 기준일: <strong>{date}</strong> · 당일 출고 상품 검수 및 부위별 소요량
-              </p>
+          {/* =========================================================
+             [1페이지] 오늘 출고 스킨팩 부위별 생산 지시서
+             ========================================================= */}
+          <div className="slip-page slip-page-production">
+            {/* 1페이지 문서 헤더 */}
+            <div className="slip-doc-header">
+              <div className="slip-brand">
+                <h1>
+                  <span className="print-only">정일품 스킨팩 부위별 생산 지시서</span>
+                  <span className="no-print">정일품 출고 검수표 (출고 작업지시서)</span>
+                </h1>
+                <p className="slip-subtitle">
+                  <span className="print-only">
+                    작업 기준일: <strong>{date}</strong> · 당일 출고 스킨팩 규격 및 부위별 소요량 [1 / 2 페이지]
+                  </span>
+                  <span className="no-print">
+                    작업 기준일: <strong>{date}</strong> · 당일 출고 상품 검수 및 부위별 소요량 (A4 인쇄 시 2페이지로 분리 인쇄)
+                  </span>
+                </p>
+              </div>
+              <div className="slip-meta">
+                <span>출력일시: {printDate}</span>
+                <span className="slip-check-box-guide">
+                  <span className="print-only">생산 책임자 서명: ____________ (인)</span>
+                  <span className="no-print">검수자 서명: ____________ (인)</span>
+                </span>
+              </div>
             </div>
-            <div className="slip-meta">
-              <span>출력일시: {new Date().toLocaleString("ko-KR")}</span>
-              <span className="slip-check-box-guide">검수자 서명: ____________ (인)</span>
-            </div>
-          </div>
 
-          {/* 1. 상품별 수량 및 부위별 팩 수 자동 계산표 */}
-          {/* 1. 상품별 수량 및 부위별 팩 수 자동 계산표 */}
-          <section className="slip-summary-section">
+            {/* 1. 상품별 수량 및 부위별 팩 수 자동 계산표 */}
+            <section className="slip-summary-section">
             <div className="slip-section-title">
               <div className="slip-section-title-left">
                 <h3>1. 오늘 출고 스킨팩 부위별 생산 지시서</h3>
@@ -309,10 +325,41 @@ export default function WorkshopPackingSlipModal({
             </div>
           </section>
 
-          {/* 2. 시간대별 / 수령유형별 출고 검수 목록 */}
-          <section className="slip-orders-section">
-            <div className="slip-section-title">
-              <h3>2. 시간대별 출고 검수 목록</h3>
+            {/* 1페이지 인쇄용 하단 안내 */}
+            <footer className="slip-doc-footer print-only">
+              <p>※ 실측 중량 및 스킨팩 용기 규격을 준수하여 포장 후 출고 검수 대기로 인계하십시오. [1 / 2 페이지]</p>
+            </footer>
+          </div>
+
+          {/* 화면용 페이지 구분 안내선 (인쇄 시 숨김) */}
+          <div className="slip-screen-page-divider no-print" aria-hidden="true">
+            <div className="divider-line" />
+            <span className="divider-label">A4 인쇄 2페이지: 시간대별 출고 검수 목록</span>
+            <div className="divider-line" />
+          </div>
+
+          {/* =========================================================
+             [2페이지] 시간대별 출고 검수 목록
+             ========================================================= */}
+          <div className="slip-page slip-page-dispatch">
+            {/* 2페이지 인쇄용 문서 헤더 */}
+            <div className="slip-doc-header slip-page2-header print-only">
+              <div className="slip-brand">
+                <h1>정일품 시간대별 출고 검수표</h1>
+                <p className="slip-subtitle">
+                  작업 기준일: <strong>{date}</strong> · 시간대별 출고 상품 검수 및 배송 확인 목록 [2 / 2 페이지]
+                </p>
+              </div>
+              <div className="slip-meta">
+                <span>출력일시: {printDate}</span>
+                <span className="slip-check-box-guide">최종 출고 검수자 서명: ____________ (인)</span>
+              </div>
+            </div>
+
+            {/* 2. 시간대별 / 수령유형별 출고 검수 목록 */}
+            <section className="slip-orders-section">
+              <div className="slip-section-title">
+                <h3>2. 시간대별 출고 검수 목록</h3>
               {/* 화면용 필터 탭 (인쇄 시 숨김) */}
               <div className="slip-filters no-print">
                 <button
@@ -468,10 +515,11 @@ export default function WorkshopPackingSlipModal({
             </table>
           </section>
 
-          {/* 인쇄용 하단 안내 */}
-          <footer className="slip-doc-footer print-only">
-            <p>※ 출고 전 상품 구성 팩수와 라벨 부착 여부를 반드시 대조 검수 후 출고하십시오. (정일품 명절운영시스템)</p>
-          </footer>
+            {/* 2페이지 인쇄용 하단 안내 */}
+            <footer className="slip-doc-footer print-only">
+              <p>※ 출고 전 상품 구성 팩수와 라벨 부착 여부를 반드시 대조 검수 후 출고하십시오. [2 / 2 페이지] (정일품 명절운영시스템)</p>
+            </footer>
+          </div>
         </div>
       </div>
     </div>
