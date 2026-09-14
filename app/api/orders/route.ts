@@ -888,8 +888,12 @@ export async function POST(request: Request) {
     const orderId = crypto.randomUUID();
     const orderNo = await createOrderNo();
     const totalAmount = workItems.reduce((sum, item) => sum + item.lineTotal, 0);
-    const paidAmount = fulfillmentType === "onsite" ? totalAmount : 0;
-    const paymentStatus = fulfillmentType === "onsite" ? "paid" : "unpaid";
+    const requestedPaymentStatus = clean(payload.paymentStatus);
+    const isExplicitlyPaid = requestedPaymentStatus === "paid"
+      || (Boolean(payload.paymentMethod && paymentMethods.has(payload.paymentMethod)) && requestedPaymentStatus !== "unpaid");
+    const isPaid = fulfillmentType === "onsite" || isExplicitlyPaid;
+    const paidAmount = isPaid ? totalAmount : (typeof payload.paidAmount === "number" ? payload.paidAmount : 0);
+    const paymentStatus = isPaid ? "paid" : (requestedPaymentStatus === "partial" ? "partial" : "unpaid");
     const statements: D1PreparedStatement[] = [
       runtimeEnv.DB.prepare(`
         INSERT INTO orders(
@@ -927,7 +931,7 @@ export async function POST(request: Request) {
           deliveryMethod: item.deliveryMethod,
           dueAt: item.dueAt,
           workStatus: item.workStatus,
-          paymentMethod: fulfillmentType === "onsite" ? paymentChoice : null,
+          paymentMethod: paymentChoice !== "later" ? paymentChoice : (fulfillmentType === "onsite" ? paymentChoice : null),
         }),
       }),
     ];

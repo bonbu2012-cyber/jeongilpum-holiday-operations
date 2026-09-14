@@ -38,9 +38,9 @@ test("buildCourierInvoiceRow formats shipping items matching sample image data",
   const row1 = buildCourierInvoiceRow(item1);
   assert.equal(row1[0], "정일품");
   assert.equal(row1[1], "");
-  assert.equal(row1[2], "01071596872");
+  assert.equal(row1[2], '="01071596872"');
   assert.equal(row1[3], "박신자");
-  assert.equal(row1[4], "01056514225");
+  assert.equal(row1[4], '="01056514225"');
   assert.equal(row1[5], "");
   assert.equal(row1[6], "전남 여수시 쌍봉로 113, 1층  한신전기");
   assert.equal(row1[7], "");
@@ -65,10 +65,10 @@ test("buildCourierInvoiceRow formats shipping items matching sample image data",
   const row2 = buildCourierInvoiceRow(item2);
   assert.equal(row2[0], "성지민");
   assert.equal(row2[1], "");
-  assert.equal(row2[2], "01088396686");
+  assert.equal(row2[2], '="01088396686"');
   assert.equal(row2[3], "조승연");
-  assert.equal(row2[4], "01092681774");
-  assert.equal(row2[5], "57900");
+  assert.equal(row2[4], '="01092681774"');
+  assert.equal(row2[5], '="57900"');
   assert.equal(row2[6], "전남 순천시 해룡면 신대로 97 504동 701호");
   assert.equal(row2[7], "");
   assert.equal(row2[8], "2");

@@ -57,6 +57,11 @@ function cleanDigits(value?: string | null): string {
   return value.replace(/\D/g, "").trim();
 }
 
+export function formatExcelText(value?: string | null): string {
+  if (!value) return "";
+  return `="${value}"`;
+}
+
 export function isShippingItem(item: CourierWorkItemLike): boolean {
   if (item.workStatus === "cancelled") return false;
   const method = (item.deliveryMethod || item.fulfillmentType || "").toLowerCase();
@@ -70,19 +75,20 @@ export function buildCourierInvoiceRow(item: CourierWorkItemLike): string[] {
   // 2. 주소(지정) - 사진 서식 기준 기본 공란
   const senderAddr = "";
 
-  // 3. 전화번호1(지정) - 주문자 전화번호 (숫자만), 없으면 기본 대표번호
+  // 3. 전화번호1(지정) - 주문자 전화번호 (숫자만, 엑셀 텍스트 서식 적용), 없으면 기본 대표번호
   const rawBuyerPhone = cleanDigits(item.buyerPhone);
-  const senderPhone = rawBuyerPhone || DEFAULT_SENDER_PHONE;
+  const senderPhone = formatExcelText(rawBuyerPhone || DEFAULT_SENDER_PHONE);
 
   // 4. 받는사람 - 수령인명 (없으면 주문자명)
   const recipientName = (item.recipientName || "").trim() || senderName;
 
-  // 5. 전화번호1 - 수령인 전화번호 (없으면 주문자 전화번호)
+  // 5. 전화번호1 - 수령인 전화번호 (숫자만, 엑셀 텍스트 서식 적용, 없으면 주문자 전화번호)
   const rawRecipientPhone = cleanDigits(item.recipientPhone);
-  const recipientPhone = rawRecipientPhone || senderPhone;
+  const recipientPhone = formatExcelText(rawRecipientPhone || rawBuyerPhone || DEFAULT_SENDER_PHONE);
 
-  // 6. 우편번호 - 5자리 우편번호
-  const postalCode = cleanDigits(item.postalCode);
+  // 6. 우편번호 - 5자리 우편번호 (엑셀 텍스트 서식 적용)
+  const rawPostalCode = cleanDigits(item.postalCode);
+  const postalCode = formatExcelText(rawPostalCode);
 
   // 7. 주소 - 전체 도로명 + 상세 주소
   const baseAddress = (item.roadAddr || item.roadAddress || item.jibunAddr || "").trim();
