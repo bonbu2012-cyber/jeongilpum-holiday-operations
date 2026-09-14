@@ -1,4 +1,4 @@
-import { resolveCatalogProductDetails } from "./catalog-product-details";
+import { resolveCatalogProductDetails } from "./catalog-product-details.ts";
 
 export type DeliveryClassification = "onsite" | "shipping" | "direct_delivery";
 
