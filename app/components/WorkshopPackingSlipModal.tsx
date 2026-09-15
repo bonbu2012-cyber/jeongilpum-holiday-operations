@@ -27,7 +27,7 @@ export default function WorkshopPackingSlipModal({
   onClose,
   onCompleteItem,
 }: WorkshopPackingSlipModalProps) {
-  const [filterType, setFilterType] = useState<"all" | "onsite" | "shipping" | "direct_delivery">("all");
+  const [filterType, setFilterType] = useState<"all" | "onsite" | "shipping" | "direct_delivery" | "custom_or_notes">("all");
   const [completingId, setCompletingId] = useState<string | null>(null);
 
   const inspectionItems = useMemo(() => prepareInspectionItems(items), [items]);
@@ -40,6 +40,9 @@ export default function WorkshopPackingSlipModal({
 
   const filteredItems = useMemo(() => {
     if (filterType === "all") return inspectionItems;
+    if (filterType === "custom_or_notes") {
+      return inspectionItems.filter((item) => item.hasSpecialRequest);
+    }
     return inspectionItems.filter((item) => item.classification === filterType);
   }, [inspectionItems, filterType]);
 
@@ -49,6 +52,7 @@ export default function WorkshopPackingSlipModal({
       onsite: inspectionItems.filter((item) => item.classification === "onsite").length,
       shipping: inspectionItems.filter((item) => item.classification === "shipping").length,
       directDelivery: inspectionItems.filter((item) => item.classification === "direct_delivery").length,
+      customOrNotes: inspectionItems.filter((item) => item.hasSpecialRequest).length,
     };
   }, [inspectionItems]);
 
@@ -436,6 +440,12 @@ export default function WorkshopPackingSlipModal({
                 >
                   직접배달 ({counts.directDelivery})
                 </button>
+                <button
+                  className={`slip-filter-btn highlight-custom ${filterType === "custom_or_notes" ? "active" : ""}`}
+                  onClick={() => setFilterType("custom_or_notes")}
+                >
+                  맞춤/요청 ({counts.customOrNotes})
+                </button>
               </div>
             </div>
 
@@ -459,8 +469,13 @@ export default function WorkshopPackingSlipModal({
               <tbody>
                 {filteredItems.map((item) => {
                   const isReadyOrDone = item.workStatus === "ready" || item.workStatus === "completed";
+                  const rowClassNames = [
+                    isReadyOrDone ? "row-done" : "",
+                    item.isCustom ? "row-custom-order" : "",
+                    item.hasSpecialRequest ? "row-has-request" : "",
+                  ].filter(Boolean).join(" ");
                   return (
-                    <tr key={item.id} className={isReadyOrDone ? "row-done" : ""}>
+                    <tr key={item.id} className={rowClassNames}>
                       {/* 검수 볼펜 체크용 사각형 */}
                       <td className="check-box-td">
                         <span className="paper-check-box" title="출고 전 검수 체크">
@@ -507,8 +522,24 @@ export default function WorkshopPackingSlipModal({
 
                       {/* 상품 및 수량 */}
                       <td className="product-td">
-                        <strong className="slip-prod-name">{item.productName}</strong>
-                        <span className="slip-qty-tag">{item.quantity}개</span>
+                        <div className="slip-prod-header">
+                          {item.isCustom && (
+                            <span className="slip-custom-badge">맞춤주문</span>
+                          )}
+                          <strong className="slip-prod-name">
+                            {item.productName}
+                            {item.isCustom && item.unitPrice && item.unitPrice > 0 ? (
+                              <span className="slip-prod-price-text"> ({item.unitPrice.toLocaleString("ko-KR")}원)</span>
+                            ) : null}
+                          </strong>
+                          <span className="slip-qty-tag">{item.quantity}개</span>
+                        </div>
+                        {item.customDetails ? (
+                          <div className="slip-custom-spec-box">
+                            <span className="slip-custom-spec-label">작업/구성:</span>
+                            <span className="slip-custom-spec-content">{item.customDetails}</span>
+                          </div>
+                        ) : null}
                       </td>
 
                       {/* 배송지 (택배/배달인 경우) */}
@@ -529,8 +560,21 @@ export default function WorkshopPackingSlipModal({
 
                       {/* 요청사항 / 메모 */}
                       <td className="note-td">
-                        {item.note || item.customerNote ? (
-                          <span className="slip-note-text">{item.note || item.customerNote}</span>
+                        {item.customerRequest || item.internalMemo ? (
+                          <div className="slip-request-highlight-box">
+                            {item.customerRequest ? (
+                              <div className="slip-note-entry customer">
+                                <span className="slip-note-pill customer">고객요청</span>
+                                <span className="slip-note-desc">{item.customerRequest}</span>
+                              </div>
+                            ) : null}
+                            {item.internalMemo ? (
+                              <div className="slip-note-entry internal">
+                                <span className="slip-note-pill internal">관리자메모</span>
+                                <span className="slip-note-desc">{item.internalMemo}</span>
+                              </div>
+                            ) : null}
+                          </div>
                         ) : (
                           <span className="slip-muted">-</span>
                         )}

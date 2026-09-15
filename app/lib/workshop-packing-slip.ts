@@ -16,6 +16,7 @@ export type WorkItemLike = {
   paymentStatus?: string | null;
   customerNote?: string;
   note: string;
+  customizationJson?: string | null;
   recipientName?: string | null;
   recipientPhone?: string | null;
   postalCode?: string | null;
@@ -25,6 +26,17 @@ export type WorkItemLike = {
   buyerName: string;
   buyerPhone: string;
 };
+
+export function isCustomOrderItem(item: {
+  productId?: string | null;
+  productName?: string | null;
+  customizationJson?: string | null;
+}): boolean {
+  if (item.productId === "custom-order") return true;
+  if (item.customizationJson && item.customizationJson.trim()) return true;
+  if (item.productName && /맞춤/.test(item.productName)) return true;
+  return false;
+}
 
 export function classifyDeliveryType(item: {
   deliveryMethod: string;
@@ -608,6 +620,11 @@ export type InspectionItem = WorkItemLike & {
   dueTime: string;
   paymentBadge: { label: string; isPaid: boolean };
   fullAddress: string;
+  isCustom: boolean;
+  customDetails: string;
+  customerRequest: string;
+  internalMemo: string;
+  hasSpecialRequest: boolean;
 };
 
 export function prepareInspectionItems(items: WorkItemLike[]): InspectionItem[] {
@@ -620,6 +637,15 @@ export function prepareInspectionItems(items: WorkItemLike[]): InspectionItem[] 
         .join(" ")
         .trim() || item.address || "";
 
+      const isCustom = isCustomOrderItem(item);
+      const customDetails = (item.customizationJson || "").trim();
+
+      const customerRequest = (item.customerNote || "").trim();
+      const rawNote = (item.note || "").trim();
+      const internalMemo = rawNote && rawNote !== customerRequest ? rawNote : "";
+
+      const hasSpecialRequest = Boolean(isCustom || customerRequest || internalMemo);
+
       return {
         ...item,
         classification,
@@ -627,6 +653,11 @@ export function prepareInspectionItems(items: WorkItemLike[]): InspectionItem[] 
         dueTime: formatDueTime(item.dueAt),
         paymentBadge: formatPaymentStatus(item.paymentStatus),
         fullAddress,
+        isCustom,
+        customDetails,
+        customerRequest,
+        internalMemo,
+        hasSpecialRequest,
       };
     })
     .sort((a, b) => {
@@ -682,6 +713,16 @@ export function generatePackingLabels(items: WorkItemLike[], targetDate: string)
       .trim() || item.address || "";
     const effectiveDate = targetDate || formatDueDate(item.dueAt);
 
+    const noteParts: string[] = [];
+    if (item.customerNote?.trim()) noteParts.push(`고객: ${item.customerNote.trim()}`);
+    if (item.note?.trim() && item.note.trim() !== item.customerNote?.trim()) {
+      noteParts.push(`메모: ${item.note.trim()}`);
+    }
+    if (item.customizationJson?.trim()) {
+      noteParts.push(`맞춤: ${item.customizationJson.trim()}`);
+    }
+    const labelNote = noteParts.length > 0 ? noteParts.join(" / ") : (item.note || item.customerNote || "");
+
     for (let index = 1; index <= count; index++) {
       labels.push({
         id: `${item.id}-${index}`,
@@ -703,7 +744,7 @@ export function generatePackingLabels(items: WorkItemLike[], targetDate: string)
         recipientPhone: item.recipientPhone || item.buyerPhone || "",
         postalCode: item.postalCode || "",
         fullAddress,
-        note: item.note || item.customerNote || "",
+        note: labelNote,
       });
     }
   }

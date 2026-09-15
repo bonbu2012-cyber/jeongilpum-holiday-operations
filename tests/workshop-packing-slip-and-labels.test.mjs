@@ -10,6 +10,7 @@ import {
   calculateDailyProductSummary,
   formatPriceInManwon,
   formatKoreanDateWithWeekday,
+  isCustomOrderItem,
 } from "../app/lib/workshop-packing-slip.ts";
 
 test("classifyDeliveryType distinguishes onsite, shipping, and direct delivery based on method and notes", () => {
@@ -469,5 +470,121 @@ test("calculateDailyProductSummary groups by lineup, sorts by highest price, and
   assert.ok(!summary.some((s) => s.name === "오미트 프레스티지"));
   assert.ok(!summary.some((s) => s.name === "사골×우족"));
 });
+
+test("isCustomOrderItem accurately detects custom order items by id, customizationJson, or name", () => {
+  assert.equal(isCustomOrderItem({ productId: "custom-order", productName: "맞춤주문" }), true);
+  assert.equal(isCustomOrderItem({ productId: "custom-order" }), true);
+  assert.equal(isCustomOrderItem({ productId: "other", customizationJson: "등심 500g, 안심 500g" }), true);
+  assert.equal(isCustomOrderItem({ productName: "맞춤 한우 특수부위" }), true);
+  assert.equal(isCustomOrderItem({ productId: "bonghwang", productName: "봉황세트" }), false);
+  assert.equal(isCustomOrderItem({ productId: "bonghwang", productName: "봉황세트", customizationJson: null }), false);
+  assert.equal(isCustomOrderItem({ productId: "bonghwang", productName: "봉황세트", customizationJson: "   " }), false);
+});
+
+test("prepareInspectionItems extracts customDetails and separates customerRequest from internalMemo", () => {
+  const mockItems = [
+    {
+      id: "item-custom",
+      orderNo: "JI-260915-0101",
+      productId: "custom-order",
+      productName: "맞춤주문",
+      unitPrice: 250000,
+      quantity: 1,
+      deliveryMethod: "onsite_reservation",
+      dueAt: "2026-09-15T14:00:00+09:00",
+      workStatus: "confirmed",
+      customizationJson: "꽃등심 600g, 살치살 400g 두껍게 썰어주세요",
+      customerNote: "아이스팩 넉넉히",
+      note: "VIP 단골고객 포장 신경쓸 것",
+      buyerName: "강백호",
+      buyerPhone: "01011112222",
+    },
+    {
+      id: "item-standard-req",
+      orderNo: "JI-260915-0102",
+      productId: "bonghwang",
+      productName: "봉황세트",
+      quantity: 2,
+      deliveryMethod: "delivery",
+      dueAt: "2026-09-15T18:00:00+09:00",
+      workStatus: "confirmed",
+      customerNote: "문 앞 보냉백에 넣어주세요",
+      note: "문 앞 보냉백에 넣어주세요", // customerNote와 동일한 경우
+      buyerName: "서태웅",
+      buyerPhone: "01033334444",
+    },
+    {
+      id: "item-plain",
+      orderNo: "JI-260915-0103",
+      productId: "palyeong",
+      productName: "팔영세트",
+      quantity: 1,
+      deliveryMethod: "onsite_reservation",
+      dueAt: "2026-09-15T15:00:00+09:00",
+      workStatus: "confirmed",
+      customerNote: "",
+      note: "",
+      buyerName: "채치수",
+      buyerPhone: "01055556666",
+    },
+  ];
+
+  const prepared = prepareInspectionItems(mockItems);
+  assert.equal(prepared.length, 3);
+
+  // 1. 맞춤주문 건 검증
+  const customItem = prepared.find((i) => i.id === "item-custom");
+  assert.ok(customItem);
+  assert.equal(customItem.isCustom, true);
+  assert.equal(customItem.customDetails, "꽃등심 600g, 살치살 400g 두껍게 썰어주세요");
+  assert.equal(customItem.customerRequest, "아이스팩 넉넉히");
+  assert.equal(customItem.internalMemo, "VIP 단골고객 포장 신경쓸 것");
+  assert.equal(customItem.hasSpecialRequest, true);
+
+  // 2. 고객요청만 있는 일반 세트 검증 (note와 customerNote가 같을 때 중복 배제)
+  const reqItem = prepared.find((i) => i.id === "item-standard-req");
+  assert.ok(reqItem);
+  assert.equal(reqItem.isCustom, false);
+  assert.equal(reqItem.customDetails, "");
+  assert.equal(reqItem.customerRequest, "문 앞 보냉백에 넣어주세요");
+  assert.equal(reqItem.internalMemo, ""); // 동일하므로 내부메모로 중복 표시되지 않음
+  assert.equal(reqItem.hasSpecialRequest, true);
+
+  // 3. 요청사항이 없는 일반 세트 검증
+  const plainItem = prepared.find((i) => i.id === "item-plain");
+  assert.ok(plainItem);
+  assert.equal(plainItem.isCustom, false);
+  assert.equal(plainItem.customDetails, "");
+  assert.equal(plainItem.customerRequest, "");
+  assert.equal(plainItem.internalMemo, "");
+  assert.equal(plainItem.hasSpecialRequest, false);
+});
+
+test("generatePackingLabels reflects custom composition and request tags on labels", () => {
+  const mockItems = [
+    {
+      id: "item-custom-label",
+      orderNo: "JI-260915-0201",
+      productId: "custom-order",
+      productName: "맞춤 한우세트",
+      quantity: 1,
+      deliveryMethod: "delivery",
+      dueAt: "2026-09-15T18:00:00+09:00",
+      workStatus: "confirmed",
+      customizationJson: "안심 500g 스테이크용",
+      customerNote: "경비실 보관 요망",
+      note: "선물용 보냉가방 포장",
+      buyerName: "정대만",
+      buyerPhone: "01077778888",
+    },
+  ];
+
+  const labels = generatePackingLabels(mockItems, "2026-09-15");
+  assert.equal(labels.length, 1);
+  assert.match(labels[0].note, /고객: 경비실 보관 요망/);
+  assert.match(labels[0].note, /메모: 선물용 보냉가방 포장/);
+  assert.match(labels[0].note, /맞춤: 안심 500g 스테이크용/);
+});
+
 
 
