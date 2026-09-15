@@ -3,7 +3,9 @@
 import { CheckCircle2, Clock, Package, Printer, Truck, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import {
+  calculateDailyProductSummary,
   calculateSetCutRequirements,
+  formatKoreanDateWithWeekday,
   prepareInspectionItems,
   type InspectionItem,
   type WorkItemLike,
@@ -30,6 +32,11 @@ export default function WorkshopPackingSlipModal({
 
   const inspectionItems = useMemo(() => prepareInspectionItems(items), [items]);
   const cutCalc = useMemo(() => calculateSetCutRequirements(items), [items]);
+  const dailyProducts = useMemo(() => calculateDailyProductSummary(items), [items]);
+  const totalDailyQuantity = useMemo(
+    () => dailyProducts.reduce((sum, p) => sum + p.quantity, 0),
+    [dailyProducts],
+  );
 
   const filteredItems = useMemo(() => {
     if (filterType === "all") return inspectionItems;
@@ -324,6 +331,49 @@ export default function WorkshopPackingSlipModal({
               </div>
             </div>
           </section>
+
+            {/* 2. 오늘 생산 및 출고 상품별 수량 요약 (라인업별 / 고가순 대형 표기) */}
+            <section className="slip-daily-products-section">
+              <div className="slip-daily-products-header">
+                <div className="slip-daily-products-header-left">
+                  <span className="slip-daily-date-badge">
+                    📅 {formatKoreanDateWithWeekday(date)}
+                  </span>
+                  <h3 className="slip-daily-products-heading">2. 오늘 생산 및 출고 상품 목록</h3>
+                </div>
+                <div className="slip-daily-total-badge">
+                  오늘 총 <strong>{totalDailyQuantity}</strong>개 출고
+                </div>
+              </div>
+
+              {dailyProducts.length > 0 ? (
+                <div className="slip-daily-products-grid">
+                  {dailyProducts.map((prod) => (
+                    <article key={prod.key} className={`slip-daily-prod-card category-${prod.categoryClass}`}>
+                      <div className="slip-daily-prod-badge-bar">
+                        <span className="slip-daily-category-tag">{prod.category}</span>
+                        <span className="slip-daily-price-tag">{prod.priceLabel}</span>
+                      </div>
+                      <div className="slip-daily-prod-body">
+                        <span className="slip-daily-prod-name">
+                          {prod.name}
+                          <small className="slip-daily-prod-price-inline">({prod.priceLabel})</small>
+                        </span>
+                        <span className="slip-daily-qty-box">
+                          <span className="qty-symbol">×</span>
+                          <strong className="qty-num">{prod.quantity}</strong>
+                          <span className="qty-unit">개</span>
+                        </span>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <div className="slip-empty-products-notice">
+                  오늘 출고 예정인 세트 및 상품이 없습니다.
+                </div>
+              )}
+            </section>
 
             {/* 1페이지 인쇄용 하단 안내 */}
             <footer className="slip-doc-footer print-only">

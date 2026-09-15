@@ -710,3 +710,380 @@ export function generatePackingLabels(items: WorkItemLike[], targetDate: string)
 
   return labels;
 }
+
+export type DailyProductSummaryItem = {
+  key: string;
+  category: string;
+  categoryClass: string;
+  categoryOrder: number;
+  name: string;
+  price: number;
+  priceLabel: string;
+  quantity: number;
+};
+
+export function formatPriceInManwon(price?: number | null): string {
+  if (!price || price <= 0) return "";
+  if (price % 10000 === 0) {
+    return `${price / 10000}만원`;
+  }
+  const manwon = price / 10000;
+  return `${Number(manwon.toFixed(1))}만원`;
+}
+
+export function formatKoreanDateWithWeekday(dateStr: string): string {
+  if (!dateStr) return "";
+  const clean = dateStr.replace(/[^\d-]/g, "").slice(0, 10);
+  const parts = clean.split("-").map(Number);
+  if (parts.length < 3 || isNaN(parts[0]) || isNaN(parts[1]) || isNaN(parts[2])) {
+    return dateStr;
+  }
+  const [year, month, day] = parts;
+  const d = new Date(Date.UTC(year, month - 1, day));
+  const weekdays = ["일", "월", "화", "수", "목", "금", "토"];
+  const weekday = weekdays[d.getUTCDay()];
+  return `${year}년 ${month}월 ${day}일 (${weekday})`;
+}
+
+const MASTER_PRODUCT_CATALOG: Record<
+  string,
+  {
+    category: string;
+    categoryClass: string;
+    categoryOrder: number;
+    displayName: string;
+    defaultPrice: number;
+  }
+> = {
+  // 1. 프리미엄 라인업
+  jin: {
+    category: "프리미엄",
+    categoryClass: "premium",
+    categoryOrder: 1,
+    displayName: "프리미엄 진",
+    defaultPrice: 320000,
+  },
+  seon: {
+    category: "프리미엄",
+    categoryClass: "premium",
+    categoryOrder: 1,
+    displayName: "프리미엄 선",
+    defaultPrice: 270000,
+  },
+  mi: {
+    category: "프리미엄",
+    categoryClass: "premium",
+    categoryOrder: 1,
+    displayName: "프리미엄 미",
+    defaultPrice: 220000,
+  },
+  // 2. O'meat 라인업
+  "omeat-prestige": {
+    category: "O'meat",
+    categoryClass: "omeat",
+    categoryOrder: 2,
+    displayName: "오미트 프레스티지",
+    defaultPrice: 389000,
+  },
+  "omeat-signature": {
+    category: "O'meat",
+    categoryClass: "omeat",
+    categoryOrder: 2,
+    displayName: "오미트 시그니처",
+    defaultPrice: 289000,
+  },
+  // 3. 진공세트 라인업
+  palyeong: {
+    category: "진공세트",
+    categoryClass: "vacuum",
+    categoryOrder: 3,
+    displayName: "팔영",
+    defaultPrice: 300000,
+  },
+  bonghwang: {
+    category: "진공세트",
+    categoryClass: "vacuum",
+    categoryOrder: 3,
+    displayName: "봉황",
+    defaultPrice: 200000,
+  },
+  practical: {
+    category: "진공세트",
+    categoryClass: "vacuum",
+    categoryOrder: 3,
+    displayName: "실속형",
+    defaultPrice: 144000,
+  },
+  // 4. LA갈비 라인업
+  "la-2": {
+    category: "LA갈비",
+    categoryClass: "la",
+    categoryOrder: 4,
+    displayName: "LA갈비 2호",
+    defaultPrice: 148000,
+  },
+  "la-1": {
+    category: "LA갈비",
+    categoryClass: "la",
+    categoryOrder: 4,
+    displayName: "LA갈비 1호",
+    defaultPrice: 99000,
+  },
+  // 5. 뼈세트 라인업
+  "bone-2": {
+    category: "뼈세트",
+    categoryClass: "bone",
+    categoryOrder: 5,
+    displayName: "사골×잡뼈×꼬리",
+    defaultPrice: 99000,
+  },
+  "bone-1": {
+    category: "뼈세트",
+    categoryClass: "bone",
+    categoryOrder: 5,
+    displayName: "사골×우족",
+    defaultPrice: 59000,
+  },
+};
+
+export function resolveProductSummaryMeta(item: {
+  productId?: string;
+  productName?: string;
+  unitPrice?: number;
+}): {
+  key: string;
+  category: string;
+  categoryClass: string;
+  categoryOrder: number;
+  name: string;
+  price: number;
+  priceLabel: string;
+} {
+  const pId = (item.productId || "").toLowerCase().trim();
+  const rawName = (item.productName || "").trim();
+
+  // 1. productId 매칭
+  if (pId && MASTER_PRODUCT_CATALOG[pId]) {
+    const meta = MASTER_PRODUCT_CATALOG[pId];
+    const price = item.unitPrice && item.unitPrice > 0 ? item.unitPrice : meta.defaultPrice;
+    return {
+      key: pId,
+      category: meta.category,
+      categoryClass: meta.categoryClass,
+      categoryOrder: meta.categoryOrder,
+      name: meta.displayName,
+      price,
+      priceLabel: formatPriceInManwon(price),
+    };
+  }
+
+  // 2. productName 텍스트 매칭
+  const norm = rawName.replace(/[\s()（）·×'-]/g, "").toLowerCase();
+
+  if (/프레스티지|prestige/.test(norm)) {
+    const meta = MASTER_PRODUCT_CATALOG["omeat-prestige"];
+    const price = item.unitPrice && item.unitPrice > 0 ? item.unitPrice : meta.defaultPrice;
+    return {
+      key: "omeat-prestige",
+      category: meta.category,
+      categoryClass: meta.categoryClass,
+      categoryOrder: meta.categoryOrder,
+      name: meta.displayName,
+      price,
+      priceLabel: formatPriceInManwon(price),
+    };
+  }
+  if (/시그니처|signature/.test(norm)) {
+    const meta = MASTER_PRODUCT_CATALOG["omeat-signature"];
+    const price = item.unitPrice && item.unitPrice > 0 ? item.unitPrice : meta.defaultPrice;
+    return {
+      key: "omeat-signature",
+      category: meta.category,
+      categoryClass: meta.categoryClass,
+      categoryOrder: meta.categoryOrder,
+      name: meta.displayName,
+      price,
+      priceLabel: formatPriceInManwon(price),
+    };
+  }
+  if (/프리미엄진|^진$|진세트|진\b/.test(norm)) {
+    const meta = MASTER_PRODUCT_CATALOG.jin;
+    const price = item.unitPrice && item.unitPrice > 0 ? item.unitPrice : meta.defaultPrice;
+    return {
+      key: "jin",
+      category: meta.category,
+      categoryClass: meta.categoryClass,
+      categoryOrder: meta.categoryOrder,
+      name: meta.displayName,
+      price,
+      priceLabel: formatPriceInManwon(price),
+    };
+  }
+  if (/프리미엄선|^선$|선세트|선\b/.test(norm)) {
+    const meta = MASTER_PRODUCT_CATALOG.seon;
+    const price = item.unitPrice && item.unitPrice > 0 ? item.unitPrice : meta.defaultPrice;
+    return {
+      key: "seon",
+      category: meta.category,
+      categoryClass: meta.categoryClass,
+      categoryOrder: meta.categoryOrder,
+      name: meta.displayName,
+      price,
+      priceLabel: formatPriceInManwon(price),
+    };
+  }
+  if (/프리미엄미|^미$|미세트|미\b/.test(norm)) {
+    const meta = MASTER_PRODUCT_CATALOG.mi;
+    const price = item.unitPrice && item.unitPrice > 0 ? item.unitPrice : meta.defaultPrice;
+    return {
+      key: "mi",
+      category: meta.category,
+      categoryClass: meta.categoryClass,
+      categoryOrder: meta.categoryOrder,
+      name: meta.displayName,
+      price,
+      priceLabel: formatPriceInManwon(price),
+    };
+  }
+  if (/팔영/.test(norm)) {
+    const meta = MASTER_PRODUCT_CATALOG.palyeong;
+    const price = item.unitPrice && item.unitPrice > 0 ? item.unitPrice : meta.defaultPrice;
+    return {
+      key: "palyeong",
+      category: meta.category,
+      categoryClass: meta.categoryClass,
+      categoryOrder: meta.categoryOrder,
+      name: meta.displayName,
+      price,
+      priceLabel: formatPriceInManwon(price),
+    };
+  }
+  if (/봉황/.test(norm)) {
+    const meta = MASTER_PRODUCT_CATALOG.bonghwang;
+    const price = item.unitPrice && item.unitPrice > 0 ? item.unitPrice : meta.defaultPrice;
+    return {
+      key: "bonghwang",
+      category: meta.category,
+      categoryClass: meta.categoryClass,
+      categoryOrder: meta.categoryOrder,
+      name: meta.displayName,
+      price,
+      priceLabel: formatPriceInManwon(price),
+    };
+  }
+  if (/실속/.test(norm)) {
+    const meta = MASTER_PRODUCT_CATALOG.practical;
+    const price = item.unitPrice && item.unitPrice > 0 ? item.unitPrice : meta.defaultPrice;
+    return {
+      key: "practical",
+      category: meta.category,
+      categoryClass: meta.categoryClass,
+      categoryOrder: meta.categoryOrder,
+      name: meta.displayName,
+      price,
+      priceLabel: formatPriceInManwon(price),
+    };
+  }
+  if (/la.*2|la갈비2/.test(norm)) {
+    const meta = MASTER_PRODUCT_CATALOG["la-2"];
+    const price = item.unitPrice && item.unitPrice > 0 ? item.unitPrice : meta.defaultPrice;
+    return {
+      key: "la-2",
+      category: meta.category,
+      categoryClass: meta.categoryClass,
+      categoryOrder: meta.categoryOrder,
+      name: meta.displayName,
+      price,
+      priceLabel: formatPriceInManwon(price),
+    };
+  }
+  if (/la.*1|la갈비1|la갈비|la/.test(norm)) {
+    const meta = MASTER_PRODUCT_CATALOG["la-1"];
+    const price = item.unitPrice && item.unitPrice > 0 ? item.unitPrice : meta.defaultPrice;
+    return {
+      key: "la-1",
+      category: meta.category,
+      categoryClass: meta.categoryClass,
+      categoryOrder: meta.categoryOrder,
+      name: meta.displayName,
+      price,
+      priceLabel: formatPriceInManwon(price),
+    };
+  }
+  if (/잡뼈|꼬리|사골잡뼈꼬리/.test(norm)) {
+    const meta = MASTER_PRODUCT_CATALOG["bone-2"];
+    const price = item.unitPrice && item.unitPrice > 0 ? item.unitPrice : meta.defaultPrice;
+    return {
+      key: "bone-2",
+      category: meta.category,
+      categoryClass: meta.categoryClass,
+      categoryOrder: meta.categoryOrder,
+      name: meta.displayName,
+      price,
+      priceLabel: formatPriceInManwon(price),
+    };
+  }
+  if (/우족|사골우족/.test(norm)) {
+    const meta = MASTER_PRODUCT_CATALOG["bone-1"];
+    const price = item.unitPrice && item.unitPrice > 0 ? item.unitPrice : meta.defaultPrice;
+    return {
+      key: "bone-1",
+      category: meta.category,
+      categoryClass: meta.categoryClass,
+      categoryOrder: meta.categoryOrder,
+      name: meta.displayName,
+      price,
+      priceLabel: formatPriceInManwon(price),
+    };
+  }
+
+  // 3. 맞춤주문 또는 기타 품목
+  const isCustom = pId === "custom-order" || /맞춤/.test(norm);
+  const price = item.unitPrice && item.unitPrice > 0 ? item.unitPrice : 0;
+  const name = rawName || (isCustom ? "맞춤주문" : "기타 상품");
+  const key = `${pId || "other"}_${name}_${price}`;
+
+  return {
+    key,
+    category: isCustom ? "맞춤주문" : "기타",
+    categoryClass: isCustom ? "custom" : "other",
+    categoryOrder: isCustom ? 6 : 7,
+    name,
+    price,
+    priceLabel: formatPriceInManwon(price),
+  };
+}
+
+export function calculateDailyProductSummary(items: WorkItemLike[]): DailyProductSummaryItem[] {
+  const activeItems = items.filter((item) => item.workStatus !== "cancelled");
+  const map = new Map<string, DailyProductSummaryItem>();
+
+  for (const item of activeItems) {
+    const qty = Number(item.quantity) || 1;
+    if (qty <= 0) continue;
+
+    const meta = resolveProductSummaryMeta(item);
+    const existing = map.get(meta.key);
+    if (existing) {
+      existing.quantity += qty;
+    } else {
+      map.set(meta.key, { ...meta, quantity: qty });
+    }
+  }
+
+  return Array.from(map.values())
+    .filter((item) => item.quantity > 0)
+    .sort((a, b) => {
+      // 1순위: 라인업(카테고리) 순서
+      if (a.categoryOrder !== b.categoryOrder) {
+        return a.categoryOrder - b.categoryOrder;
+      }
+      // 2순위: 같은 라인업 내에서 가격 높은 순 (내림차순)
+      if (b.price !== a.price) {
+        return b.price - a.price;
+      }
+      // 3순위: 이름 가나다순
+      return a.name.localeCompare(b.name, "ko");
+    });
+}
+

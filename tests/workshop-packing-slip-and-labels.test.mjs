@@ -7,6 +7,9 @@ import {
   prepareInspectionItems,
   generatePackingLabels,
   formatPaymentStatus,
+  calculateDailyProductSummary,
+  formatPriceInManwon,
+  formatKoreanDateWithWeekday,
 } from "../app/lib/workshop-packing-slip.ts";
 
 test("classifyDeliveryType distinguishes onsite, shipping, and direct delivery based on method and notes", () => {
@@ -326,4 +329,145 @@ test("formatPaymentStatus handles null, undefined, and valid statuses gracefully
   assert.deepEqual(formatPaymentStatus(null), { label: "미결제", isPaid: false });
   assert.deepEqual(formatPaymentStatus(undefined), { label: "미결제", isPaid: false });
 });
+
+test("formatKoreanDateWithWeekday formats YYYY-MM-DD into Korean date with weekday", () => {
+  assert.equal(formatKoreanDateWithWeekday("2026-09-15"), "2026년 9월 15일 (화)");
+  assert.equal(formatKoreanDateWithWeekday("2026-09-14"), "2026년 9월 14일 (월)");
+  assert.equal(formatKoreanDateWithWeekday(""), "");
+});
+
+test("formatPriceInManwon formats prices accurately in manwon units", () => {
+  assert.equal(formatPriceInManwon(320000), "32만원");
+  assert.equal(formatPriceInManwon(200000), "20만원");
+  assert.equal(formatPriceInManwon(389000), "38.9만원");
+  assert.equal(formatPriceInManwon(144000), "14.4만원");
+  assert.equal(formatPriceInManwon(99000), "9.9만원");
+  assert.equal(formatPriceInManwon(59000), "5.9만원");
+  assert.equal(formatPriceInManwon(0), "");
+});
+
+test("calculateDailyProductSummary groups by lineup, sorts by highest price, and omits 0-count items", () => {
+  const mockItems = [
+    {
+      id: "i-1",
+      orderNo: "ORD-001",
+      productId: "bonghwang",
+      productName: "봉황세트",
+      quantity: 3,
+      deliveryMethod: "onsite_reservation",
+      dueAt: "2026-09-15T10:00:00+09:00",
+      workStatus: "confirmed",
+      buyerName: "고객1",
+      buyerPhone: "01000000000",
+      note: "",
+    },
+    {
+      id: "i-2",
+      orderNo: "ORD-002",
+      productId: "jin",
+      productName: "진",
+      quantity: 2,
+      deliveryMethod: "delivery",
+      dueAt: "2026-09-15T18:00:00+09:00",
+      workStatus: "confirmed",
+      buyerName: "고객2",
+      buyerPhone: "01000000000",
+      note: "",
+    },
+    {
+      id: "i-3",
+      orderNo: "ORD-003",
+      productId: "mi",
+      productName: "프리미엄 미 세트",
+      quantity: 1,
+      deliveryMethod: "onsite_reservation",
+      dueAt: "2026-09-15T11:00:00+09:00",
+      workStatus: "confirmed",
+      buyerName: "고객3",
+      buyerPhone: "01000000000",
+      note: "",
+    },
+    {
+      id: "i-4",
+      orderNo: "ORD-004",
+      productId: "omeat-signature",
+      productName: "O'meat Signature",
+      quantity: 2,
+      deliveryMethod: "delivery",
+      dueAt: "2026-09-15T18:00:00+09:00",
+      workStatus: "confirmed",
+      buyerName: "고객4",
+      buyerPhone: "01000000000",
+      note: "",
+    },
+    {
+      id: "i-5",
+      orderNo: "ORD-005",
+      productId: "la-1",
+      productName: "LA갈비 1호",
+      quantity: 4,
+      deliveryMethod: "delivery",
+      dueAt: "2026-09-15T18:00:00+09:00",
+      workStatus: "confirmed",
+      buyerName: "고객5",
+      buyerPhone: "01000000000",
+      note: "",
+    },
+    {
+      id: "i-cancelled",
+      orderNo: "ORD-006",
+      productId: "palyeong",
+      productName: "팔영세트",
+      quantity: 5,
+      deliveryMethod: "delivery",
+      dueAt: "2026-09-15T18:00:00+09:00",
+      workStatus: "cancelled", // 취소 건은 집계에서 제외되어야 함
+      buyerName: "취소고객",
+      buyerPhone: "01000000000",
+      note: "",
+    },
+  ];
+
+  const summary = calculateDailyProductSummary(mockItems);
+
+  // 총 5개 품목 (취소된 팔영 및 미주문 품목은 미포함)
+  assert.equal(summary.length, 5);
+
+  // 정렬 순서 검증:
+  // 1. 프리미엄 라인업: 프리미엄 진 (32만원) x 2개 -> 프리미엄 미 (22만원) x 1개
+  assert.equal(summary[0].name, "프리미엄 진");
+  assert.equal(summary[0].priceLabel, "32만원");
+  assert.equal(summary[0].quantity, 2);
+  assert.equal(summary[0].category, "프리미엄");
+
+  assert.equal(summary[1].name, "프리미엄 미");
+  assert.equal(summary[1].priceLabel, "22만원");
+  assert.equal(summary[1].quantity, 1);
+  assert.equal(summary[1].category, "프리미엄");
+
+  // 2. O'meat 라인업: 오미트 시그니처 (28.9만원) x 2개
+  assert.equal(summary[2].name, "오미트 시그니처");
+  assert.equal(summary[2].priceLabel, "28.9만원");
+  assert.equal(summary[2].quantity, 2);
+  assert.equal(summary[2].category, "O'meat");
+
+  // 3. 진공세트 라인업: 봉황 (20만원) x 3개
+  assert.equal(summary[3].name, "봉황");
+  assert.equal(summary[3].priceLabel, "20만원");
+  assert.equal(summary[3].quantity, 3);
+  assert.equal(summary[3].category, "진공세트");
+
+  // 4. LA갈비 라인업: LA갈비 1호 (9.9만원) x 4개
+  assert.equal(summary[4].name, "LA갈비 1호");
+  assert.equal(summary[4].priceLabel, "9.9만원");
+  assert.equal(summary[4].quantity, 4);
+  assert.equal(summary[4].category, "LA갈비");
+
+  // 팔영(취소), 선, 오미트 프레스티지, LA갈비 2호, 뼈세트 등 미주문 품목은 0개이므로 목록에 없음
+  assert.ok(!summary.some((s) => s.name === "팔영"));
+  assert.ok(!summary.some((s) => s.name === "프리미엄 선"));
+  assert.ok(!summary.some((s) => s.name === "오미트 프레스티지"));
+  assert.ok(!summary.some((s) => s.name === "사골×우족"));
+});
+
 

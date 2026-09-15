@@ -1350,6 +1350,221 @@
   margin-top: 18px;
 }
 
+/* ==========================================================================
+   출고 검수표 1페이지: 오늘 생산 및 출고 상품별 수량 요약 (대형 글자 표기)
+   ========================================================================== */
+.slip-daily-products-section {
+  margin-top: 14px;
+  background: #ffffff;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+.slip-daily-products-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 8px;
+  margin-bottom: 10px;
+  border-bottom: 2px solid #0f172a;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.slip-daily-products-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.slip-daily-date-badge {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #1e3a8a;
+  background: #dbeafe;
+  border: 1px solid #bfdbfe;
+  padding: 3px 10px;
+  border-radius: 6px;
+  letter-spacing: -0.3px;
+}
+
+.slip-daily-products-heading {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.slip-daily-total-badge {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #991b1b;
+  background: #fee2e2;
+  border: 1.5px solid #fca5a5;
+  padding: 3px 12px;
+  border-radius: 6px;
+}
+
+.slip-daily-total-badge strong {
+  font-size: 1.25rem;
+  font-weight: 900;
+}
+
+.slip-daily-products-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 8px;
+}
+
+.slip-daily-prod-card {
+  background: #f8fafc;
+  border: 1.5px solid #cbd5e1;
+  border-left: 5px solid #475569;
+  border-radius: 6px;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  box-sizing: border-box;
+}
+
+.slip-daily-prod-card.category-premium {
+  border-left-color: #b45309;
+  background: #fffbeb;
+}
+
+.slip-daily-prod-card.category-omeat {
+  border-left-color: #701a75;
+  background: #fdf4ff;
+}
+
+.slip-daily-prod-card.category-vacuum {
+  border-left-color: #1e40af;
+  background: #eff6ff;
+}
+
+.slip-daily-prod-card.category-la {
+  border-left-color: #c2410c;
+  background: #fff7ed;
+}
+
+.slip-daily-prod-card.category-bone {
+  border-left-color: #047857;
+  background: #f0fdf4;
+}
+
+.slip-daily-prod-card.category-custom {
+  border-left-color: #475569;
+  background: #f1f5f9;
+}
+
+.slip-daily-prod-badge-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.slip-daily-category-tag {
+  font-size: 0.76rem;
+  font-weight: 800;
+  color: #475569;
+  background: #e2e8f0;
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+
+.category-premium .slip-daily-category-tag {
+  color: #92400e;
+  background: #fef3c7;
+}
+
+.category-omeat .slip-daily-category-tag {
+  color: #701a75;
+  background: #f5d0fe;
+}
+
+.category-vacuum .slip-daily-category-tag {
+  color: #1e40af;
+  background: #dbeafe;
+}
+
+.category-la .slip-daily-category-tag {
+  color: #9a3412;
+  background: #ffedd5;
+}
+
+.category-bone .slip-daily-category-tag {
+  color: #065f46;
+  background: #d1fae5;
+}
+
+.slip-daily-price-tag {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #475569;
+}
+
+.slip-daily-prod-body {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.slip-daily-prod-name {
+  font-size: 1.22rem;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.3px;
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.slip-daily-prod-price-inline {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.slip-daily-qty-box {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+  white-space: nowrap;
+}
+
+.slip-daily-qty-box .qty-symbol {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #dc2626;
+}
+
+.slip-daily-qty-box .qty-num {
+  font-size: 1.7rem;
+  font-weight: 900;
+  color: #b91c1c;
+  line-height: 1;
+}
+
+.slip-daily-qty-box .qty-unit {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.slip-empty-products-notice {
+  text-align: center;
+  padding: 16px;
+  font-size: 0.95rem;
+  color: #64748b;
+  font-weight: 600;
+}
+
 .slip-filters {
   display: flex;
   gap: 6px;
@@ -2007,6 +2222,57 @@
     padding: 4px 6px;
     font-size: 0.76rem;
     background: #f8fafc !important;
+  }
+
+  .slip-daily-products-section {
+    margin-top: 8px !important;
+    padding: 8px 10px !important;
+    border: 1.5px solid #0f172a !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .slip-daily-products-header {
+    padding-bottom: 4px !important;
+    margin-bottom: 6px !important;
+    border-bottom: 1.5px solid #0f172a !important;
+  }
+
+  .slip-daily-date-badge {
+    font-size: 0.95rem !important;
+    padding: 2px 8px !important;
+  }
+
+  .slip-daily-products-heading {
+    font-size: 1.05rem !important;
+  }
+
+  .slip-daily-total-badge {
+    font-size: 0.95rem !important;
+    padding: 2px 8px !important;
+  }
+
+  .slip-daily-products-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 6px !important;
+  }
+
+  .slip-daily-prod-card {
+    padding: 6px 10px !important;
+    border: 1px solid #475569 !important;
+    border-left-width: 4px !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .slip-daily-prod-name {
+    font-size: 1.15rem !important;
+    font-weight: 800 !important;
+  }
+
+  .slip-daily-qty-box .qty-num {
+    font-size: 1.55rem !important;
+    font-weight: 900 !important;
   }
 
   /* ==========================================================================
