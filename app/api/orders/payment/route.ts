@@ -59,6 +59,19 @@ export async function PATCH(request: Request) {
       }, { status: 409 });
     }
 
+    // work_items의 실제 상품 합계 확인
+    const itemsSumRow = await runtimeEnv.DB.prepare(`
+      SELECT COALESCE(SUM(line_total), 0) AS total
+      FROM work_items
+      WHERE order_id = ? AND work_status != 'cancelled'
+    `).bind(orderId).first<{ total: number }>();
+
+    const itemsTotal = itemsSumRow?.total ? Number(itemsSumRow.total) : 0;
+    const effectiveTotalAmount = itemsTotal > 0 ? itemsTotal : current.total_amount;
+    const finalPaidAmount = payload.paymentStatus === "paid"
+      ? Math.max(paidAmount, effectiveTotalAmount)
+      : paidAmount;
+
     const now = new Date().toISOString();
     const fromValue = JSON.stringify({
       paymentStatus: current.payment_status,
@@ -67,15 +80,15 @@ export async function PATCH(request: Request) {
     });
     const toValue = JSON.stringify({
       paymentStatus: payload.paymentStatus,
-      paidAmount,
-      totalAmount: current.total_amount,
+      paidAmount: finalPaidAmount,
+      totalAmount: effectiveTotalAmount,
     });
     const result = await runtimeEnv.DB.batch([
       runtimeEnv.DB.prepare(`
         UPDATE orders
-        SET payment_status=?,paid_amount=?,version=version+1,updated_at=?
+        SET payment_status=?,paid_amount=?,total_amount=?,version=version+1,updated_at=?
         WHERE id=? AND version=?
-      `).bind(payload.paymentStatus, paidAmount, now, current.id, current.version),
+      `).bind(payload.paymentStatus, finalPaidAmount, effectiveTotalAmount, now, current.id, current.version),
       runtimeEnv.DB.prepare(`
         INSERT INTO work_item_events(
           id,work_item_id,order_id,event_type,from_value,to_value,actor,created_at
@@ -104,8 +117,8 @@ export async function PATCH(request: Request) {
       ok: true,
       orderId: current.id,
       paymentStatus: payload.paymentStatus,
-      paidAmount,
-      totalAmount: current.total_amount,
+      paidAmount: finalPaidAmount,
+      totalAmount: effectiveTotalAmount,
       version: current.version + 1,
     });
   } catch {

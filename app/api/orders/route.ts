@@ -554,9 +554,10 @@ async function createManualOrder(payload: CreatePayload) {
   const buyerName = clean(payload.buyerName) || "주문자 미입력";
   const buyerPhone = normalizePhone(payload.buyerPhone ?? "");
   const now = new Date().toISOString();
-  const totalAmount = typeof payload.totalAmount === "number"
-    ? payload.totalAmount
-    : preparedItems.workItems.reduce((sum, item) => sum + item.lineTotal, 0);
+  const calculatedItemsTotal = preparedItems.workItems.reduce((sum, item) => sum + item.lineTotal, 0);
+  const totalAmount = calculatedItemsTotal > 0
+    ? calculatedItemsTotal
+    : (typeof payload.totalAmount === "number" ? payload.totalAmount : 0);
   const primaryWorkItem = preparedItems.workItems[0];
   const legacyFulfillmentType = primaryWorkItem.deliveryMethod === "delivery"
     ? "shipping"
@@ -565,7 +566,8 @@ async function createManualOrder(payload: CreatePayload) {
       : "pickup";
   const legacyScheduleLabel = scheduleLabel(primaryWorkItem.deliveryMethod, primaryWorkItem.dueAt);
   const paymentStatus = clean(payload.paymentStatus) || "unpaid";
-  const paidAmount = typeof payload.paidAmount === "number" ? payload.paidAmount : 0;
+  const rawPaidAmount = typeof payload.paidAmount === "number" ? payload.paidAmount : 0;
+  const paidAmount = paymentStatus === "paid" ? Math.max(rawPaidAmount, totalAmount) : rawPaidAmount;
 
   try {
     await runtimeEnv.DB.batch([

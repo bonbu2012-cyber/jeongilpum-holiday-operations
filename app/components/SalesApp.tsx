@@ -1495,14 +1495,39 @@ function NewOrderEditor({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
+  const calculateTotal = (items: NewOrderWorkItem[]) => {
+    return items.reduce((sum, it) => {
+      const price = Number(it.draft.unitPrice) || 0;
+      const qty = Number(it.draft.quantity) || 0;
+      return sum + (price * qty);
+    }, 0);
+  };
+
   const updateOrder = <Key extends keyof OrderDraft>(key: Key, value: OrderDraft[Key]) => {
-    setDraft((current) => ({ ...current, [key]: value }));
+    setDraft((current) => {
+      const next = { ...current, [key]: value };
+      if (key === "paymentStatus" && value === "paid") {
+        next.paidAmount = next.totalAmount;
+      }
+      return next;
+    });
   };
 
   const updateWorkItem = <Key extends keyof WorkDraft>(id: string, key: Key, value: WorkDraft[Key]) => {
-    setWorkItems((current) => current.map((item) => (
-      item.id === id ? { ...item, draft: { ...item.draft, [key]: value } } : item
-    )));
+    setWorkItems((current) => {
+      const next = current.map((item) => (
+        item.id === id ? { ...item, draft: { ...item.draft, [key]: value } } : item
+      ));
+      if (key === "unitPrice" || key === "quantity" || key === "productId") {
+        const sum = calculateTotal(next);
+        setDraft((cur) => ({
+          ...cur,
+          totalAmount: String(sum),
+          paidAmount: cur.paymentStatus === "paid" ? String(sum) : cur.paidAmount,
+        }));
+      }
+      return next;
+    });
   };
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
@@ -1510,7 +1535,12 @@ function NewOrderEditor({
     setSaving(true);
     setError("");
     try {
-      await onCreate(draft, workItems.map((item) => item.draft), idempotencyKey);
+      const itemsSum = calculateTotal(workItems);
+      const effectiveDraft = {
+        ...draft,
+        totalAmount: itemsSum > 0 ? String(itemsSum) : draft.totalAmount,
+      };
+      await onCreate(effectiveDraft, workItems.map((item) => item.draft), idempotencyKey);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "새 주문을 추가하지 못했습니다.");
     } finally {
@@ -1535,7 +1565,24 @@ function NewOrderEditor({
           <section key={item.id} className="sales-work-table__editor" aria-label={`작업 항목 ${index + 1}`}>
             <div>
               <strong>작업 항목 {index + 1}</strong>
-              <Button size="sm" variant="ghost" onClick={() => setWorkItems((current) => current.filter((value) => value.id !== item.id))}>행 삭제</Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setWorkItems((current) => {
+                    const next = current.filter((value) => value.id !== item.id);
+                    const sum = calculateTotal(next);
+                    setDraft((cur) => ({
+                      ...cur,
+                      totalAmount: String(sum),
+                      paidAmount: cur.paymentStatus === "paid" ? String(sum) : cur.paidAmount,
+                    }));
+                    return next;
+                  });
+                }}
+              >
+                행 삭제
+              </Button>
             </div>
             <SharedWorkItemFields
               draft={item.draft}

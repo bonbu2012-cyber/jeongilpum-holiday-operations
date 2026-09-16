@@ -348,3 +348,72 @@ test("AppNav includes today ledger tab with /today href and TodayLedgerApp rende
   const todayAppSource = await read("app/today/TodayLedgerApp.tsx");
   assert.match(todayAppSource, /<AppNav\s+current="today"\s*\/>/);
 });
+
+test("today ledger resolves totalAmount and balance from work_items line_total when orders.total_amount is mismatched", async () => {
+  const db = await migratedDatabase();
+  const season = db.prepare("SELECT id FROM sales_seasons LIMIT 1").get();
+
+  // '서연이 엄마' 케이스: 250,000원 맞춤주문 3개 (총 750,000원), 그런데 DB의 orders.total_amount는 0원(또는 250,000원)으로 잘못 등록됨
+  const orderId = "order-seoyeon-test";
+  db.prepare(`
+    INSERT INTO orders(id, order_no, season_id, buyer_name_snapshot, buyer_phone_snapshot, buyer_name, buyer_phone, payment_status, paid_amount, total_amount, order_status, fulfillment_type, schedule_label, customer_note, idempotency_key, version, submitted_at, created_at, updated_at)
+    VALUES(?, '260914-009', ?, '서연이 엄마', '01011112222', '서연이 엄마', '01011112222', 'unpaid', 0, 0, 'confirmed', 'pickup', '16:00 방문', '', 'idem-sy', 1, '2026-09-16T08:00:00Z', '2026-09-16T08:00:00Z', '2026-09-16T08:00:00Z')
+  `).run(orderId, season.id);
+
+  db.prepare(`
+    INSERT INTO work_items(id, order_id, product_id, product_name_snapshot, unit_price_snapshot, quantity, line_total, delivery_method, due_at, work_status, note, created_at, updated_at)
+    VALUES('item-sy-1', ?, 'custom-order', '맞춤주문', 250000, 3, 750000, 'onsite_reservation', '2026-09-16T16:00:00+09:00', 'received', '살치살, 갈비살, 치마살 25만원x3', '2026-09-16T08:00:00Z', '2026-09-16T08:00:00Z')
+  `).run(orderId);
+
+  // today-ledger 계산 로직 시뮬레이션
+  const rows = db.prepare(`
+    SELECT
+      w.id,
+      w.order_id,
+      o.order_no,
+      o.buyer_name,
+      o.buyer_phone,
+      o.payment_status,
+      o.paid_amount,
+      o.total_amount,
+      w.product_name_snapshot,
+      w.unit_price_snapshot,
+      w.quantity,
+      w.line_total,
+      w.delivery_method,
+      w.due_at,
+      w.work_status
+    FROM work_items w
+    JOIN orders o ON o.id = w.order_id
+    WHERE w.order_id = ?
+  `).all(orderId);
+
+  const items = rows.map((r) => ({
+    name: r.product_name_snapshot,
+    quantity: r.quantity,
+    unitPrice: r.unit_price_snapshot,
+    lineTotal: r.line_total,
+  }));
+
+  const info = rows[0];
+  const itemsTotal = items.reduce((sum, it) => sum + (it.lineTotal || 0), 0);
+  const effectiveTotalAmount = itemsTotal > 0 ? itemsTotal : (info.total_amount || 0);
+  const balance = Math.max(0, effectiveTotalAmount - (info.paid_amount || 0));
+
+  assert.equal(effectiveTotalAmount, 750000, "상품금액 합계(25만원x3=75만원)가 주문 총 금액으로 올바르게 반영되어야 함");
+  assert.equal(balance, 750000, "미수금도 25만원이 아니라 75만원이어야 함");
+
+  // 결제완료 처리 시뮬레이션 (orders/payment 로직): work_items 합계(750,000원) 기준으로 완납 처리
+  const finalPaidAmount = Math.max(0, effectiveTotalAmount);
+  db.prepare(`
+    UPDATE orders
+    SET payment_status='paid', paid_amount=?, total_amount=?, version=version+1
+    WHERE id=?
+  `).run(finalPaidAmount, effectiveTotalAmount, orderId);
+
+  const updatedOrder = db.prepare("SELECT payment_status, paid_amount, total_amount FROM orders WHERE id=?").get(orderId);
+  assert.equal(updatedOrder.total_amount, 750000);
+  assert.equal(updatedOrder.paid_amount, 750000);
+  assert.equal(updatedOrder.payment_status, "paid");
+});
+

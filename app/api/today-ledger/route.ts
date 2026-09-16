@@ -265,10 +265,39 @@ export async function GET(request: Request) {
 
     const onsiteOrders: TodayLedgerOrder[] = [];
     const shippingOrders: TodayLedgerOrder[] = [];
+    const mismatchedOrderUpdates: { orderId: string; totalAmount: number }[] = [];
 
     for (const { orderInfo: info, items } of orderMap.values()) {
       const isDelivery = info.delivery_method === "delivery";
-      const balance = Math.max(0, (info.total_amount || 0) - (info.paid_amount || 0));
+      
+      // 주문자별 상품금액 합계 (단가 x 수량의 합)
+      const itemsTotal = items.reduce((sum, item) => sum + (item.lineTotal || 0), 0);
+
+      // 상품 세부내역 합계가 존재하면 이를 실제 총 금액으로 우선 채택 (단가만 기록되거나 0으로 기록된 불일치 방지)
+      const effectiveTotalAmount = itemsTotal > 0 ? itemsTotal : (info.total_amount || 0);
+      const paidAmount = info.paid_amount || 0;
+      const balance = Math.max(0, effectiveTotalAmount - paidAmount);
+
+      // 결제 상태 일관성 계산 (완납/일부/미결제)
+      let effectivePaymentStatus: "unpaid" | "partial" | "paid" = info.payment_status || "unpaid";
+      if (effectiveTotalAmount > 0) {
+        if (paidAmount >= effectiveTotalAmount) {
+          effectivePaymentStatus = "paid";
+        } else if (paidAmount > 0) {
+          effectivePaymentStatus = "partial";
+        } else {
+          effectivePaymentStatus = "unpaid";
+        }
+      }
+
+      // DB의 total_amount가 실제 상품 합계(itemsTotal)와 다를 경우 자동 동기화 목록에 수집
+      if (itemsTotal > 0 && info.total_amount !== itemsTotal) {
+        mismatchedOrderUpdates.push({
+          orderId: info.order_id,
+          totalAmount: itemsTotal,
+        });
+      }
+
       const totalQty = items.reduce((sum, item) => sum + item.quantity, 0);
       
       // 상품 요약 문자열 (예: "봉황세트 2개, 갈비세트 1개")
@@ -284,7 +313,7 @@ export async function GET(request: Request) {
       const recipientAddress = addrParts.join(" ").trim();
 
       // 결제 변경 시점: work_item_events의 최신 payment_changed 기록 우선, 없으면 결제완료 상태 시 order_updated_at 활용
-      const rawPaidAt = info.paid_at || (info.payment_status === "paid" ? info.order_updated_at : null);
+      const rawPaidAt = info.paid_at || (effectivePaymentStatus === "paid" ? info.order_updated_at : null);
       const paidAtDisplay = formatDateTimeInSeoul(rawPaidAt);
       const paidAtFull = formatFullDateTimeInSeoul(rawPaidAt);
 
@@ -294,11 +323,11 @@ export async function GET(request: Request) {
         buyerName: info.buyer_name || "고객",
         buyerPhone: formatPhoneDisplay(info.buyer_phone),
         buyerPhoneMasked: info.buyer_phone ? info.buyer_phone.slice(-4) : "",
-        totalAmount: info.total_amount || 0,
-        paidAmount: info.paid_amount || 0,
+        totalAmount: effectiveTotalAmount,
+        paidAmount,
         balance,
         orderVersion: info.order_version || 1,
-        paymentStatus: info.payment_status || "unpaid",
+        paymentStatus: effectivePaymentStatus,
         paidAt: rawPaidAt,
         paidAtDisplay,
         paidAtFull,
@@ -322,6 +351,17 @@ export async function GET(request: Request) {
       } else {
         onsiteOrders.push(orderObj);
       }
+    }
+
+    // 불일치 주문이 있는 경우 DB의 orders.total_amount를 비동기로 자동 보정
+    if (mismatchedOrderUpdates.length > 0) {
+      Promise.allSettled(
+        mismatchedOrderUpdates.map((u) =>
+          db.prepare("UPDATE orders SET total_amount = ?, updated_at = ? WHERE id = ?")
+            .bind(u.totalAmount, new Date().toISOString(), u.orderId)
+            .run()
+        )
+      ).catch(() => {});
     }
 
     // 방문수령은 dueAt 시간순으로 정렬
