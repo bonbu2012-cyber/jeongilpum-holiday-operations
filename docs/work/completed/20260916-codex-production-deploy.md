@@ -1,10 +1,11 @@
 # Task: 오늘의 간편 장부 및 작업장 패킹슬립 기능 Production 배포
 
-- Status: Active
+- Status: Completed
 - Owner: Codex
-- Branch: `codex/today-simple-ledger`
+- Branch: `main`
 - Base commit: `67da06f0f87eec26405836a1a8b904d3f5239224`
-- Started at: 2026-09-16
+- Final commit: `a073d294d1b821437a3c3d52d9baee92da5ab1fb`
+- Completed at: 2026-09-16
 - Target environment: Production (Vercel)
 - Target URL: `https://jeongilpum-holiday-operations.vercel.app`
 
@@ -19,13 +20,33 @@
 
 ## Claimed paths
 
-- `docs/work/active/20260916-codex-production-deploy.md`
+- `docs/work/completed/20260916-codex-production-deploy.md`
 - Production deployment on Vercel (`jeongilpum-holiday-operations`)
 
 ## Plan
 
 1. 로컬 lint, typecheck, 핵심 도메인 테스트, build 검증 (완료)
-2. `codex/today-simple-ledger` 브랜치를 `main`에 병합 및 GitHub 원격(`origin/main`) 푸시
-3. Vercel Production 배포 실행 (`npx vercel --prod`)
-4. 배포 후 Production URL (`https://jeongilpum-holiday-operations.vercel.app/today`) 및 API smoke test
-5. 작업 완료 문서(`docs/work/completed/`) 이동 및 상태 보고
+2. `codex/today-simple-ledger` 브랜치를 `main`에 병합 및 GitHub 원격(`origin/main`) 푸시 (완료)
+3. Vercel Production 배포 실행 (`npx vercel --prod --yes`) (완료)
+4. 배포 후 Production URL (`https://jeongilpum-holiday-operations.vercel.app/today`) 및 API smoke test (완료)
+5. 작업 완료 문서(`docs/work/completed/`) 이동 및 상태 보고 (완료)
+
+## Validation Results
+
+- [x] `npm run lint`: 통과 (0 errors, 0 warnings)
+- [x] `npm run typecheck`: 통과 (0 errors)
+- [x] 핵심 도메인 테스트 (28건 전체 통과):
+  - `tests/today-ledger.test.mjs` (5건 통과)
+  - `tests/workshop-packing-slip-and-labels.test.mjs` (13건 통과)
+  - `tests/commerce.test.mjs` (10건 통과)
+- [x] `npm run build`: 통과 (18개 라우트 정상 생성 및 번들 최적화 완료)
+- [x] Vercel Production 배포:
+  - Deployment ID: `dpl_84TTsKkxE1LLNEekEiygaBA4ADcq`
+  - URL: `https://jeongilpum-holiday-operations-gy4p9dzwm-happy-butcher.vercel.app`
+  - Alias: `https://jeongilpum-holiday-operations.vercel.app`
+  - Status: `READY`
+- [x] Smoke Test:
+  - `GET /today`: 200 OK (오늘의 장부 타이틀 및 운영 암호 게이트 정상 로드 확인)
+  - `GET /kiosk`: 200 OK (키오스크 화면 정상 로드 확인)
+  - `GET /api/today-ledger`: 401 Unauthorized (인증 게이트 정상 보호 확인)
+
