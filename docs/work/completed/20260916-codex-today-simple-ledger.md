@@ -50,4 +50,7 @@
 
 - `npm run typecheck`: 통과 (0 errors)
 - `npm run lint`: 통과 (0 errors, 0 warnings)
-- `node --experimental-strip-types --test tests/today-ledger.test.mjs`: 통과 (2 passed, 0 failed)
+- `node --experimental-strip-types --test tests/today-ledger.test.mjs`: 통과 (3 passed, 0 failed)
+  1. 방문수령 시간순 정렬, 택배 분리, 다수 상품 요약 검증
+  2. 현장 수령 시 결제완료 변경 및 낙관적 잠금(버전 충돌 방지) 검증
+  3. 판매장(/sales) 미수금 요약 바, [미결제만] 필터, 작업장(/workshop) 라벨과의 100% 실시간 동기화 및 이중 결제 방지 검증 통과

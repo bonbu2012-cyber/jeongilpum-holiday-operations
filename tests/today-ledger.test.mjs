@@ -208,3 +208,82 @@ test("today ledger payment change updates payment_status, paid_amount and increm
   `).run(now);
   assert.equal(conflictResult.changes, 0, "Conflicting version update must fail (changes = 0)");
 });
+
+test("today ledger payment update immediately reflects in sales payment summary and prevents double billing", async () => {
+  const db = await migratedDatabase();
+  const season = db.prepare("SELECT id FROM sales_seasons LIMIT 1").get();
+
+  // 미결제 주문 등록 (250,000원)
+  db.prepare(`
+    INSERT INTO orders(id, order_no, season_id, buyer_name_snapshot, buyer_phone_snapshot, buyer_name, buyer_phone, payment_status, paid_amount, total_amount, order_status, fulfillment_type, schedule_label, customer_note, idempotency_key, version, submitted_at, created_at, updated_at)
+    VALUES('order-sync-1', 'ORD-SYNC-01', ?, '이순신', '01011112222', '이순신', '01011112222', 'unpaid', 0, 250000, 'confirmed', 'pickup', '14:00 방문', '', 'idem-sync-1', 1, '2026-09-16T08:00:00Z', '2026-09-16T08:00:00Z', '2026-09-16T08:00:00Z')
+  `).run(season.id);
+
+  db.prepare(`
+    INSERT INTO work_items(id, order_id, product_id, product_name_snapshot, unit_price_snapshot, quantity, line_total, delivery_method, due_at, work_status, note, created_at, updated_at)
+    VALUES('item-sync-1', 'order-sync-1', 'bonghwang', '봉황세트', 250000, 1, 250000, 'onsite_reservation', '2026-09-16T14:00:00+09:00', 'received', '', '2026-09-16T08:00:00Z', '2026-09-16T08:00:00Z')
+  `).run();
+
+  // 1. 판매장(/sales)의 미수금 요약 바 SQL (app/api/work-items/route.ts 라인 660)
+  const salesSummarySql = `
+    SELECT
+      COUNT(CASE WHEN o.payment_status = 'unpaid' THEN 1 END) AS unpaid_count,
+      COALESCE(SUM(CASE WHEN o.payment_status = 'unpaid' THEN o.total_amount ELSE 0 END), 0) AS unpaid_amount,
+      COUNT(CASE WHEN o.payment_status = 'paid' THEN 1 END) AS paid_count,
+      COALESCE(SUM(CASE WHEN o.payment_status = 'paid' THEN o.paid_amount ELSE 0 END), 0) AS paid_amount,
+      COALESCE(SUM(CASE WHEN o.payment_status IN ('unpaid', 'partial') THEN (o.total_amount - o.paid_amount) ELSE 0 END), 0) AS total_outstanding_amount
+    FROM orders o
+    WHERE o.order_status != 'cancelled'
+  `;
+
+  // 수납 전: 판매장의 총 미수금은 250,000원, 미결제 1건
+  const beforeSummary = db.prepare(salesSummarySql).get();
+  assert.equal(beforeSummary.unpaid_count, 1);
+  assert.equal(beforeSummary.unpaid_amount, 250000);
+  assert.equal(beforeSummary.total_outstanding_amount, 250000);
+  assert.equal(beforeSummary.paid_count, 0);
+
+  // 수납 전: 판매장 [미결제만] 필터 쿼리 (app/api/work-items/route.ts)
+  const unpaidOrdersBefore = db.prepare(`
+    SELECT o.id, o.order_no, o.payment_status, o.total_amount
+    FROM work_items w
+    JOIN orders o ON o.id = w.order_id
+    WHERE o.payment_status = 'unpaid' AND w.work_status != 'cancelled'
+  `).all();
+  assert.equal(unpaidOrdersBefore.length, 1, "판매장 미결제 목록에 1건 조회되어야 함");
+  assert.equal(unpaidOrdersBefore[0].order_no, "ORD-SYNC-01");
+
+  // 2. /today 장부에서 결제완료 처리 실행 (PATCH /api/orders/payment)
+  const now = new Date().toISOString();
+  db.prepare(`
+    UPDATE orders
+    SET payment_status='paid', paid_amount=total_amount, version=version+1, updated_at=?
+    WHERE id='order-sync-1' AND version=1
+  `).run(now);
+
+  // 3. 결제완료 직후: 판매장(/sales) 미수금 요약 바 재확인
+  const afterSummary = db.prepare(salesSummarySql).get();
+  assert.equal(afterSummary.unpaid_count, 0, "판매장의 미결제 건수가 0건으로 즉시 차감되어야 함");
+  assert.equal(afterSummary.unpaid_amount, 0, "판매장의 미결제 금액이 0원으로 즉시 차감되어야 함");
+  assert.equal(afterSummary.total_outstanding_amount, 0, "판매장 총 미수금이 0원으로 즉시 연동되어야 함");
+  assert.equal(afterSummary.paid_count, 1, "판매장의 결제완료 건수가 1건으로 즉시 증가해야 함");
+  assert.equal(afterSummary.paid_amount, 250000, "판매장의 수납액이 250,000원으로 정확히 연동되어야 함");
+
+  // 4. 결제완료 직후: 판매장 [미결제만] 필터 쿼리 재확인 (이중 결제 청구 방지 확인)
+  const unpaidOrdersAfter = db.prepare(`
+    SELECT o.id, o.order_no, o.payment_status, o.total_amount
+    FROM work_items w
+    JOIN orders o ON o.id = w.order_id
+    WHERE o.payment_status = 'unpaid' AND w.work_status != 'cancelled'
+  `).all();
+  assert.equal(unpaidOrdersAfter.length, 0, "판매장 미결제 목록에서 즉시 제외되어 다른 직원의 이중 결제 요구가 차단되어야 함");
+
+  // 5. 작업장(/workshop) 검수표 및 라벨 쿼리 확인 (app/api/workshop/orders/route.ts)
+  const workshopOrder = db.prepare(`
+    SELECT o.payment_status
+    FROM work_items w
+    JOIN orders o ON o.id = w.order_id
+    WHERE w.order_id = 'order-sync-1'
+  `).get();
+  assert.equal(workshopOrder.payment_status, "paid", "작업장 화면 및 라벨 출력에서도 즉시 결제완료(paid)로 연동되어야 함");
+});
