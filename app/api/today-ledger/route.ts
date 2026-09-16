@@ -23,6 +23,8 @@ type RawWorkItemRow = {
   quantity: number;
   line_total: number;
   order_version: number;
+  order_updated_at: string;
+  paid_at: string | null;
   delivery_method: DeliveryMethod;
   due_at: string;
   work_status: WorkStatus;
@@ -57,6 +59,9 @@ export type TodayLedgerOrder = {
   balance: number;
   orderVersion: number;
   paymentStatus: "unpaid" | "partial" | "paid";
+  paidAt: string | null;
+  paidAtDisplay: string | null;
+  paidAtFull: string | null;
   deliveryMethod: DeliveryMethod;
   dueAt: string;
   timeDisplay: string; // 예: "14:30" 또는 "오후 02:30"
@@ -99,6 +104,50 @@ function formatTimeDisplay(dueAt: string, isDelivery: boolean): string {
     return `${period} ${String(displayHour).padStart(2, "0")}:${minute}`;
   } catch {
     return "시간 미지정";
+  }
+}
+
+function formatDateTimeInSeoul(isoStr: string | null | undefined): string | null {
+  if (!isoStr) return null;
+  try {
+    const d = new Date(isoStr);
+    if (Number.isNaN(d.getTime())) return null;
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Seoul",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    }).formatToParts(d);
+    const value = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+    const hour = parseInt(value("hour"), 10);
+    const minute = value("minute");
+    const period = hour < 12 ? "오전" : "오후";
+    const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+    return `${period} ${String(displayHour).padStart(2, "0")}:${minute}`;
+  } catch {
+    return null;
+  }
+}
+
+function formatFullDateTimeInSeoul(isoStr: string | null | undefined): string | null {
+  if (!isoStr) return null;
+  try {
+    const d = new Date(isoStr);
+    if (Number.isNaN(d.getTime())) return null;
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Seoul",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hourCycle: "h23",
+    }).formatToParts(d);
+    const value = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+    return `${value("year")}-${value("month")}-${value("day")} ${value("hour")}:${value("minute")}:${value("second")}`;
+  } catch {
+    return null;
   }
 }
 
@@ -150,6 +199,14 @@ export async function GET(request: Request) {
         o.paid_amount,
         o.total_amount,
         o.version AS order_version,
+        o.updated_at AS order_updated_at,
+        (
+          SELECT e.created_at
+          FROM work_item_events e
+          WHERE e.order_id = o.id AND e.event_type = 'payment_changed'
+          ORDER BY e.created_at DESC, e.id DESC
+          LIMIT 1
+        ) AS paid_at,
         o.customer_arrived_at,
         o.customer_note,
         w.product_id,
@@ -226,6 +283,11 @@ export async function GET(request: Request) {
       ].filter(Boolean);
       const recipientAddress = addrParts.join(" ").trim();
 
+      // 결제 변경 시점: work_item_events의 최신 payment_changed 기록 우선, 없으면 결제완료 상태 시 order_updated_at 활용
+      const rawPaidAt = info.paid_at || (info.payment_status === "paid" ? info.order_updated_at : null);
+      const paidAtDisplay = formatDateTimeInSeoul(rawPaidAt);
+      const paidAtFull = formatFullDateTimeInSeoul(rawPaidAt);
+
       const orderObj: TodayLedgerOrder = {
         orderId: info.order_id,
         orderNo: info.order_no,
@@ -237,6 +299,9 @@ export async function GET(request: Request) {
         balance,
         orderVersion: info.order_version || 1,
         paymentStatus: info.payment_status || "unpaid",
+        paidAt: rawPaidAt,
+        paidAtDisplay,
+        paidAtFull,
         deliveryMethod: info.delivery_method,
         dueAt: info.due_at,
         timeDisplay: formatTimeDisplay(info.due_at, isDelivery),

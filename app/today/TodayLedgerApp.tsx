@@ -351,11 +351,16 @@ function OrderRowCard({
             )}
           </div>
 
-          {/* 5. 결제여부 배지 (대형, 고대비) */}
+          {/* 5. 결제여부 배지 (대형, 고대비) 및 결제 시점 */}
           <div className="ledger-col-payment">
             <span className={`ledger-pay-badge ${statusClass}`}>
               {paymentLabel}
             </span>
+            {order.paidAtDisplay && (
+              <span className="ledger-paid-time-hint">
+                🕒 {order.paidAtDisplay} 결제
+              </span>
+            )}
           </div>
         </div>
       </button>
@@ -390,6 +395,9 @@ function OrderRowCard({
                       {order.totalAmount.toLocaleString()}원
                     </span>
                     을 결제완료 처리하시겠습니까?
+                    <div style={{ fontSize: "16px", color: "#15803d", marginTop: "6px", fontWeight: 600 }}>
+                      ※ 처리 즉시 현재 시각으로 결제 완료 시점이 기록되며 사이트 전체에 실시간 연동됩니다.
+                    </div>
                   </div>
                   <div className="ledger-pay-confirm-btns">
                     <button
@@ -418,9 +426,16 @@ function OrderRowCard({
               // 이미 결제완료 상태인 경우 (실수 정정용 되돌리기)
               !confirmingRevert ? (
                 <div className="ledger-pay-done-row">
-                  <span className="ledger-pay-done-msg">
-                    ✅ 전액 결제 완료된 주문입니다. (수납액: {order.totalAmount.toLocaleString()}원)
-                  </span>
+                  <div className="ledger-pay-done-info">
+                    <span className="ledger-pay-done-msg">
+                      ✅ 전액 결제 완료된 주문입니다. (수납액: {order.totalAmount.toLocaleString()}원)
+                    </span>
+                    {order.paidAtFull && (
+                      <span className="ledger-paid-time-detail">
+                        🕒 결제 완료 일시: {order.paidAtFull}
+                      </span>
+                    )}
+                  </div>
                   <button
                     type="button"
                     className="ledger-btn-pay-revert"

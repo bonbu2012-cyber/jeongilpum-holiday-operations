@@ -379,14 +379,24 @@
 /* 5. 결제여부 배지 (대형, 고시인성) */
 .ledger-col-payment {
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
+  gap: 6px;
 }
 
 @media (max-width: 768px) {
   .ledger-col-payment {
-    justify-content: flex-start;
+    align-items: flex-start;
   }
+}
+
+.ledger-paid-time-hint {
+  font-size: 15px;
+  font-weight: 700;
+  color: #15803d;
+  letter-spacing: -0.3px;
+  white-space: nowrap;
 }
 
 .ledger-pay-badge {
@@ -712,10 +722,22 @@
   gap: 12px;
 }
 
+.ledger-pay-done-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .ledger-pay-done-msg {
   font-size: 19px;
   font-weight: 800;
   color: #15803d;
+}
+
+.ledger-paid-time-detail {
+  font-size: 17px;
+  font-weight: 700;
+  color: #047857;
 }
 
 .ledger-btn-pay-revert {

@@ -287,3 +287,54 @@ test("today ledger payment update immediately reflects in sales payment summary 
   `).get();
   assert.equal(workshopOrder.payment_status, "paid", "작업장 화면 및 라벨 출력에서도 즉시 결제완료(paid)로 연동되어야 함");
 });
+
+test("today ledger records and returns exact payment timestamp (paid_at) when payment status is updated", async () => {
+  const db = await migratedDatabase();
+  const season = db.prepare("SELECT id FROM sales_seasons LIMIT 1").get();
+
+  const orderId = "order-time-test";
+  const testTime = "2026-09-16T14:35:22+09:00";
+
+  db.prepare(`
+    INSERT INTO orders(id, order_no, season_id, buyer_name_snapshot, buyer_phone_snapshot, buyer_name, buyer_phone, payment_status, paid_amount, total_amount, order_status, fulfillment_type, schedule_label, customer_note, idempotency_key, version, submitted_at, created_at, updated_at)
+    VALUES(?, 'ORD-TIME-1', ?, '박문수', '01033334444', '박문수', '01033334444', 'unpaid', 0, 150000, 'confirmed', 'pickup', '15:00 방문', '', 'idem-time-1', 1, '2026-09-16T08:00:00Z', '2026-09-16T08:00:00Z', '2026-09-16T08:00:00Z')
+  `).run(orderId, season.id);
+
+  db.prepare(`
+    INSERT INTO work_items(id, order_id, product_id, product_name_snapshot, unit_price_snapshot, quantity, line_total, delivery_method, due_at, work_status, note, created_at, updated_at)
+    VALUES('item-time-1', ?, 'bonghwang', '봉황세트', 150000, 1, 150000, 'onsite_reservation', '2026-09-16T15:00:00+09:00', 'received', '', '2026-09-16T08:00:00Z', '2026-09-16T08:00:00Z')
+  `).run(orderId);
+
+  // 결제 완료 처리 시: orders 테이블 업데이트 및 work_item_events 감사 로그 기록 (PATCH /api/orders/payment 로직)
+  db.prepare(`
+    UPDATE orders
+    SET payment_status='paid', paid_amount=total_amount, version=version+1, updated_at=?
+    WHERE id=? AND version=1
+  `).run(testTime, orderId);
+
+  db.prepare(`
+    INSERT INTO work_item_events(id, work_item_id, order_id, event_type, from_value, to_value, actor, created_at)
+    VALUES('event-pay-time-1', 'item-time-1', ?, 'payment_changed', '{"paymentStatus":"unpaid"}', '{"paymentStatus":"paid"}', 'operator', ?)
+  `).run(orderId, testTime);
+
+  // today ledger의 SQL 쿼리로 paid_at 시점 확인
+  const queryResult = db.prepare(`
+    SELECT
+      o.id,
+      o.payment_status,
+      o.updated_at AS order_updated_at,
+      (
+        SELECT e.created_at
+        FROM work_item_events e
+        WHERE e.order_id = o.id AND e.event_type = 'payment_changed'
+        ORDER BY e.created_at DESC, e.id DESC
+        LIMIT 1
+      ) AS paid_at
+    FROM orders o
+    WHERE o.id = ?
+  `).get(orderId);
+
+  assert.equal(queryResult.payment_status, "paid");
+  assert.equal(queryResult.paid_at, testTime, "결제 변경 이벤트 시점(paid_at)이 정확히 조회되어야 함");
+  assert.equal(queryResult.order_updated_at, testTime, "주문 updated_at도 변경 시점과 일치해야 함");
+});

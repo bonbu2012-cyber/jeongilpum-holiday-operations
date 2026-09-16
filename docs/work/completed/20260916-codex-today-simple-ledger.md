@@ -1,4 +1,4 @@
-# Task: 60대 실무자를 위한 오늘의 디지털 간편 장부 (/today) 및 현장 수납 결제 상태 변경
+# Task: 60대 실무자를 위한 오늘의 디지털 간편 장부 (/today) 및 현장 수납 결제 상태/시점 기록
 
 - Status: Completed
 - Owner: Codex
@@ -9,7 +9,7 @@
 
 ## Goal
 
-기존 종이 장부로 주문을 확인하던 60대 실무자 및 직원이 스마트폰/태블릿/PC에서 한눈에 오늘의 방문 수령 및 택배 발송 현황을 큰 글씨로 파악하고, 미결제 고객이 수령 시 결제하면 간편 장부 화면에서 원터치로 결제 상태를 변경할 수 있는 전용 디지털 장부 화면(`/today`)을 구축한다.
+기존 종이 장부로 주문을 확인하던 60대 실무자 및 직원이 스마트폰/태블릿/PC에서 한눈에 오늘의 방문 수령 및 택배 발송 현황을 큰 글씨로 파악하고, 미결제 고객이 수령 시 결제하면 간편 장부 화면에서 원터치로 결제 상태를 변경하고 결제 시점을 실시간 기록/확인할 수 있는 전용 디지털 장부 화면(`/today`)을 구축한다.
 
 ## Accomplished
 
@@ -33,24 +33,30 @@
    - 60대 실무자의 터치 실수를 방지하기 위해 큼직한 인라인 확인 다이얼로그(`[ 네, 결제완료 ]` / `[ 취소 ]`) 적용.
    - 실수 정정을 위해 결제완료 건을 다시 미결제로 되돌리는 `[ ↩️ 미결제로 되돌리기 ]` 지원.
    - `expectedVersion`을 전송하여 다른 직원의 동시 수정 충돌을 방지하는 낙관적 잠금(Optimistic Concurrency Control) 적용.
-7. **실시간 자동 동기화**:
+7. **결제 변경 시점(paid_at) 자동 기록 및 화면 표기**:
+   - 결제완료 처리 시 DB(`work_item_events.created_at` 및 `orders.updated_at`)에 결제 시점이 자동 기록됨.
+   - 카드 메인 결제 배지 아래에 `🕒 오후 02:35 결제` 대형 힌트 표기.
+   - 아코디언 상세 영역에 `🕒 결제 완료 일시: 2026-09-16 14:35:22`를 전체 표시하여 수납 시점에 대한 분쟁이나 착오를 방지.
+8. **실시간 자동 동기화 & 판매장/작업장 100% 연동**:
    - `useResource`를 활용한 5초 주기 백그라운드 자동 갱신 및 상단 수동 새로고침 버튼 제공.
+   - `/today`에서 결제 시 판매장(`/sales`) 총 미수금 즉시 차감, [미결제만] 필터에서 즉시 제외되어 이중 결제 청구 원천 차단.
 
 ## Created & Modified paths
 
-- `app/api/today-ledger/route.ts`: 당일 주문 집계 API (orderVersion 필드 포함)
+- `app/api/today-ledger/route.ts`: 당일 주문 집계 API (orderVersion, paidAt, paidAtDisplay, paidAtFull 포함)
 - `app/today/page.tsx`: Next.js 라우트
-- `app/today/TodayLedgerApp.tsx`: 60대 실무자 맞춤형 고시인성 UI 및 현장 결제 변경 핸들러 컴포넌트
-- `app/today/today-ledger.css`: 대형 폰트, 큰 터치 타깃, 고대비 컬러, 결제 액션 스타일
-- `tests/today-ledger.test.mjs`: 시간순 정렬, 택배 분리, 다수 상품 요약, 결제 상태 및 결제 변경 단위 테스트
-- `docs/PAGES_AND_FEATURES.md`: `/today` 명세 및 결제 변경 기능 갱신
+- `app/today/TodayLedgerApp.tsx`: 60대 실무자 맞춤형 고시인성 UI, 결제 변경 핸들러, 결제 시점 표기
+- `app/today/today-ledger.css`: 대형 폰트, 큰 터치 타깃, 고대비 컬러, 결제 액션 및 결제 시점 스타일
+- `tests/today-ledger.test.mjs`: 시간순 정렬, 택배 분리, 다수 상품 요약, 결제 상태, 결제 변경, 판매장 연동 및 결제 시점 기록 4개 단위 테스트
+- `docs/PAGES_AND_FEATURES.md`: `/today` 명세 및 결제 변경/시점 기록 기능 갱신
 - `docs/work/completed/20260916-codex-today-simple-ledger.md`: 작업 완료 기록
 
 ## Verification Results
 
 - `npm run typecheck`: 통과 (0 errors)
 - `npm run lint`: 통과 (0 errors, 0 warnings)
-- `node --experimental-strip-types --test tests/today-ledger.test.mjs`: 통과 (3 passed, 0 failed)
+- `node --experimental-strip-types --test tests/today-ledger.test.mjs`: 통과 (4 passed, 0 failed)
   1. 방문수령 시간순 정렬, 택배 분리, 다수 상품 요약 검증
   2. 현장 수령 시 결제완료 변경 및 낙관적 잠금(버전 충돌 방지) 검증
-  3. 판매장(/sales) 미수금 요약 바, [미결제만] 필터, 작업장(/workshop) 라벨과의 100% 실시간 동기화 및 이중 결제 방지 검증 통과
+  3. 판매장(/sales) 미수금 요약 바, [미결제만] 필터, 작업장(/workshop) 라벨과의 100% 실시간 동기화 및 이중 결제 방지 검증
+  4. 결제 변경 시점(`paid_at`)의 DB 기록 및 정확한 시점 반환 검증
