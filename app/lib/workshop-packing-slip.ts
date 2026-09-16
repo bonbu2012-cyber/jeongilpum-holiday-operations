@@ -14,7 +14,7 @@ export type WorkItemLike = {
   dueAt: string;
   workStatus: string;
   paymentStatus?: string | null;
-  customerNote?: string;
+  customerNote?: string | null;
   note: string;
   customizationJson?: string | null;
   recipientName?: string | null;

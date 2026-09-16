@@ -772,7 +772,16 @@
 
 .workshop-customer-note {
   color: var(--wine);
-  font-weight: var(--weight-medium, 500);
+  font-weight: 700;
+  display: block;
+  margin-top: 2px;
+}
+
+.workshop-internal-note {
+  color: #92400e;
+  font-weight: 700;
+  display: block;
+  margin-top: 2px;
 }
 
 /* 상태 행 셀 & 라벨 버튼 */

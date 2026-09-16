@@ -42,6 +42,7 @@ import SharedWorkItemEditor, {
   type WorkItemDraft,
 } from "./WorkItemEditor";
 import WorkStatusSelect from "./WorkStatusSelect";
+import ProductSalesStatsModal from "./ProductSalesStatsModal";
 import "../sales/work-table.css";
 
 type DeliveryMethod = "onsite_sale" | "onsite_reservation" | "delivery";
@@ -297,6 +298,7 @@ export default function SalesApp() {
   const [paymentOrder, setPaymentOrder] = useState<CustomerOrder | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<OrderSelection | null>(null);
   const [newOrderOpen, setNewOrderOpen] = useState(false);
+  const [statsOpen, setStatsOpen] = useState(false);
   const [deleteSelection, setDeleteSelection] = useState<Selection[] | null>(null);
   const [deleteOrder, setDeleteOrder] = useState<OrderSelection | null>(null);
   const [duplicateRequest, setDuplicateRequest] = useState<DuplicateRequest | null>(null);
@@ -662,11 +664,22 @@ export default function SalesApp() {
     {
       id: "product",
       header: "상품",
-      cell: (item) => <>{item.productId === "custom-order"
-        ? <CustomOrderDetails productName={item.productName} amount={item.unitPrice} request={item.customizationJson} />
-        : <b>{item.productName}</b>}{item.productDailyLimit !== null && item.productScheduledQuantity > item.productDailyLimit ? <small className="sales-work-table__overage">일일 수량 초과 {item.productScheduledQuantity}/{item.productDailyLimit}</small> : null}</>,
+      cell: (item) => <>
+        {item.productId === "custom-order"
+          ? <CustomOrderDetails productName={item.productName} amount={item.unitPrice} request={item.customizationJson} />
+          : <b>{item.productName}</b>}
+        {item.productId !== "custom-order" && item.customizationJson?.trim() ? (
+          <div className="sales-item-custom-box">
+            <span className="sales-item-custom-title">구성</span>
+            <span className="sales-item-custom-body">{item.customizationJson.trim()}</span>
+          </div>
+        ) : null}
+        {item.productDailyLimit !== null && item.productScheduledQuantity > item.productDailyLimit ? <small className="sales-work-table__overage">일일 수량 초과 {item.productScheduledQuantity}/{item.productDailyLimit}</small> : null}
+        {item.customerNote?.trim() ? <span className="sales-item-note-chip">🏷️ 요청: {item.customerNote.trim()}</span> : null}
+        {item.note?.trim() && item.note.trim() !== item.customerNote?.trim() ? <span className="sales-item-internal-note-chip">📝 메모: {item.note.trim()}</span> : null}
+      </>,
       sortValue: (item) => item.productName,
-      exportValue: (item) => `${item.productName}${item.productDailyLimit !== null && item.productScheduledQuantity > item.productDailyLimit ? ` 일일 수량 초과 ${item.productScheduledQuantity}/${item.productDailyLimit}` : ""}`,
+      exportValue: (item) => `${item.productName}${item.customizationJson ? ` [구성: ${item.customizationJson}]` : ""}${item.note ? ` [메모: ${item.note}]` : ""}${item.productDailyLimit !== null && item.productScheduledQuantity > item.productDailyLimit ? ` 일일 수량 초과 ${item.productScheduledQuantity}/${item.productDailyLimit}` : ""}`,
       cellLayout: "stacked",
       multiline: true,
     },
@@ -764,11 +777,30 @@ export default function SalesApp() {
       id: "workItems",
       header: "작업",
       cell: (order) => order.workItems.length ? (
-        <><b>{order.workItems.map((item) => `${item.productName} ${item.quantity}개`).join(", ")}</b><small>{order.workItems.length}개 작업</small></>
+        <div style={{ display: "grid", gap: "4px" }}>
+          {order.workItems.map((item) => (
+            <div key={item.id} style={{ display: "grid", gap: "2px" }}>
+              <b>{item.productName} {item.quantity}개</b>
+              {item.customizationJson?.trim() && (
+                <div className="sales-item-custom-box">
+                  <span className="sales-item-custom-title">구성</span>
+                  <span className="sales-item-custom-body">{item.customizationJson.trim()}</span>
+                </div>
+              )}
+              {item.customerNote?.trim() && (
+                <span className="sales-item-note-chip">🏷️ {item.customerNote.trim()}</span>
+              )}
+              {item.note?.trim() && item.note.trim() !== item.customerNote?.trim() && (
+                <span className="sales-item-internal-note-chip">📝 {item.note.trim()}</span>
+              )}
+            </div>
+          ))}
+          <small style={{ color: "var(--muted)" }}>{order.workItems.length}개 작업</small>
+        </div>
       ) : <span>작업 미등록</span>,
       sortValue: (order) => order.workItems.map((item) => item.productName).join(" "),
       exportValue: (order) => order.workItems.length
-        ? `${order.workItems.map((item) => `${item.productName} ${item.quantity}개`).join(", ")} ${order.workItems.length}개 작업`
+        ? `${order.workItems.map((item) => `${item.productName} ${item.quantity}개${item.customizationJson ? ` [구성: ${item.customizationJson}]` : ""}`).join(", ")} ${order.workItems.length}개 작업`
         : "작업 미등록",
       cellLayout: "stacked",
       multiline: true,
@@ -1048,7 +1080,10 @@ export default function SalesApp() {
               }}
             />
           </>}
-          actions={<Button size="sm" onClick={() => setNewOrderOpen(true)}>새 주문</Button>}
+          actions={<div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+            <Button size="sm" variant="ghost" onClick={() => setStatsOpen(true)}>📊 상품별 통계</Button>
+            <Button size="sm" onClick={() => setNewOrderOpen(true)}>새 주문</Button>
+          </div>}
           selectionCount={tab === "work" ? selectedWorkItems.length : selectedCustomerOrders.length}
         >
           {tab === "work" && selectedWorkItems.length ? (
@@ -1164,6 +1199,12 @@ export default function SalesApp() {
           );
         })()}
       </main>
+
+      <ProductSalesStatsModal
+        open={statsOpen}
+        initialDate={dateFrom || today}
+        onClose={() => setStatsOpen(false)}
+      />
 
       {selectedWorkItem ? (
         <SharedWorkItemEditor

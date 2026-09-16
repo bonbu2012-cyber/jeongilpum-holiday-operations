@@ -30,6 +30,12 @@ export default function CustomOrderDetails({
       <div className="custom-order-details__summary">
         <b>{productName}</b>
         <small>{won(amount)}</small>
+        {request?.trim() && (
+          <div className="custom-order-details__inline-box">
+            <span className="custom-order-details__inline-tag">구성</span>
+            <span className="custom-order-details__inline-text">{request.trim()}</span>
+          </div>
+        )}
       </div>
       <Button size="sm" variant="ghost" onClick={() => setOpen(true)}>
         요청사항

@@ -22,6 +22,34 @@
   font-weight: 700;
 }
 
+.custom-order-details__inline-box {
+  margin-top: 4px;
+  background: #fdf5f5;
+  border: 1px solid #fed7d7;
+  border-left: 3px solid var(--wine, #7e1e24);
+  border-radius: 6px;
+  padding: 4px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 320px;
+}
+
+.custom-order-details__inline-tag {
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--wine, #7e1e24);
+  text-transform: uppercase;
+}
+
+.custom-order-details__inline-text {
+  font-size: 12px;
+  color: #2d3748;
+  line-height: 1.4;
+  word-break: break-all;
+  white-space: pre-wrap;
+}
+
 .custom-order-details > .ui-button {
   flex: 0 0 auto;
 }

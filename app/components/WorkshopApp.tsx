@@ -379,8 +379,11 @@ export default function WorkshopApp() {
           <small>
             {[item.buyerPhone, item.orderNo].filter(Boolean).join(" · ")}
           </small>
-          {item.note?.trim() ? (
-            <small className="workshop-customer-note">요청: {item.note.trim()}</small>
+          {item.customerNote?.trim() ? (
+            <small className="workshop-customer-note">🏷️ 요청: {item.customerNote.trim()}</small>
+          ) : null}
+          {item.note?.trim() && item.note.trim() !== item.customerNote?.trim() ? (
+            <small className="workshop-internal-note">📝 메모: {item.note.trim()}</small>
           ) : null}
         </>
       ),
@@ -394,7 +397,17 @@ export default function WorkshopApp() {
       header: "상품",
       cell: (item) => item.productId === "custom-order"
         ? <CustomOrderDetails productName={item.productName} amount={item.unitPrice} request={item.customizationJson} />
-        : <span>{item.productName}</span>,
+        : (
+          <div>
+            <span>{item.productName}</span>
+            {item.customizationJson?.trim() && (
+              <div className="custom-order-details__inline-box" style={{ marginTop: "4px" }}>
+                <span className="custom-order-details__inline-tag">구성</span>
+                <span className="custom-order-details__inline-text">{item.customizationJson.trim()}</span>
+              </div>
+            )}
+          </div>
+        ),
       sortValue: (item) => item.productName,
     },
     {
@@ -427,8 +440,11 @@ export default function WorkshopApp() {
             <small>
               {[item.recipientPhone || item.buyerPhone, item.orderNo].filter(Boolean).join(" · ")}
             </small>
-            {item.note?.trim() ? (
-              <small className="workshop-customer-note">요청: {item.note.trim()}</small>
+            {item.customerNote?.trim() ? (
+              <small className="workshop-customer-note">🏷️ 요청: {item.customerNote.trim()}</small>
+            ) : null}
+            {item.note?.trim() && item.note.trim() !== item.customerNote?.trim() ? (
+              <small className="workshop-internal-note">📝 메모: {item.note.trim()}</small>
             ) : null}
           </>
         );
@@ -443,7 +459,17 @@ export default function WorkshopApp() {
       header: "상품",
       cell: (item) => item.productId === "custom-order"
         ? <CustomOrderDetails productName={item.productName} amount={item.unitPrice} request={item.customizationJson} />
-        : <span>{item.productName}</span>,
+        : (
+          <div>
+            <span>{item.productName}</span>
+            {item.customizationJson?.trim() && (
+              <div className="custom-order-details__inline-box" style={{ marginTop: "4px" }}>
+                <span className="custom-order-details__inline-tag">구성</span>
+                <span className="custom-order-details__inline-text">{item.customizationJson.trim()}</span>
+              </div>
+            )}
+          </div>
+        ),
       sortValue: (item) => item.productName,
     },
     {

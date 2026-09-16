@@ -311,7 +311,6 @@ export default function CustomOrderApp() {
       if (recipientPhone.replace(/\D/g, "").length < 10) nextErrors.recipientPhone = "받는 분 연락처를 10자리 이상 입력해주세요.";
       if (postalCode.replace(/\D/g, "").length !== 5) nextErrors.postalCode = "우편번호 5자리를 확인해주세요.";
       if (!roadAddr.trim()) nextErrors.roadAddr = "기본 주소를 입력해주세요.";
-      if (!detailAddr.trim()) nextErrors.detailAddr = "상세 주소를 입력해주세요.";
     }
 
     setErrors(nextErrors);
@@ -761,9 +760,9 @@ export default function CustomOrderApp() {
               {postcodeError && <div className="address-error">{postcodeError}</div>}
 
               <label className="custom-wide" style={{ marginTop: "10px" }}>
-                <span>상세 주소 (동·호수) <b style={{ color: "var(--wine)" }}>*</b></span>
+                <span>상세 주소 (동·호수, 선택)</span>
                 <input
-                  placeholder="예: 101동 1202호 또는 상세 위치"
+                  placeholder="예: 101동 1202호 또는 상세 위치 (선택 사항)"
                   value={detailAddr}
                   aria-invalid={Boolean(errors.detailAddr)}
                   onChange={(e) => {
