@@ -3,6 +3,7 @@
 import { useState, useCallback } from "react";
 import type { TodayLedgerOrder } from "../api/today-ledger/route";
 import { useResource } from "../ui";
+import AppNav from "../components/AppNav";
 import "./today-ledger.css";
 
 type ViewTab = "all" | "shipping";
@@ -254,6 +255,7 @@ export default function TodayLedgerApp() {
           </main>
         )}
       </div>
+      <AppNav current="today" />
     </div>
   );
 }

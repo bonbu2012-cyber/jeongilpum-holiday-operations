@@ -338,3 +338,13 @@ test("today ledger records and returns exact payment timestamp (paid_at) when pa
   assert.equal(queryResult.paid_at, testTime, "결제 변경 이벤트 시점(paid_at)이 정확히 조회되어야 함");
   assert.equal(queryResult.order_updated_at, testTime, "주문 updated_at도 변경 시점과 일치해야 함");
 });
+
+test("AppNav includes today ledger tab with /today href and TodayLedgerApp renders it", async () => {
+  const appNavSource = await read("app/components/AppNav.tsx");
+  assert.match(appNavSource, /key:\s*"today"/);
+  assert.match(appNavSource, /href:\s*"\/today"/);
+  assert.match(appNavSource, /label:\s*"오늘의 장부"/);
+
+  const todayAppSource = await read("app/today/TodayLedgerApp.tsx");
+  assert.match(todayAppSource, /<AppNav\s+current="today"\s*\/>/);
+});

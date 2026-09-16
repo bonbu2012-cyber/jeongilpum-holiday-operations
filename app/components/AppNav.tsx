@@ -3,11 +3,12 @@
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
 
-export type AppSurface = "kiosk" | "sales" | "bulk" | "workshop" | "settings";
+export type AppSurface = "kiosk" | "sales" | "bulk" | "workshop" | "settings" | "today";
 
 const links: Array<{ key: AppSurface; href: string; label: string }> = [
   { key: "bulk", href: "/bulk-orders", label: "대량주문" },
   { key: "kiosk", href: "/kiosk", label: "메인 화면" },
+  { key: "today", href: "/today", label: "오늘의 장부" },
   { key: "sales", href: "/sales", label: "판매장" },
   { key: "workshop", href: "/workshop", label: "작업장" },
   { key: "settings", href: "/settings", label: "설정" },
