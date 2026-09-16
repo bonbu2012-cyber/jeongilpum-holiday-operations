@@ -525,3 +525,212 @@
   color: #dc2626;
   margin-bottom: 16px;
 }
+
+/* 상단 액션 에러 배너 */
+.ledger-error-banner {
+  background-color: #fef2f2;
+  border: 2px solid #ef4444;
+  color: #991b1b;
+  padding: 16px 20px;
+  border-radius: 12px;
+  margin-bottom: 20px;
+  font-size: 19px;
+  font-weight: 700;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 4px 6px rgba(239, 68, 68, 0.1);
+}
+
+.ledger-error-banner-close {
+  background: #ffffff;
+  border: 1px solid #dc2626;
+  color: #dc2626;
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* 수납/결제 상태 변경 액션 영역 */
+.ledger-payment-action-card {
+  background-color: #ffffff;
+  border: 2px solid #cbd5e1;
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin-bottom: 8px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.04);
+}
+
+.ledger-pay-prompt {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ledger-pay-prompt-text {
+  font-size: 19px;
+  font-weight: 800;
+  color: #1e293b;
+}
+
+.ledger-btn-pay-complete {
+  background-color: #15803d;
+  color: #ffffff;
+  border: none;
+  border-radius: 12px;
+  padding: 16px 24px;
+  font-size: 21px;
+  font-weight: 800;
+  cursor: pointer;
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  box-shadow: 0 4px 8px rgba(21, 128, 61, 0.25);
+  transition: all 0.15s ease;
+}
+
+.ledger-btn-pay-complete:hover:not(:disabled) {
+  background-color: #166534;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 12px rgba(21, 128, 61, 0.35);
+}
+
+.ledger-btn-pay-complete:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.ledger-btn-pay-complete:disabled {
+  background-color: #94a3b8;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* 큼직한 인라인 확인 박스 */
+.ledger-pay-confirm-box {
+  background-color: #f0fdf4;
+  border: 2px solid #86efac;
+  border-radius: 12px;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.ledger-pay-confirm-box.revert {
+  background-color: #fff7ed;
+  border-color: #fdba74;
+}
+
+.ledger-pay-confirm-msg {
+  font-size: 20px;
+  font-weight: 700;
+  color: #166534;
+  line-height: 1.4;
+}
+
+.ledger-pay-confirm-box.revert .ledger-pay-confirm-msg {
+  color: #9a3412;
+}
+
+.ledger-pay-highlight {
+  color: #047857;
+  text-decoration: underline;
+  font-weight: 800;
+}
+
+.ledger-pay-confirm-btns {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.ledger-btn-confirm-yes {
+  background-color: #16a34a;
+  color: #ffffff;
+  border: none;
+  border-radius: 10px;
+  padding: 14px 24px;
+  font-size: 19px;
+  font-weight: 800;
+  cursor: pointer;
+  min-height: 52px;
+  flex: 1;
+  min-width: 200px;
+  box-shadow: 0 2px 6px rgba(22, 163, 74, 0.3);
+}
+
+.ledger-btn-confirm-yes:hover:not(:disabled) {
+  background-color: #15803d;
+}
+
+.ledger-btn-revert-yes {
+  background-color: #ea580c;
+  color: #ffffff;
+  border: none;
+  border-radius: 10px;
+  padding: 14px 24px;
+  font-size: 19px;
+  font-weight: 800;
+  cursor: pointer;
+  min-height: 52px;
+  flex: 1;
+  min-width: 200px;
+  box-shadow: 0 2px 6px rgba(234, 88, 12, 0.3);
+}
+
+.ledger-btn-revert-yes:hover:not(:disabled) {
+  background-color: #c2410c;
+}
+
+.ledger-btn-confirm-no {
+  background-color: #f1f5f9;
+  color: #475569;
+  border: 2px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 14px 24px;
+  font-size: 19px;
+  font-weight: 700;
+  cursor: pointer;
+  min-height: 52px;
+  min-width: 100px;
+}
+
+.ledger-btn-confirm-no:hover:not(:disabled) {
+  background-color: #e2e8f0;
+}
+
+/* 완료 상태 시 표시 행 */
+.ledger-pay-done-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.ledger-pay-done-msg {
+  font-size: 19px;
+  font-weight: 800;
+  color: #15803d;
+}
+
+.ledger-btn-pay-revert {
+  background-color: #ffffff;
+  color: #c2410c;
+  border: 2px solid #fdba74;
+  border-radius: 10px;
+  padding: 10px 18px;
+  font-size: 17px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ledger-btn-pay-revert:hover:not(:disabled) {
+  background-color: #fff7ed;
+  border-color: #ea580c;
+}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import type { TodayLedgerOrder } from "../api/today-ledger/route";
 import { useResource } from "../ui";
 import "./today-ledger.css";
@@ -22,6 +22,8 @@ type LedgerApiResponse = {
 export default function TodayLedgerApp() {
   const [activeTab, setActiveTab] = useState<ViewTab>("all");
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
+  const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   // 프로젝트 표준 useResource 훅 사용 (5초 주기 자동 갱신)
   const { data, error, loading, reload } = useResource<LedgerApiResponse>(
@@ -32,6 +34,42 @@ export default function TodayLedgerApp() {
   const toggleExpand = (orderId: string) => {
     setExpandedOrderId((prev) => (prev === orderId ? null : orderId));
   };
+
+  // 결제 상태 변경 핸들러 (미결제 -> 결제완료, 또는 결제완료 -> 미결제)
+  const handlePaymentChange = useCallback(
+    async (order: TodayLedgerOrder, targetStatus: "paid" | "unpaid") => {
+      setUpdatingOrderId(order.orderId);
+      setActionError(null);
+      try {
+        const paidAmount = targetStatus === "paid" ? order.totalAmount : 0;
+        const res = await fetch("/api/orders/payment", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            orderId: order.orderId,
+            paymentStatus: targetStatus,
+            paidAmount,
+            expectedVersion: order.orderVersion,
+          }),
+        });
+
+        if (!res.ok) {
+          const json = (await res.json().catch(() => ({}))) as { error?: string };
+          throw new Error(json.error || `결제 정보 수정 실패 (${res.status})`);
+        }
+
+        // 성공 시 즉시 장부 새로고침
+        await reload();
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "결제 상태를 변경하지 못했습니다.";
+        setActionError(msg);
+        alert(msg);
+      } finally {
+        setUpdatingOrderId(null);
+      }
+    },
+    [reload],
+  );
 
   // 날짜 한국어 서식 (예: 2026년 9월 16일 (수))
   const formatKoreanDate = (dateStr: string) => {
@@ -106,6 +144,20 @@ export default function TodayLedgerApp() {
           </div>
         </header>
 
+        {/* 액션 에러 알림 */}
+        {actionError && (
+          <div className="ledger-error-banner" role="alert">
+            ⚠️ {actionError}
+            <button
+              type="button"
+              className="ledger-error-banner-close"
+              onClick={() => setActionError(null)}
+            >
+              닫기
+            </button>
+          </div>
+        )}
+
         {/* 로딩 표시 */}
         {loading && !data && (
           <div className="ledger-loading-box">
@@ -154,7 +206,9 @@ export default function TodayLedgerApp() {
                         key={order.orderId}
                         order={order}
                         isExpanded={expandedOrderId === order.orderId}
+                        isUpdating={updatingOrderId === order.orderId}
                         onToggle={() => toggleExpand(order.orderId)}
+                        onPaymentChange={handlePaymentChange}
                       />
                     ))}
                   </div>
@@ -163,8 +217,6 @@ export default function TodayLedgerApp() {
             )}
 
             {/* B. 택배 섹션 */}
-            {/* - [전체 모드]인 경우: 방문 수령 아래에 명확한 구분과 함께 하단 배치 */}
-            {/* - [택배만 모아보기 모드]인 경우: 전체 화면에 단독 집중 표시 */}
             <section
               aria-labelledby="shipping-heading"
               style={{ marginTop: activeTab === "all" ? "32px" : "0px" }}
@@ -190,7 +242,9 @@ export default function TodayLedgerApp() {
                       key={order.orderId}
                       order={order}
                       isExpanded={expandedOrderId === order.orderId}
+                      isUpdating={updatingOrderId === order.orderId}
                       onToggle={() => toggleExpand(order.orderId)}
+                      onPaymentChange={handlePaymentChange}
                       alwaysShowAddress={activeTab === "shipping"}
                     />
                   ))}
@@ -204,18 +258,25 @@ export default function TodayLedgerApp() {
   );
 }
 
-// 1건의 주문을 5대 필수 항목으로 큼직하게 렌더링하는 카드 컴포넌트
+// 1건의 주문을 5대 필수 항목 및 결제 변경 액션으로 렌더링하는 카드 컴포넌트
 function OrderRowCard({
   order,
   isExpanded,
+  isUpdating,
   onToggle,
+  onPaymentChange,
   alwaysShowAddress = false,
 }: {
   order: TodayLedgerOrder;
   isExpanded: boolean;
+  isUpdating: boolean;
   onToggle: () => void;
+  onPaymentChange: (order: TodayLedgerOrder, targetStatus: "paid" | "unpaid") => Promise<void>;
   alwaysShowAddress?: boolean;
 }) {
+  const [confirmingPay, setConfirmingPay] = useState(false);
+  const [confirmingRevert, setConfirmingRevert] = useState(false);
+
   const isPaid = order.paymentStatus === "paid";
   const isPartial = order.paymentStatus === "partial";
   const statusClass = isPaid ? "paid" : isPartial ? "partial" : "unpaid";
@@ -268,7 +329,10 @@ function OrderRowCard({
             <div className="ledger-order-no-hint">주문번호: {order.orderNo}</div>
             {alwaysShowAddress && order.recipientAddress && (
               <div style={{ marginTop: "6px" }}>
-                <span className="ledger-address-box" style={{ display: "inline-block", fontSize: "16px", padding: "6px 12px" }}>
+                <span
+                  className="ledger-address-box"
+                  style={{ display: "inline-block", fontSize: "16px", padding: "6px 12px" }}
+                >
                   📍 {order.recipientAddress}
                 </span>
               </div>
@@ -296,9 +360,109 @@ function OrderRowCard({
         </div>
       </button>
 
-      {/* 터치 시 아래로 부드럽게 펼쳐지는 아코디언 상세 정보 */}
+      {/* 터치 시 아래로 부드럽게 펼쳐지는 아코디언 상세 정보 및 수납 액션 */}
       {isExpanded && (
         <div className="ledger-row-details">
+          {/* A. 수납/결제 변경 전용 액션 박스 (60대 실무자 맞춤형 대형 버튼) */}
+          <div className="ledger-payment-action-card">
+            {!isPaid ? (
+              // 미결제 또는 일부결제 상태인 경우
+              !confirmingPay ? (
+                <div className="ledger-pay-prompt">
+                  <div className="ledger-pay-prompt-text">
+                    💳 손님이 수령 시 결제하셨나요?
+                  </div>
+                  <button
+                    type="button"
+                    className="ledger-btn-pay-complete"
+                    onClick={() => setConfirmingPay(true)}
+                    disabled={isUpdating}
+                  >
+                    💰 결제완료로 변경 (전액 수납 처리)
+                  </button>
+                </div>
+              ) : (
+                // 큼직한 인라인 확인 영역
+                <div className="ledger-pay-confirm-box">
+                  <div className="ledger-pay-confirm-msg">
+                    ❓ <strong>{order.buyerName}</strong> 고객님의 주문 금액{" "}
+                    <span className="ledger-pay-highlight">
+                      {order.totalAmount.toLocaleString()}원
+                    </span>
+                    을 결제완료 처리하시겠습니까?
+                  </div>
+                  <div className="ledger-pay-confirm-btns">
+                    <button
+                      type="button"
+                      className="ledger-btn-confirm-yes"
+                      onClick={async () => {
+                        await onPaymentChange(order, "paid");
+                        setConfirmingPay(false);
+                      }}
+                      disabled={isUpdating}
+                    >
+                      {isUpdating ? "처리 중…" : "✅ 네, 결제완료로 변경"}
+                    </button>
+                    <button
+                      type="button"
+                      className="ledger-btn-confirm-no"
+                      onClick={() => setConfirmingPay(false)}
+                      disabled={isUpdating}
+                    >
+                      취소
+                    </button>
+                  </div>
+                </div>
+              )
+            ) : (
+              // 이미 결제완료 상태인 경우 (실수 정정용 되돌리기)
+              !confirmingRevert ? (
+                <div className="ledger-pay-done-row">
+                  <span className="ledger-pay-done-msg">
+                    ✅ 전액 결제 완료된 주문입니다. (수납액: {order.totalAmount.toLocaleString()}원)
+                  </span>
+                  <button
+                    type="button"
+                    className="ledger-btn-pay-revert"
+                    onClick={() => setConfirmingRevert(true)}
+                    disabled={isUpdating}
+                  >
+                    ↩️ 미결제(미수)로 되돌리기
+                  </button>
+                </div>
+              ) : (
+                // 되돌리기 인라인 확인 영역
+                <div className="ledger-pay-confirm-box revert">
+                  <div className="ledger-pay-confirm-msg">
+                    ❓ <strong>{order.buyerName}</strong> 고객님의 결제 상태를 다시{" "}
+                    <strong style={{ color: "#dc2626" }}>미결제</strong>로 되돌리시겠습니까?
+                  </div>
+                  <div className="ledger-pay-confirm-btns">
+                    <button
+                      type="button"
+                      className="ledger-btn-revert-yes"
+                      onClick={async () => {
+                        await onPaymentChange(order, "unpaid");
+                        setConfirmingRevert(false);
+                      }}
+                      disabled={isUpdating}
+                    >
+                      {isUpdating ? "처리 중…" : "네, 미결제로 되돌리기"}
+                    </button>
+                    <button
+                      type="button"
+                      className="ledger-btn-confirm-no"
+                      onClick={() => setConfirmingRevert(false)}
+                      disabled={isUpdating}
+                    >
+                      취소
+                    </button>
+                  </div>
+                </div>
+              )
+            )}
+          </div>
+
           {order.customerNote && (
             <div className="ledger-customer-note-box">
               📢 고객 요청사항: {order.customerNote}
@@ -314,7 +478,8 @@ function OrderRowCard({
 
           {order.isShipping && order.recipientAddress && (
             <div className="ledger-address-box">
-              🚚 배송 주소: {order.recipientAddress} (수령인: {order.recipientName}, {order.recipientPhone})
+              🚚 배송 주소: {order.recipientAddress} (수령인: {order.recipientName},{" "}
+              {order.recipientPhone})
             </div>
           )}
 

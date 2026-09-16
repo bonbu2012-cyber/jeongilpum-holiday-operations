@@ -22,6 +22,7 @@ type RawWorkItemRow = {
   unit_price_snapshot: number;
   quantity: number;
   line_total: number;
+  order_version: number;
   delivery_method: DeliveryMethod;
   due_at: string;
   work_status: WorkStatus;
@@ -54,6 +55,7 @@ export type TodayLedgerOrder = {
   totalAmount: number;
   paidAmount: number;
   balance: number;
+  orderVersion: number;
   paymentStatus: "unpaid" | "partial" | "paid";
   deliveryMethod: DeliveryMethod;
   dueAt: string;
@@ -147,6 +149,7 @@ export async function GET(request: Request) {
         o.payment_status,
         o.paid_amount,
         o.total_amount,
+        o.version AS order_version,
         o.customer_arrived_at,
         o.customer_note,
         w.product_id,
@@ -232,6 +235,7 @@ export async function GET(request: Request) {
         totalAmount: info.total_amount || 0,
         paidAmount: info.paid_amount || 0,
         balance,
+        orderVersion: info.order_version || 1,
         paymentStatus: info.payment_status || "unpaid",
         deliveryMethod: info.delivery_method,
         dueAt: info.due_at,

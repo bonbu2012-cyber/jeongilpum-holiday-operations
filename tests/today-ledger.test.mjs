@@ -162,3 +162,49 @@ test("today ledger queries sort onsite orders by time, separate shipping orders,
   assert.equal(shipping[0].paymentStatus, "partial");
   assert.equal(shipping[0].balance, 200000);
 });
+
+test("today ledger payment change updates payment_status, paid_amount and increments order version", async () => {
+  const db = await migratedDatabase();
+  const season = db.prepare("SELECT id FROM sales_seasons LIMIT 1").get();
+
+  // 미결제 주문 생성
+  db.prepare(`
+    INSERT INTO orders(id, order_no, season_id, buyer_name_snapshot, buyer_phone_snapshot, buyer_name, buyer_phone, payment_status, paid_amount, total_amount, order_status, fulfillment_type, schedule_label, customer_note, idempotency_key, version, submitted_at, created_at, updated_at)
+    VALUES('order-test-pay', 'ORD-PAY-1', ?, '홍길동', '01012345678', '홍길동', '01012345678', 'unpaid', 0, 250000, 'confirmed', 'pickup', '11:00 방문', '', 'idem-pay-1', 1, '2026-09-16T08:00:00Z', '2026-09-16T08:00:00Z', '2026-09-16T08:00:00Z')
+  `).run(season.id);
+
+  db.prepare(`
+    INSERT INTO work_items(id, order_id, product_id, product_name_snapshot, unit_price_snapshot, quantity, line_total, delivery_method, due_at, work_status, note, created_at, updated_at)
+    VALUES('item-pay-1', 'order-test-pay', 'bonghwang', '봉황세트', 250000, 1, 250000, 'onsite_reservation', '2026-09-16T11:00:00+09:00', 'received', '', '2026-09-16T08:00:00Z', '2026-09-16T08:00:00Z')
+  `).run();
+
+  // 1. 초기 상태 확인 (version=1, payment_status=unpaid, paid_amount=0)
+  const initial = db.prepare("SELECT version, payment_status, paid_amount, total_amount FROM orders WHERE id='order-test-pay'").get();
+  assert.equal(initial.version, 1);
+  assert.equal(initial.payment_status, "unpaid");
+  assert.equal(initial.paid_amount, 0);
+
+  // 2. 수령 시 결제완료 처리 (PATCH /api/orders/payment 로직 모사)
+  const now = new Date().toISOString();
+  const updateResult = db.prepare(`
+    UPDATE orders
+    SET payment_status='paid', paid_amount=total_amount, version=version+1, updated_at=?
+    WHERE id='order-test-pay' AND version=1
+  `).run(now);
+
+  assert.equal(updateResult.changes, 1, "Should update 1 order row");
+
+  // 3. 결제완료 후 상태 확인 (version=2, payment_status=paid, paid_amount=total_amount)
+  const updated = db.prepare("SELECT version, payment_status, paid_amount, total_amount FROM orders WHERE id='order-test-pay'").get();
+  assert.equal(updated.version, 2);
+  assert.equal(updated.payment_status, "paid");
+  assert.equal(updated.paid_amount, 250000);
+
+  // 4. 낙관적 잠금 (Optimistic Concurrency Control): 이전 version(1)으로 다시 수정 시도시 변경 0건이어야 함
+  const conflictResult = db.prepare(`
+    UPDATE orders
+    SET payment_status='unpaid', paid_amount=0, version=version+1, updated_at=?
+    WHERE id='order-test-pay' AND version=1
+  `).run(now);
+  assert.equal(conflictResult.changes, 0, "Conflicting version update must fail (changes = 0)");
+});
