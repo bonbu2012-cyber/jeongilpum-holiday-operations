@@ -417,3 +417,22 @@ test("today ledger resolves totalAmount and balance from work_items line_total w
   assert.equal(updatedOrder.payment_status, "paid");
 });
 
+test("TodayLedgerApp includes date picker and navigation controls for date-based queries", async () => {
+  const appSource = await read("app/today/TodayLedgerApp.tsx");
+  assert.match(appSource, /id="ledger-target-date"/);
+  assert.match(appSource, /type="date"/);
+  assert.match(appSource, /◀ 이전날/);
+  assert.match(appSource, /다음날 ▶/);
+  assert.match(appSource, /\/api\/today-ledger\?date=/);
+  assert.match(appSource, /changeDateBy\(-1\)/);
+  assert.match(appSource, /changeDateBy\(1\)/);
+  assert.match(appSource, /goToToday/);
+
+  const cssSource = await read("app/today/today-ledger.css");
+  assert.match(cssSource, /\.ledger-date-toolbar/);
+  assert.match(cssSource, /\.ledger-date-input/);
+  assert.match(cssSource, /\.ledger-date-nav-btn/);
+  assert.match(cssSource, /\.ledger-today-btn/);
+});
+
+

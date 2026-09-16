@@ -20,17 +20,55 @@ type LedgerApiResponse = {
   shippingOrders: TodayLedgerOrder[];
 };
 
+function getTodayInSeoul(): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const part = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
+function addDays(dateStr: string, days: number): string {
+  try {
+    const [y, m, d] = dateStr.split("-").map(Number);
+    const date = new Date(y, m - 1, d);
+    date.setDate(date.getDate() + days);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  } catch {
+    return dateStr;
+  }
+}
+
 export default function TodayLedgerApp() {
+  const todayDateStr = getTodayInSeoul();
+  const [selectedDate, setSelectedDate] = useState<string>(todayDateStr);
   const [activeTab, setActiveTab] = useState<ViewTab>("all");
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  // 프로젝트 표준 useResource 훅 사용 (5초 주기 자동 갱신)
+  const isToday = selectedDate === todayDateStr;
+
+  // 선택된 날짜 파라미터 연동
+  const apiUrl = selectedDate ? `/api/today-ledger?date=${selectedDate}` : "/api/today-ledger";
   const { data, error, loading, reload } = useResource<LedgerApiResponse>(
-    "/api/today-ledger",
+    apiUrl,
     5000,
   );
+
+  const changeDateBy = (days: number) => {
+    setSelectedDate((prev) => addDays(prev || todayDateStr, days));
+  };
+
+  const goToToday = () => {
+    setSelectedDate(todayDateStr);
+  };
 
   const toggleExpand = (orderId: string) => {
     setExpandedOrderId((prev) => (prev === orderId ? null : orderId));
@@ -85,8 +123,18 @@ export default function TodayLedgerApp() {
     }
   };
 
+  const formatShortMonthDay = (dateStr: string) => {
+    try {
+      const [, month, day] = dateStr.split("-").map(Number);
+      return `${month}/${day}`;
+    } catch {
+      return "";
+    }
+  };
+
   const onsiteOrders = data?.onsiteOrders || [];
   const shippingOrders = data?.shippingOrders || [];
+  const displayDate = data?.date || selectedDate;
 
   return (
     <div className="ledger-root">
@@ -95,9 +143,11 @@ export default function TodayLedgerApp() {
         <header className="ledger-header">
           <div className="ledger-header-top">
             <div className="ledger-title-group">
-              <h1 className="ledger-title">📋 정일품 오늘의 장부</h1>
+              <h1 className="ledger-title">
+                {isToday ? "📋 정일품 오늘의 장부" : "📋 정일품 일자별 장부"}
+              </h1>
               <span className="ledger-date-badge">
-                {data?.date ? formatKoreanDate(data.date) : "오늘"}
+                {formatKoreanDate(displayDate)}
               </span>
             </div>
             <div className="ledger-header-actions">
@@ -115,6 +165,70 @@ export default function TodayLedgerApp() {
             </div>
           </div>
 
+          {/* 날짜별 검색 및 이동 툴바 */}
+          <div className="ledger-date-toolbar" aria-label="장부 날짜 선택">
+            <div className="ledger-date-nav-group">
+              <button
+                type="button"
+                className="ledger-date-nav-btn"
+                onClick={() => changeDateBy(-1)}
+                title="하루 전 날짜로 이동"
+              >
+                ◀ 이전날
+              </button>
+
+              <div className="ledger-date-input-wrap">
+                <span className="ledger-date-input-icon">📅</span>
+                <input
+                  id="ledger-target-date"
+                  type="date"
+                  className="ledger-date-input"
+                  value={selectedDate}
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      setSelectedDate(e.target.value);
+                    }
+                  }}
+                  aria-label="장부 조회 날짜"
+                />
+              </div>
+
+              <button
+                type="button"
+                className="ledger-date-nav-btn"
+                onClick={() => changeDateBy(1)}
+                title="다음 날짜로 이동"
+              >
+                다음날 ▶
+              </button>
+
+              <button
+                type="button"
+                className={`ledger-today-btn ${isToday ? "active" : ""}`}
+                onClick={goToToday}
+                title="오늘 날짜로 바로 이동"
+              >
+                오늘 ({formatShortMonthDay(todayDateStr)})
+              </button>
+            </div>
+
+            {/* 오늘이 아닌 날짜를 보고 있을 때 눈에 띄는 안내 배너 */}
+            {!isToday && (
+              <div className="ledger-date-notice">
+                <span className="ledger-date-notice-text">
+                  ⚠️ <strong>{formatKoreanDate(selectedDate)}</strong> 장부를 조회하고 있습니다.
+                </span>
+                <button
+                  type="button"
+                  className="ledger-date-return-btn"
+                  onClick={goToToday}
+                >
+                  오늘 장부로 돌아가기
+                </button>
+              </div>
+            )}
+          </div>
+
           {/* 2. 상단 원터치 보기 전환 탭 (큰 글씨, 큰 버튼) */}
           <div className="ledger-view-tabs" role="tablist" aria-label="장부 보기 방식 선택">
             <button
@@ -124,7 +238,7 @@ export default function TodayLedgerApp() {
               className={`ledger-tab-btn ${activeTab === "all" ? "active" : ""}`}
               onClick={() => setActiveTab("all")}
             >
-              📋 오늘 전체 (방문 + 택배)
+              📋 {isToday ? "오늘" : "선택일"} 전체 (방문 + 택배)
               <span className="ledger-tab-count">
                 {data?.summary.totalOrders || 0}건
               </span>
@@ -137,7 +251,7 @@ export default function TodayLedgerApp() {
               className={`ledger-tab-btn ${activeTab === "shipping" ? "active" : ""}`}
               onClick={() => setActiveTab("shipping")}
             >
-              📦 오늘 택배만 모아보기
+              📦 {isToday ? "오늘" : "선택일"} 택배만 모아보기
               <span className="ledger-tab-count">
                 {data?.summary.shippingCount || 0}건
               </span>
@@ -198,7 +312,9 @@ export default function TodayLedgerApp() {
                 {onsiteOrders.length === 0 ? (
                   <div className="ledger-empty-card">
                     <div className="ledger-empty-icon">🕒</div>
-                    <p className="ledger-empty-text">오늘 예정된 매장 방문수령 주문이 없습니다.</p>
+                    <p className="ledger-empty-text">
+                      {isToday ? "오늘" : "선택하신 날짜에"} 예정된 매장 방문수령 주문이 없습니다.
+                    </p>
                   </div>
                 ) : (
                   <div className="ledger-card-list">
@@ -224,7 +340,7 @@ export default function TodayLedgerApp() {
             >
               <div className="ledger-section-banner shipping-banner">
                 <h2 id="shipping-heading" className="ledger-section-title">
-                  📦 오늘 택배 발송 {activeTab === "all" ? "(리스트 하단)" : ""}
+                  📦 {isToday ? "오늘" : "선택일"} 택배 발송 {activeTab === "all" ? "(리스트 하단)" : ""}
                 </h2>
                 <span className="ledger-section-count">
                   총 {shippingOrders.length}건
@@ -234,7 +350,9 @@ export default function TodayLedgerApp() {
               {shippingOrders.length === 0 ? (
                 <div className="ledger-empty-card">
                   <div className="ledger-empty-icon">📦</div>
-                  <p className="ledger-empty-text">오늘 발송할 택배 주문이 없습니다.</p>
+                  <p className="ledger-empty-text">
+                    {isToday ? "오늘" : "선택하신 날짜에"} 발송할 택배 주문이 없습니다.
+                  </p>
                 </div>
               ) : (
                 <div className="ledger-card-list">
