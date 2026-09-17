@@ -600,3 +600,25 @@
   word-break: break-all;
 }
 
+.sales-due-delivery-title {
+  display: inline-block;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--wine, #7e1e24);
+  letter-spacing: -0.01em;
+}
+
+.sales-due-onsite-datetime {
+  display: inline-block;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink, #1f2937);
+  white-space: nowrap;
+  letter-spacing: -0.02em;
+}
+
+.sales-due-subtext {
+  font-size: 12px;
+  color: var(--muted, #64748b);
+}
+

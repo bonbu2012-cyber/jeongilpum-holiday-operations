@@ -133,3 +133,18 @@ test("Excel CSV export correctly separates 접수일시 and 수령일시 in dist
   assert.ok(csv.includes("2026-09-25 발송 예정"), "택배발송 일정이 수령일시 열에 독립 기재되어야 함");
   assert.ok(csv.includes("일정 미지정"), "미지정 일정이 수령일시 열에 안전하게 기재되어야 함");
 });
+
+test("SalesApp renders '택배' prominently on top for delivery and full datetime largely for onsite pickup", async () => {
+  const [salesAppCode, workTableCss] = await Promise.all([
+    read("app/components/SalesApp.tsx"),
+    read("app/sales/work-table.css"),
+  ]);
+
+  // Check CSS class definitions
+  assert.match(workTableCss, /\.sales-due-delivery-title[\s\S]*?font-size:\s*15px/, "택배 배너용 15px 볼드 타이틀 스타일이 정의되어야 함");
+  assert.match(workTableCss, /\.sales-due-onsite-datetime[\s\S]*?font-size:\s*14px/, "현장수령용 14px 볼드 일시 스타일이 정의되어야 함");
+
+  // Check SalesApp JSX usage for delivery and onsite
+  assert.match(salesAppCode, /sales-due-delivery-title[\s\S]*?>택배<\/b>/, "택배 주문 시 상단에 '택배'를 크게 표시해야 함");
+  assert.match(salesAppCode, /sales-due-onsite-datetime/, "현장수령 시 일시가 크게 표시되어야 함");
+});

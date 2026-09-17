@@ -643,18 +643,29 @@ export default function SalesApp() {
     await runBulk({ action: "duplicate" }, "선택한 작업 행을 복제했습니다.");
   };
 
-  const formatOrderDueSchedules = (order: CustomerOrder): { schedules: { date: string; detail: string }[]; summaryText: string } => {
+  type OrderDueSchedule = {
+    isDelivery: boolean;
+    date: string;
+    time: string;
+    detail: string;
+    methodLabel: string;
+  };
+
+  const formatOrderDueSchedules = (order: CustomerOrder): { schedules: OrderDueSchedule[]; summaryText: string } => {
     if (!order.workItems || order.workItems.length === 0) {
       return { schedules: [], summaryText: "일정 미지정" };
     }
-    const scheduleMap = new Map<string, { date: string; detail: string }>();
+    const scheduleMap = new Map<string, OrderDueSchedule>();
     for (const item of order.workItems) {
       const date = item.dueAt ? item.dueAt.slice(0, 10) : "";
       if (!date) continue;
-      const detail = item.deliveryMethod === "delivery" ? "발송 예정" : (item.dueAt.slice(11, 16) || "시간 미지정");
-      const key = `${date} ${detail}`.trim();
+      const isDelivery = item.deliveryMethod === "delivery";
+      const time = item.dueAt.slice(11, 16);
+      const detail = isDelivery ? "발송 예정" : (time || "시간 미지정");
+      const methodLabel = DELIVERY_LABELS[item.deliveryMethod] || (isDelivery ? "택배" : "방문수령");
+      const key = `${date} ${detail} ${methodLabel}`.trim();
       if (!scheduleMap.has(key)) {
-        scheduleMap.set(key, { date, detail });
+        scheduleMap.set(key, { isDelivery, date, time, detail, methodLabel });
       }
     }
     const schedules = Array.from(scheduleMap.values());
@@ -669,10 +680,27 @@ export default function SalesApp() {
     {
       id: "dueAt",
       header: "수령일시",
-      cell: (item) => <><b>{item.dueAt.slice(0, 10)}</b><small>{item.deliveryMethod === "delivery" ? "발송 예정" : item.dueAt.slice(11, 16)}</small></>,
+      cell: (item) => {
+        if (item.deliveryMethod === "delivery") {
+          return (
+            <>
+              <b className="sales-due-delivery-title">택배</b>
+              <small className="sales-due-subtext">{item.dueAt.slice(0, 10)} 발송 예정</small>
+            </>
+          );
+        }
+        return (
+          <>
+            <b className="sales-due-onsite-datetime">
+              {item.dueAt.slice(0, 10)} {item.dueAt.slice(11, 16)}
+            </b>
+            <small className="sales-due-subtext">{DELIVERY_LABELS[item.deliveryMethod]}</small>
+          </>
+        );
+      },
       sortValue: (item) => item.dueAt,
       exportValue: (item) => `${item.dueAt.slice(0, 10)} ${item.deliveryMethod === "delivery" ? "발송 예정" : item.dueAt.slice(11, 16)}`,
-      width: "118px",
+      width: "140px",
       cellLayout: "stacked",
     },
     {
@@ -796,10 +824,19 @@ export default function SalesApp() {
           return <span style={{ color: "var(--muted)" }}>{summaryText}</span>;
         }
         if (schedules.length === 1) {
+          const s = schedules[0];
+          if (s.isDelivery) {
+            return (
+              <>
+                <b className="sales-due-delivery-title">택배</b>
+                <small className="sales-due-subtext">{s.date} 발송 예정</small>
+              </>
+            );
+          }
           return (
             <>
-              <b>{schedules[0].date}</b>
-              <small>{schedules[0].detail}</small>
+              <b className="sales-due-onsite-datetime">{s.date} {s.time}</b>
+              <small className="sales-due-subtext">{s.methodLabel}</small>
             </>
           );
         }
@@ -807,7 +844,17 @@ export default function SalesApp() {
           <div style={{ display: "grid", gap: "2px" }}>
             {schedules.map((s, idx) => (
               <div key={idx} style={{ lineHeight: "1.2" }}>
-                <b>{s.date}</b> <small>{s.detail}</small>
+                {s.isDelivery ? (
+                  <>
+                    <b className="sales-due-delivery-title" style={{ fontSize: "13px" }}>택배</b>{" "}
+                    <small className="sales-due-subtext">{s.date} 발송</small>
+                  </>
+                ) : (
+                  <>
+                    <b className="sales-due-onsite-datetime" style={{ fontSize: "13px" }}>{s.date} {s.time}</b>{" "}
+                    <small className="sales-due-subtext">({s.methodLabel})</small>
+                  </>
+                )}
               </div>
             ))}
           </div>
@@ -815,7 +862,7 @@ export default function SalesApp() {
       },
       sortValue: (order) => order.workItems[0]?.dueAt ?? "",
       exportValue: (order) => formatOrderDueSchedules(order).summaryText,
-      width: "136px",
+      width: "140px",
       cellLayout: "stacked",
     },
     {

@@ -22,17 +22,22 @@
 2. **작업 목록(`columns`) 접수일시 열 추가**:
    - `type WorkItem`에 `createdAt?: string;` 명시 (API `/api/work-items`에서 이미 `row.created_at` 반환).
    - 작업 목록의 `수령일시` 열 바로 뒤에 `접수일시` 열을 추가하여 작업 단위 엑셀 다운로드 시에도 접수 시점과 수령 시점을 모두 확인 가능하도록 처리.
-3. **단위 테스트 작성 (`tests/sales-excel-dates.test.mjs`)**:
+3. **택배 '택배' 상단 강조 및 현장수령 일시 대형화**:
+   - 택배 건의 경우 수령일시 상단에 `택배`를 15px 와인색 볼드 타이틀(`.sales-due-delivery-title`)로 크게 강조 표기하고 하단에 발송 예정일을 배치.
+   - 현장수령 건의 경우 방문 날짜와 시간(일시)을 상단에 14px 볼드(`.sales-due-onsite-datetime`)로 한눈에 들어오게 크게 표기하고 하단에 수령구분(방문수령/현장판매)을 배치.
+4. **단위 테스트 작성 (`tests/sales-excel-dates.test.mjs`)**:
    - 주문 목록 및 작업 목록의 컬럼 구성 검증.
    - `formatOrderDueSchedules`의 방문수령/택배/복수일정/미지정 일정 포맷팅 단위 검증.
    - `createCsv`를 통한 엑셀 호환 UTF-8 BOM CSV 생성 시 `접수일시`와 `수령일시`가 분리 출력되는지 검증.
-4. **문서 갱신**:
+   - 택배 상단 강조 및 현장수령 일시 대형화 스타일과 렌더링 검증.
+5. **문서 갱신**:
    - `docs/PAGES_AND_FEATURES.md`에 판매장 테이블 및 엑셀 다운로드 시 접수일시·수령일시 분리 제공 명세 갱신.
 
 ## Modified & Created paths
 
-- `app/components/SalesApp.tsx`: `WorkItem` 타입 확장, `formatOrderDueSchedules` 헬퍼 함수 추가, `orderColumns` 및 `columns`에 접수일시/수령일시 분리 컬럼 구성
-- `tests/sales-excel-dates.test.mjs`: 접수일시 및 수령일시 분리 검증 단위 테스트 3종
+- `app/components/SalesApp.tsx`: `WorkItem` 타입 확장, `formatOrderDueSchedules` 헬퍼 함수 추가, `orderColumns` 및 `columns`에 접수일시/수령일시 분리 및 택배 상단 강조/현장수령 일시 대형화
+- `app/sales/work-table.css`: `.sales-due-delivery-title`, `.sales-due-onsite-datetime`, `.sales-due-subtext` 스타일 추가
+- `tests/sales-excel-dates.test.mjs`: 접수일시/수령일시 분리 및 택배/현장수령 타이포그래피 검증 단위 테스트 4종
 - `docs/PAGES_AND_FEATURES.md`: 판매장 기능 명세 갱신
 - `docs/work/completed/20260917-codex-sales-excel-separated-order-pickup-dates.md`: 작업 완료 보고서
 
@@ -40,4 +45,4 @@
 
 - `npm run typecheck`: 통과 (0 errors)
 - `npm run lint`: 통과 (0 errors, 0 warnings)
-- `node --experimental-strip-types --test tests/sales-excel-dates.test.mjs`: 통과 (3 passed, 0 failed)
+- `node --experimental-strip-types --test tests/sales-excel-dates.test.mjs`: 통과 (4 passed, 0 failed)
