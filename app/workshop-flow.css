@@ -2015,7 +2015,7 @@
   background: #fff;
   border: 1.5px solid #0f172a;
   border-radius: 4px;
-  padding: 10px;
+  padding: 8px 10px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -2024,92 +2024,219 @@
   overflow: hidden;
 }
 
-.preview-label-header {
-  border-bottom: 1.5px solid #000;
-  padding-bottom: 4px;
-  margin-bottom: 4px;
-}
-
-.preview-title {
-  font-size: 0.85rem;
-  font-weight: 800;
-  line-height: 1.15;
-  letter-spacing: -0.3px;
-  color: #000;
-}
-
-.preview-qty {
-  display: inline-block;
-  margin-left: 4px;
-  color: #dc2626;
-}
-
-.preview-meta-line {
+/* 1단: 상품명 및 수량 순번 (대형 강조) */
+.preview-product-row {
   display: flex;
   justify-content: space-between;
-  font-size: 0.68rem;
-  font-weight: 600;
-  margin-top: 4px;
-  color: #333;
+  align-items: flex-start;
+  border-bottom: 2px solid #000;
+  padding-bottom: 3px;
+  margin-bottom: 4px;
+  gap: 6px;
 }
 
-.preview-type-badge {
-  font-weight: 800;
-  border: 1px solid #000;
-  padding: 0 3px;
-  border-radius: 2px;
+.preview-product-name {
+  font-size: 1.25rem;
+  font-weight: 900;
+  line-height: 1.1;
+  letter-spacing: -0.5px;
+  color: #000;
+  word-break: keep-all;
+  flex: 1;
+}
+
+.preview-qty-badge {
+  font-size: 1.15rem;
+  font-weight: 900;
+  line-height: 1.1;
+  letter-spacing: -0.3px;
+  color: #dc2626;
+  white-space: nowrap;
+}
+
+/* 2단: 주문자명 및 결제상태 (대형 강조) */
+.preview-buyer-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+  line-height: 1.2;
+}
+
+.preview-buyer-wrap {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.preview-buyer-lbl {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #475569;
+  white-space: nowrap;
+}
+
+.preview-buyer-name {
+  font-size: 1.05rem;
+  font-weight: 900;
+  letter-spacing: -0.3px;
+  color: #0f172a;
+  word-break: break-all;
 }
 
 .preview-pay-badge {
-  font-weight: 800;
+  font-size: 0.72rem;
+  font-weight: 900;
+  padding: 1px 5px;
+  border-radius: 3px;
+  white-space: nowrap;
 }
 
 .preview-pay-badge.paid {
-  color: #16a34a;
+  background: #16a34a;
+  color: #fff;
 }
 
 .preview-pay-badge.unpaid {
-  color: #dc2626;
+  background: #dc2626;
+  color: #fff;
 }
 
+/* 3단: 날짜 및 수령방법 */
+.preview-meta-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #334155;
+  border-top: 1px dashed #cbd5e1;
+  border-bottom: 1px dashed #cbd5e1;
+  padding: 3px 0;
+  margin-bottom: 4px;
+}
+
+.preview-method-tag {
+  font-weight: 800;
+  border: 1px solid #0f172a;
+  padding: 0 4px;
+  border-radius: 2px;
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+/* 4단: 본문 상세 */
 .preview-label-body {
   flex: 1;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  font-size: 0.72rem;
+  justify-content: flex-start;
+  gap: 4px;
+  font-size: 0.78rem;
   line-height: 1.25;
   overflow: hidden;
 }
 
-.preview-shipping-box {
-  background: #f4f4f5;
-  border: 1px solid #27272a;
-  padding: 4px 6px;
+.preview-phone-row {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  font-size: 0.82rem;
+}
+
+.preview-phone-lbl {
+  font-weight: 700;
+  color: #64748b;
+  font-size: 0.76rem;
+}
+
+.preview-phone-val {
+  font-weight: 900;
+  color: #0f172a;
+  font-size: 0.95rem;
+}
+
+.preview-note-box {
+  font-size: 0.74rem;
+  font-weight: 600;
+  background: #fef3c7;
+  border: 1px solid #f59e0b;
+  color: #92400e;
+  padding: 2px 6px;
   border-radius: 3px;
+  line-height: 1.2;
+  word-break: break-all;
+}
+
+.preview-order-no {
+  font-size: 0.72rem;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+/* 택배 박스 */
+.preview-shipping-box {
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 3px;
+  padding: 4px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.74rem;
+}
+
+.preview-shipping-row {
+  display: flex;
+  gap: 4px;
+  line-height: 1.2;
+}
+
+.preview-shipping-row.muted {
   font-size: 0.68rem;
+  color: #64748b;
 }
 
-.preview-shipping-box p {
-  margin: 0 0 2px;
+.preview-shipping-lbl {
+  font-weight: 800;
+  white-space: nowrap;
+  color: #334155;
+  font-size: 0.74rem;
 }
 
-.preview-shipping-box p:last-child {
-  margin: 0;
+.preview-recipient-val {
+  font-weight: 900;
+  color: #0f172a;
+  font-size: 0.88rem;
 }
 
-.preview-onsite-box p {
-  margin: 0 0 2px;
+.preview-addr-val {
+  font-weight: 600;
+  color: #1e293b;
+  word-break: break-all;
 }
 
+/* 5단: 하단 푸터 */
 .preview-label-footer {
-  border-top: 1px dashed #71717a;
-  padding-top: 4px;
+  border-top: 1px solid #e2e8f0;
+  padding-top: 3px;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  font-size: 0.68rem;
+  color: #64748b;
+}
+
+.preview-brand {
+  font-weight: 600;
+}
+
+.preview-order-suffix {
+  font-family: monospace;
   font-size: 0.65rem;
-  color: #52525b;
 }
 
 .preview-copy-btn {

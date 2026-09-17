@@ -585,6 +585,22 @@ test("generatePackingLabels reflects custom composition and request tags on labe
   assert.match(labels[0].note, /메모: 선물용 보냉가방 포장/);
   assert.match(labels[0].note, /맞춤: 안심 500g 스테이크용/);
 });
+test("WorkshopLabelModal template incorporates large typography (15pt product, 12.5pt buyer) and hyphenated phone formatting", async () => {
+  const fs = await import("node:fs/promises");
+  const modalContent = await fs.readFile("app/components/WorkshopLabelModal.tsx", "utf8");
+  const cssContent = await fs.readFile("app/workshop-flow.css", "utf8");
 
+  // 인쇄 템플릿 대형 폰트 규격 검증
+  assert.match(modalContent, /font-size:\s*15pt/, "Print template must use 15pt large font for product name");
+  assert.match(modalContent, /font-size:\s*13\.5pt/, "Print template must use 13.5pt bold font for quantity badge");
+  assert.match(modalContent, /font-size:\s*12\.5pt/, "Print template must use 12.5pt bold font for buyer name");
+  assert.match(modalContent, /label-product-row/, "Print template must have dedicated product row");
+  assert.match(modalContent, /label-buyer-row/, "Print template must have dedicated buyer row");
+  assert.match(modalContent, /formatPhone/, "Modal must use formatPhone helper to format 010-XXXX-XXXX");
 
-
+  // 미리보기 CSS 대형 폰트 규격 검증
+  assert.match(cssContent, /\.preview-product-name/, "CSS must define preview-product-name");
+  assert.match(cssContent, /font-size:\s*1\.25rem/, "Preview product name must be enlarged (1.25rem)");
+  assert.match(cssContent, /\.preview-buyer-name/, "CSS must define preview-buyer-name");
+  assert.match(cssContent, /font-size:\s*1\.05rem/, "Preview buyer name must be enlarged (1.05rem)");
+});

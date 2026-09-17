@@ -17,6 +17,18 @@ interface WorkshopLabelModalProps {
   onClose: () => void;
 }
 
+function formatPhone(phone?: string | null): string {
+  if (!phone) return "";
+  const clean = phone.replace(/\D/g, "");
+  if (clean.length === 11) {
+    return `${clean.slice(0, 3)}-${clean.slice(3, 7)}-${clean.slice(7)}`;
+  }
+  if (clean.length === 10) {
+    return `${clean.slice(0, 3)}-${clean.slice(3, 6)}-${clean.slice(6)}`;
+  }
+  return phone;
+}
+
 export default function WorkshopLabelModal({
   open,
   items,
@@ -83,7 +95,7 @@ export default function WorkshopLabelModal({
       height: 50mm;
       max-height: 50mm;
       overflow: hidden;
-      padding: 2.2mm 2.5mm;
+      padding: 1.8mm 2.2mm 1.5mm;
       page-break-after: always;
       page-break-inside: avoid;
       display: flex;
@@ -94,82 +106,169 @@ export default function WorkshopLabelModal({
     .label-slip-card:last-child {
       page-break-after: auto !important;
     }
-    .label-header {
-      border-bottom: 1.5px solid #000;
-      padding-bottom: 1mm;
-      margin-bottom: 1mm;
+
+    /* 1단: 상품명 및 수량 순번 (초대형 헤더) */
+    .label-product-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      border-bottom: 1.8px solid #000;
+      padding-bottom: 0.6mm;
+      margin-bottom: 0.8mm;
+      gap: 1mm;
     }
-    .label-title {
-      font-size: 10.5pt;
-      font-weight: 800;
-      line-height: 1.15;
-      letter-spacing: -0.3px;
-      word-break: break-all;
+    .label-product-name {
+      font-size: 15pt;
+      font-weight: 900;
+      line-height: 1.1;
+      letter-spacing: -0.5px;
+      word-break: keep-all;
+      flex: 1;
+      color: #000;
     }
     .label-qty-badge {
-      font-size: 10pt;
-      font-weight: 800;
-      display: inline-block;
-      margin-left: 1mm;
+      font-size: 13.5pt;
+      font-weight: 900;
+      line-height: 1.1;
+      letter-spacing: -0.3px;
+      white-space: nowrap;
+      color: #000;
     }
+
+    /* 2단: 주문자명 및 결제상태 */
+    .label-buyer-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.6mm;
+      line-height: 1.15;
+    }
+    .label-buyer-wrap {
+      display: flex;
+      align-items: baseline;
+      gap: 0.8mm;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+    .label-buyer-lbl {
+      font-size: 8.5pt;
+      font-weight: 700;
+      color: #222;
+      white-space: nowrap;
+    }
+    .label-buyer-name {
+      font-size: 12.5pt;
+      font-weight: 900;
+      letter-spacing: -0.3px;
+      color: #000;
+      word-break: break-all;
+    }
+    .label-pay-badge {
+      font-size: 8pt;
+      font-weight: 900;
+      padding: 0.3mm 1mm;
+      border-radius: 2px;
+      white-space: nowrap;
+    }
+    .label-pay-badge.unpaid {
+      background: #000;
+      color: #fff;
+      border: 1px solid #000;
+    }
+    .label-pay-badge.paid {
+      border: 1px solid #000;
+      color: #000;
+    }
+
+    /* 3단: 날짜 및 수령방법 메타 라인 */
     .label-meta-row {
       display: flex;
       justify-content: space-between;
-      font-size: 7.5pt;
-      font-weight: 600;
-      margin-top: 0.8mm;
-      line-height: 1.1;
+      align-items: center;
+      font-size: 8pt;
+      font-weight: 700;
+      padding: 0.4mm 0;
+      border-top: 0.8px dashed #000;
+      border-bottom: 0.8px dashed #000;
+      margin-bottom: 0.8mm;
+      line-height: 1.15;
     }
     .label-method-tag {
-      font-size: 7.8pt;
-      font-weight: 800;
-      padding: 0.2mm 1mm;
+      font-size: 8.5pt;
+      font-weight: 900;
       border: 1px solid #000;
+      padding: 0.2mm 1mm;
       border-radius: 2px;
     }
-    .label-pay-tag {
-      font-size: 7.8pt;
-      font-weight: 800;
-    }
+
+    /* 4단: 본문 (현장수령 vs 택배) */
     .label-body {
       flex: 1;
       display: flex;
       flex-direction: column;
-      justify-content: center;
-      gap: 0.8mm;
-      font-size: 7.5pt;
+      justify-content: flex-start;
+      gap: 0.6mm;
+      font-size: 8.5pt;
       line-height: 1.2;
       overflow: hidden;
     }
+    .label-phone-line {
+      font-size: 9.5pt;
+      font-weight: 800;
+      color: #000;
+    }
+    .label-note-box {
+      font-size: 8pt;
+      font-weight: 700;
+      border: 0.8px solid #333;
+      border-radius: 2px;
+      padding: 0.4mm 0.8mm;
+      background: #f0f0f0;
+      line-height: 1.15;
+      word-break: break-all;
+    }
     .shipping-section {
-      background: #f4f4f4;
+      background: #f5f5f5;
       border: 0.8px solid #000;
       border-radius: 2px;
-      padding: 1mm;
-      font-size: 7pt;
+      padding: 0.6mm 0.8mm;
+      font-size: 7.8pt;
       line-height: 1.15;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4mm;
     }
     .shipping-row {
       display: flex;
-      gap: 1mm;
+      gap: 0.8mm;
     }
     .shipping-label {
-      font-weight: 800;
+      font-weight: 900;
       white-space: nowrap;
       color: #000;
+      font-size: 8pt;
     }
     .shipping-val {
-      font-weight: 600;
+      font-weight: 700;
       word-break: break-all;
     }
+    .shipping-val.recipient {
+      font-size: 9.5pt;
+      font-weight: 900;
+    }
+
+    /* 5단: 하단 풋터 */
     .label-footer {
-      border-top: 0.8px dashed #666;
-      padding-top: 0.8mm;
-      margin-top: 0.8mm;
+      border-top: 0.6px solid #666;
+      padding-top: 0.4mm;
+      margin-top: 0.4mm;
       display: flex;
       justify-content: space-between;
-      font-size: 6.5pt;
+      align-items: center;
+      font-size: 6.8pt;
       color: #333;
+      line-height: 1;
     }
   </style>
 </head>
@@ -178,16 +277,24 @@ export default function WorkshopLabelModal({
     .map(
       (label) => `
     <div class="label-slip-card">
-      <div class="label-header">
-        <div class="label-title">
-          ${label.buyerName} - ${label.productName}
-          <span class="label-qty-badge">${label.quantityBadge}</span>
+      <div class="label-product-row">
+        <div class="label-product-name">${label.productName}</div>
+        <div class="label-qty-badge">${label.quantityBadge}</div>
+      </div>
+
+      <div class="label-buyer-row">
+        <div class="label-buyer-wrap">
+          <span class="label-buyer-lbl">주문자:</span>
+          <span class="label-buyer-name">${label.buyerName}</span>
         </div>
-        <div class="label-meta-row">
-          <span>${label.date}</span>
-          <span class="label-method-tag">${label.classificationLabel}${label.pickupTime ? ` (${label.pickupTime})` : ""}</span>
-          <span class="label-pay-tag">[${label.paymentStatusLabel}]</span>
-        </div>
+        <span class="label-pay-badge ${label.isPaid ? "paid" : "unpaid"}">
+          ${label.paymentStatusLabel}
+        </span>
+      </div>
+
+      <div class="label-meta-row">
+        <span>${label.date}</span>
+        <span class="label-method-tag">${label.classificationLabel}${label.pickupTime ? ` (${label.pickupTime})` : ""}</span>
       </div>
 
       <div class="label-body">
@@ -196,24 +303,30 @@ export default function WorkshopLabelModal({
             ? `
           <div class="shipping-section">
             <div class="shipping-row">
-              <span class="shipping-label">보내는 분:</span>
-              <span class="shipping-val">${label.buyerName} ${label.buyerPhone ? `(${label.buyerPhone})` : ""}</span>
-            </div>
-            <div class="shipping-row">
               <span class="shipping-label">받는 분:</span>
-              <span class="shipping-val">${label.recipientName} ${label.recipientPhone ? `(${label.recipientPhone})` : ""}</span>
+              <span class="shipping-val recipient">${label.recipientName} ${label.recipientPhone ? `(${formatPhone(label.recipientPhone)})` : ""}</span>
             </div>
             <div class="shipping-row">
-              <span class="shipping-label">배송주소:</span>
+              <span class="shipping-label">배송지:</span>
               <span class="shipping-val">${label.fullAddress || "주소 미입력"}</span>
+            </div>
+            <div class="shipping-row" style="font-size: 7pt; color: #444;">
+              <span class="shipping-label" style="font-size: 7pt; color: #444;">보내는 분:</span>
+              <span class="shipping-val">${label.buyerName} ${label.buyerPhone ? `(${formatPhone(label.buyerPhone)})` : ""}</span>
             </div>
           </div>
         `
             : `
-          <div style="padding: 0.5mm 0;">
-            <div><strong>주문자:</strong> ${label.buyerName} (${label.buyerPhone || "연락처 미등록"})</div>
-            <div><strong>주문번호:</strong> ${label.orderNo}</div>
-            ${label.note ? `<div style="font-size: 7pt; color: #222;"><strong>메모:</strong> ${label.note}</div>` : ""}
+          <div style="padding: 0.3mm 0;">
+            <div class="label-phone-line">
+              <span style="font-size: 8pt; font-weight: 700; color: #333;">연락처:</span>
+              <strong>${formatPhone(label.buyerPhone) || "연락처 미등록"}</strong>
+            </div>
+            ${
+              label.note
+                ? `<div class="label-note-box"><strong>메모:</strong> ${label.note}</div>`
+                : `<div style="font-size: 7.5pt; color: #555; margin-top: 0.5mm;">주문번호: ${label.orderNo}</div>`
+            }
           </div>
         `
         }
@@ -221,7 +334,7 @@ export default function WorkshopLabelModal({
 
       <div class="label-footer">
         <span>정일품 한우선물세트</span>
-        <span>${label.orderNo.slice(-6)}</span>
+        <span>${label.orderNo.slice(-8)}</span>
       </div>
     </div>
   `
@@ -301,48 +414,73 @@ export default function WorkshopLabelModal({
           <div className="label-cards-grid">
             {labels.map((label) => (
               <article key={label.id} className="label-card-preview" title={`${label.productName} ${label.quantityBadge}`}>
-                <div className="preview-label-header">
-                  <div className="preview-title">
-                    <strong>{label.buyerName}</strong> - {label.productName}
-                    <span className="preview-qty">{label.quantityBadge}</span>
-                  </div>
-                  <div className="preview-meta-line">
-                    <span className="preview-date">{label.date}</span>
-                    <span className="preview-type-badge">{label.classificationLabel}{label.pickupTime ? ` (${label.pickupTime})` : ""}</span>
-                    <span className={`preview-pay-badge ${label.isPaid ? "paid" : "unpaid"}`}>
-                      {label.paymentStatusLabel}
-                    </span>
-                  </div>
+                {/* 1단: 상품명 및 수량 순번 (대형 강조) */}
+                <div className="preview-product-row">
+                  <span className="preview-product-name">{label.productName}</span>
+                  <span className="preview-qty-badge">{label.quantityBadge}</span>
                 </div>
 
+                {/* 2단: 주문자명 및 결제상태 (대형 강조) */}
+                <div className="preview-buyer-row">
+                  <div className="preview-buyer-wrap">
+                    <span className="preview-buyer-lbl">주문자:</span>
+                    <strong className="preview-buyer-name">{label.buyerName}</strong>
+                  </div>
+                  <span className={`preview-pay-badge ${label.isPaid ? "paid" : "unpaid"}`}>
+                    {label.paymentStatusLabel}
+                  </span>
+                </div>
+
+                {/* 3단: 날짜 및 수령방법 */}
+                <div className="preview-meta-row">
+                  <span className="preview-date">{label.date}</span>
+                  <span className="preview-method-tag">
+                    {label.classificationLabel}{label.pickupTime ? ` (${label.pickupTime})` : ""}
+                  </span>
+                </div>
+
+                {/* 4단: 본문 상세 (현장수령 vs 택배) */}
                 <div className="preview-label-body">
                   {label.classification === "shipping" ? (
                     <div className="preview-shipping-box">
-                      <p>
-                        <strong>보내는 분:</strong> {label.buyerName} {label.buyerPhone ? `(${label.buyerPhone})` : ""}
-                      </p>
-                      <p>
-                        <strong>받는 분:</strong> {label.recipientName} {label.recipientPhone ? `(${label.recipientPhone})` : ""}
-                      </p>
-                      <p className="preview-addr">
-                        <strong>배송지:</strong> {label.fullAddress || "주소 미입력"}
-                      </p>
+                      <div className="preview-shipping-row">
+                        <span className="preview-shipping-lbl">받는 분:</span>
+                        <strong className="preview-recipient-val">
+                          {label.recipientName} {label.recipientPhone ? `(${formatPhone(label.recipientPhone)})` : ""}
+                        </strong>
+                      </div>
+                      <div className="preview-shipping-row">
+                        <span className="preview-shipping-lbl">배송지:</span>
+                        <span className="preview-addr-val">{label.fullAddress || "주소 미입력"}</span>
+                      </div>
+                      <div className="preview-shipping-row muted">
+                        <span className="preview-shipping-lbl">보낸 분:</span>
+                        <span>{label.buyerName} {label.buyerPhone ? `(${formatPhone(label.buyerPhone)})` : ""}</span>
+                      </div>
                     </div>
                   ) : (
                     <div className="preview-onsite-box">
-                      <p>
-                        <strong>주문자:</strong> {label.buyerName} ({label.buyerPhone || "연락처 미등록"})
-                      </p>
-                      <p>
-                        <strong>주문번호:</strong> {label.orderNo}
-                      </p>
-                      {label.note ? <p className="preview-note"><strong>메모:</strong> {label.note}</p> : null}
+                      <div className="preview-phone-row">
+                        <span className="preview-phone-lbl">연락처:</span>
+                        <strong className="preview-phone-val">{formatPhone(label.buyerPhone) || "연락처 미등록"}</strong>
+                      </div>
+                      {label.note ? (
+                        <div className="preview-note-box">
+                          <strong>메모:</strong> {label.note}
+                        </div>
+                      ) : (
+                        <div className="preview-order-no">
+                          주문번호: {label.orderNo}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
 
+                {/* 5단: 하단 푸터 */}
                 <div className="preview-label-footer">
                   <span className="preview-brand">정일품 한우선물세트</span>
+                  <span className="preview-order-suffix">{label.orderNo.slice(-8)}</span>
                   <button
                     className="preview-copy-btn"
                     onClick={() => copyLabelText(label)}
