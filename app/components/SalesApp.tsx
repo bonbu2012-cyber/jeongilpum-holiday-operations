@@ -69,6 +69,7 @@ type WorkItem = {
   customizationJson: string | null;
   note: string;
   version: number;
+  createdAt?: string;
   orderNo: string;
   buyerName: string;
   buyerPhone: string;
@@ -642,6 +643,28 @@ export default function SalesApp() {
     await runBulk({ action: "duplicate" }, "선택한 작업 행을 복제했습니다.");
   };
 
+  const formatOrderDueSchedules = (order: CustomerOrder): { schedules: { date: string; detail: string }[]; summaryText: string } => {
+    if (!order.workItems || order.workItems.length === 0) {
+      return { schedules: [], summaryText: "일정 미지정" };
+    }
+    const scheduleMap = new Map<string, { date: string; detail: string }>();
+    for (const item of order.workItems) {
+      const date = item.dueAt ? item.dueAt.slice(0, 10) : "";
+      if (!date) continue;
+      const detail = item.deliveryMethod === "delivery" ? "발송 예정" : (item.dueAt.slice(11, 16) || "시간 미지정");
+      const key = `${date} ${detail}`.trim();
+      if (!scheduleMap.has(key)) {
+        scheduleMap.set(key, { date, detail });
+      }
+    }
+    const schedules = Array.from(scheduleMap.values());
+    if (schedules.length === 0) {
+      return { schedules: [], summaryText: "일정 미지정" };
+    }
+    const summaryText = schedules.map((s) => `${s.date} ${s.detail}`.trim()).join(", ");
+    return { schedules, summaryText };
+  };
+
   const columns: DataTableColumn<WorkItem>[] = [
     {
       id: "dueAt",
@@ -651,6 +674,14 @@ export default function SalesApp() {
       exportValue: (item) => `${item.dueAt.slice(0, 10)} ${item.deliveryMethod === "delivery" ? "발송 예정" : item.dueAt.slice(11, 16)}`,
       width: "118px",
       cellLayout: "stacked",
+    },
+    {
+      id: "createdAt",
+      header: "접수일시",
+      cell: (item) => item.createdAt ? <time dateTime={item.createdAt}>{formatWorkItemDateTime(item.createdAt)}</time> : <span style={{ color: "var(--muted)" }}>-</span>,
+      sortValue: (item) => item.createdAt ?? "",
+      exportValue: (item) => item.createdAt ? formatWorkItemDateTime(item.createdAt) : "",
+      width: "150px",
     },
     {
       id: "customer",
@@ -750,11 +781,42 @@ export default function SalesApp() {
   const orderColumns: DataTableColumn<CustomerOrderRow>[] = [
     {
       id: "createdAt",
-      header: "주문 일시",
+      header: "접수일시",
       cell: (order) => <time dateTime={order.createdAt}>{formatWorkItemDateTime(order.createdAt)}</time>,
       sortValue: (order) => order.createdAt,
       exportValue: (order) => formatWorkItemDateTime(order.createdAt),
-      width: "174px",
+      width: "160px",
+    },
+    {
+      id: "dueAt",
+      header: "수령일시",
+      cell: (order) => {
+        const { schedules, summaryText } = formatOrderDueSchedules(order);
+        if (schedules.length === 0) {
+          return <span style={{ color: "var(--muted)" }}>{summaryText}</span>;
+        }
+        if (schedules.length === 1) {
+          return (
+            <>
+              <b>{schedules[0].date}</b>
+              <small>{schedules[0].detail}</small>
+            </>
+          );
+        }
+        return (
+          <div style={{ display: "grid", gap: "2px" }}>
+            {schedules.map((s, idx) => (
+              <div key={idx} style={{ lineHeight: "1.2" }}>
+                <b>{s.date}</b> <small>{s.detail}</small>
+              </div>
+            ))}
+          </div>
+        );
+      },
+      sortValue: (order) => order.workItems[0]?.dueAt ?? "",
+      exportValue: (order) => formatOrderDueSchedules(order).summaryText,
+      width: "136px",
+      cellLayout: "stacked",
     },
     {
       id: "orderNo",
