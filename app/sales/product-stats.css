@@ -2,18 +2,67 @@
 .product-stats-modal {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 16px;
   min-width: 0;
 }
 
 .product-stats-controls {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
   background: var(--surface-muted, #f8f8f6);
   border: 1px solid var(--line, #e5e5e0);
   border-radius: 12px;
-  padding: 12px 16px;
+  padding: 14px 16px;
+}
+
+.product-stats-control-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.product-stats-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink, #1e293b);
+}
+
+.product-stats-datetype-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #fff;
+  border: 1px solid var(--line, #e2e8f0);
+  border-radius: 8px;
+  padding: 4px 8px;
+}
+
+.product-stats-toggle-btn {
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted, #64748b);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.product-stats-toggle-btn:hover {
+  color: var(--ink, #0f172a);
+  background: #f1f5f9;
+}
+
+.product-stats-toggle-btn--active {
+  background: #f1f5f9;
+  color: var(--wine, #7e1e24);
+  border-color: #cbd5e1;
+  font-weight: 800;
 }
 
 .product-stats-mode-tabs {
@@ -22,13 +71,13 @@
 }
 
 .product-stats-mode-btn {
-  flex: 1;
-  height: 38px;
+  height: 36px;
+  padding: 0 14px;
   border: 1px solid var(--line, #d4d4cb);
   border-radius: 8px;
   background: #fff;
   color: var(--ink, #333);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
   cursor: pointer;
   transition: all 0.15s ease;
@@ -45,10 +94,12 @@
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+  padding-top: 4px;
+  border-top: 1px dashed var(--line, #e5e5e0);
 }
 
 .product-stats-date-inputs input[type="date"] {
-  height: 36px;
+  height: 34px;
   padding: 0 10px;
   border: 1px solid var(--line, #ccc);
   border-radius: 6px;
@@ -56,6 +107,11 @@
   font-weight: 700;
   color: var(--ink, #111);
   background: #fff;
+}
+
+.product-stats-tilde {
+  font-weight: 800;
+  color: var(--muted, #64748b);
 }
 
 .product-stats-quick-btn {
@@ -75,6 +131,29 @@
   color: var(--ink, #0f172a);
 }
 
+/* 안내 바 */
+.product-stats-notice-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: #1e40af;
+}
+
+.product-stats-notice-tag {
+  background: #2563eb;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
 /* 요약 배너 */
 .product-stats-summary-bar {
   display: grid;
@@ -86,10 +165,11 @@
   background: #fff;
   border: 1px solid var(--line, #e2e8f0);
   border-radius: 10px;
-  padding: 10px 14px;
+  padding: 12px 14px;
   display: flex;
   flex-direction: column;
   gap: 4px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
 }
 
 .product-stats-summary-chip small {
@@ -99,21 +179,126 @@
 }
 
 .product-stats-summary-chip strong {
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 900;
   color: var(--ink, #0f172a);
+}
+
+.product-stats-summary-chip strong .unit {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--muted, #64748b);
+  margin-left: 2px;
 }
 
 .product-stats-summary-chip--highlight strong {
   color: var(--wine, #7e1e24);
 }
 
-/* 카테고리별 섹션 */
+/* 결제 현황 보조 칩 */
+.product-stats-payment-breakdown {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.product-stats-pay-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  background: #fff;
+  border: 1px solid var(--line, #e2e8f0);
+}
+
+.product-stats-pay-chip .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.dot--paid {
+  background: #16a34a;
+}
+
+.dot--unpaid {
+  background: #eab308;
+}
+
+.product-stats-pay-chip .pay-label {
+  color: var(--muted, #64748b);
+}
+
+.product-stats-pay-chip .pay-val {
+  font-weight: 800;
+  color: var(--ink, #0f172a);
+}
+
+.product-stats-pay-chip .pay-amount {
+  font-weight: 700;
+  color: #475569;
+}
+
+/* 뷰 모드 스위처 */
+.product-stats-view-switcher {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 4px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--line, #e2e8f0);
+}
+
+.product-stats-section-title {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--ink, #0f172a);
+}
+
+.product-stats-section-title small {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted, #64748b);
+  margin-left: 4px;
+}
+
+.product-stats-view-buttons {
+  display: flex;
+  gap: 6px;
+}
+
+.product-stats-view-btn {
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--line, #cbd5e1);
+  border-radius: 6px;
+  background: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted, #475569);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.product-stats-view-btn:hover {
+  background: #f8fafc;
+  color: var(--ink, #0f172a);
+}
+
+.product-stats-view-btn--active {
+  background: var(--wine, #7e1e24);
+  color: #fff;
+  border-color: var(--wine, #7e1e24);
+}
+
+/* 카테고리별 섹션 (카드 모드) */
 .product-stats-categories {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  max-height: 55vh;
+  max-height: 52vh;
   overflow-y: auto;
   padding-right: 4px;
 }
@@ -184,9 +369,10 @@
 }
 
 .product-stats-item-name {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 800;
   color: var(--ink, #0f172a);
+  line-height: 1.3;
 }
 
 .product-stats-item-price {
@@ -201,10 +387,26 @@
   justify-content: space-between;
 }
 
+.product-stats-item-qty-wrap {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
 .product-stats-item-qty {
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 900;
   color: var(--wine, #7e1e24);
+}
+
+.product-stats-item-share {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted, #64748b);
+  background: #ede9fe;
+  color: #5b21b6;
+  padding: 1px 5px;
+  border-radius: 4px;
 }
 
 .product-stats-item-total {
@@ -232,6 +434,127 @@
   word-break: break-all;
 }
 
+/* 테이블 뷰 */
+.product-stats-table-wrapper {
+  background: #fff;
+  border: 1px solid var(--line, #e2e8f0);
+  border-radius: 10px;
+  overflow-x: auto;
+}
+
+.product-stats-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.product-stats-table thead th {
+  background: #fafaf9;
+  padding: 10px 12px;
+  font-weight: 800;
+  color: var(--ink, #1e293b);
+  border-bottom: 1px solid var(--line, #e2e8f0);
+}
+
+.product-stats-table tbody tr {
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.product-stats-table tbody tr:hover {
+  background: #fdfbf7;
+}
+
+.product-stats-table td {
+  padding: 10px 12px;
+  vertical-align: middle;
+}
+
+.product-stats-td-cat {
+  background: #fafaf9;
+  border-right: 1px solid var(--line, #e2e8f0);
+  text-align: center;
+}
+
+.td-cat-name {
+  font-weight: 800;
+  color: var(--ink, #1e293b);
+}
+
+.td-cat-sub {
+  color: var(--muted, #64748b);
+  font-size: 11px;
+  display: block;
+  margin-top: 2px;
+}
+
+.product-stats-td-name strong {
+  font-weight: 800;
+  color: var(--ink, #0f172a);
+}
+
+.product-stats-table-custom-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.custom-detail-chip {
+  font-size: 10px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 3px;
+  padding: 1px 5px;
+  color: #475569;
+}
+
+.product-stats-td-price {
+  text-align: right;
+  color: var(--muted, #64748b);
+}
+
+.product-stats-td-qty {
+  text-align: right;
+  color: var(--ink, #0f172a);
+}
+
+.product-stats-td-qty strong {
+  color: var(--wine, #7e1e24);
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.product-stats-td-share {
+  text-align: center;
+}
+
+.share-badge {
+  font-size: 11px;
+  font-weight: 800;
+  background: #f3e8ff;
+  color: #7e22ce;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.product-stats-td-total {
+  text-align: right;
+  color: var(--ink, #0f172a);
+}
+
+.product-stats-td-total strong {
+  font-weight: 800;
+}
+
+.product-stats-table tfoot th {
+  background: #f8fafc;
+  border-top: 2px solid var(--line, #cbd5e1);
+  padding: 12px;
+  font-size: 14px;
+  font-weight: 900;
+  color: var(--ink, #0f172a);
+}
+
 .product-stats-empty {
   text-align: center;
   padding: 40px 20px;
@@ -246,3 +569,4 @@
   font-size: 14px;
   font-weight: 700;
 }
+

@@ -10,28 +10,12 @@ type WorkItemStatRow = {
   quantity: number;
   customization_json: string | null;
   payment_status: string;
+  order_paid_amount: number;
+  order_total_amount: number;
   order_id: string;
   due_date: string;
+  reception_date: string;
 };
-
-const STATS_WORK_ITEMS_SQL = `
-  SELECT
-    w.product_id,
-    w.product_name_snapshot,
-    w.unit_price_snapshot,
-    w.quantity,
-    w.customization_json,
-    o.payment_status,
-    w.order_id,
-    substr(w.due_at, 1, 10) AS due_date
-  FROM work_items w
-  JOIN orders o ON o.id = w.order_id
-  WHERE substr(w.due_at, 1, 10) >= ?
-    AND substr(w.due_at, 1, 10) <= ?
-    AND w.work_status != 'cancelled'
-    AND o.status != 'cancelled'
-  ORDER BY w.due_at ASC
-`;
 
 function todayInSeoul() {
   const parts = new Intl.DateTimeFormat("en-US", {
@@ -52,16 +36,40 @@ export async function GET(request: NextRequest) {
   const today = todayInSeoul();
   const startDate = searchParams.get("startDate")?.trim() || today;
   const endDate = searchParams.get("endDate")?.trim() || startDate;
+  const dateType = searchParams.get("dateType")?.trim() === "reception" ? "reception" : "due";
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
     return NextResponse.json({ error: "날짜 형식은 YYYY-MM-DD여야 합니다." }, { status: 400 });
   }
 
+  const dateCol = dateType === "reception" ? "substr(o.submitted_at, 1, 10)" : "substr(w.due_at, 1, 10)";
+  const statsQuery = `
+    SELECT
+      w.product_id,
+      w.product_name_snapshot,
+      w.unit_price_snapshot,
+      w.quantity,
+      w.customization_json,
+      o.payment_status,
+      o.paid_amount AS order_paid_amount,
+      o.total_amount AS order_total_amount,
+      w.order_id,
+      substr(w.due_at, 1, 10) AS due_date,
+      substr(o.submitted_at, 1, 10) AS reception_date
+    FROM work_items w
+    JOIN orders o ON o.id = w.order_id
+    WHERE ${dateCol} >= ?
+      AND ${dateCol} <= ?
+      AND w.work_status != 'cancelled'
+      AND o.order_status != 'cancelled'
+    ORDER BY ${dateCol} ASC, w.created_at ASC
+  `;
+
   const db = getDb();
   let rows: WorkItemStatRow[] = [];
 
   try {
-    const result = await db.prepare(STATS_WORK_ITEMS_SQL).bind(startDate, endDate).all();
+    const result = await db.prepare(statsQuery).bind(startDate, endDate).all();
     rows = (result.results || []) as WorkItemStatRow[];
   } catch (err) {
     console.error("[product-stats] Query error:", err);
@@ -77,16 +85,24 @@ export async function GET(request: NextRequest) {
     unitPrice: number;
     totalQuantity: number;
     totalAmount: number;
+    sharePercent: number;
     customDetails: string[];
   };
 
   const productMap = new Map<string, AggregatedProduct>();
-  const orderIdSet = new Set<string>();
+  const orderPayments = new Map<string, { paymentStatus: string; paidAmount: number; totalAmount: number }>();
   let grandTotalQty = 0;
   let grandTotalAmount = 0;
 
   for (const row of rows) {
-    orderIdSet.add(row.order_id);
+    if (!orderPayments.has(row.order_id)) {
+      orderPayments.set(row.order_id, {
+        paymentStatus: row.payment_status,
+        paidAmount: Number(row.order_paid_amount) || 0,
+        totalAmount: Number(row.order_total_amount) || 0,
+      });
+    }
+
     const qty = Number(row.quantity) || 0;
     const unitPrice = Number(row.unit_price_snapshot) || 0;
     const lineTotal = unitPrice * qty;
@@ -112,6 +128,7 @@ export async function GET(request: NextRequest) {
         unitPrice,
         totalQuantity: 0,
         totalAmount: 0,
+        sharePercent: 0,
         customDetails: [],
       });
     }
@@ -124,8 +141,32 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // "판매가 없었던 상품은 표시하지 않음": totalQuantity > 0인 것만 유지
-  const soldProducts = Array.from(productMap.values()).filter((p) => p.totalQuantity > 0);
+  // 주문 결제 상태별 보조 집계 (전체 총계는 결제 여부와 상관없이 합산된 grandTotalAmount)
+  let paidOrders = 0;
+  let paidAmount = 0;
+  let unpaidOrders = 0;
+  let unpaidAmount = 0;
+
+  for (const order of orderPayments.values()) {
+    if (order.paymentStatus === "paid") {
+      paidOrders += 1;
+      paidAmount += order.paidAmount || order.totalAmount;
+    } else {
+      unpaidOrders += 1;
+      unpaidAmount += Math.max(0, order.totalAmount - order.paidAmount);
+      if (order.paidAmount > 0) {
+        paidAmount += order.paidAmount;
+      }
+    }
+  }
+
+  // 판매 수량이 있는 상품만 필터링하고 수량 비율 계산
+  const soldProducts = Array.from(productMap.values())
+    .filter((p) => p.totalQuantity > 0)
+    .map((p) => ({
+      ...p,
+      sharePercent: grandTotalQty > 0 ? Math.round((p.totalQuantity / grandTotalQty) * 100) : 0,
+    }));
 
   // 카테고리별 그룹핑
   const categoryOrderMap: Record<string, number> = {
@@ -176,12 +217,19 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     startDate,
     endDate,
+    dateType,
     isSingleDay: startDate === endDate,
     summary: {
-      totalOrders: orderIdSet.size,
+      totalOrders: orderPayments.size,
       totalProductKinds: soldProducts.length,
       totalQuantity: grandTotalQty,
       totalAmount: grandTotalAmount,
+      paymentBreakdown: {
+        paidOrders,
+        paidAmount,
+        unpaidOrders,
+        unpaidAmount,
+      },
     },
     categories,
   });

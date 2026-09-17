@@ -28,15 +28,19 @@ test("resolveProductSummaryMeta maps products to correct lineups and sets correc
   assert.equal(bone.categoryOrder, 5);
 });
 
-test("stats API source file exists and verifies parameter validation and zero-quantity filtering", async () => {
+test("stats API source file exists and verifies parameter validation, column names, and zero-quantity filtering", async () => {
   const { readFile } = await import("node:fs/promises");
   const source = await readFile(new URL("../app/api/sales/product-stats/route.ts", import.meta.url), "utf8");
 
   assert.match(source, /startDate/);
   assert.match(source, /endDate/);
+  assert.match(source, /dateType/);
+  assert.match(source, /o\.order_status != 'cancelled'/);
   assert.match(source, /filter\(\(p\) => p\.totalQuantity > 0\)/);
   assert.match(source, /categoryOrderMap/);
   assert.match(source, /requireOperatorApi/);
   assert.match(source, /grandTotalQty/);
   assert.match(source, /grandTotalAmount/);
+  assert.match(source, /paymentBreakdown/);
 });
+
