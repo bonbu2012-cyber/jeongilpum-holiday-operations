@@ -567,7 +567,10 @@ async function createManualOrder(payload: CreatePayload) {
       : "pickup";
   const legacyScheduleLabel = scheduleLabel(primaryWorkItem.deliveryMethod, primaryWorkItem.dueAt);
   const hasPaidItem = (payload.items ?? []).some((item) => isRecord(item) && item.paymentStatus === "paid");
-  const paymentStatus = clean(payload.paymentStatus) || (hasPaidItem ? "paid" : "unpaid");
+  const requestedStatus = clean(payload.paymentStatus);
+  const paymentStatus = (hasPaidItem || requestedStatus === "paid")
+    ? "paid"
+    : (requestedStatus || "unpaid");
   const rawPaidAmount = typeof payload.paidAmount === "number" ? payload.paidAmount : 0;
   const paidAmount = paymentStatus === "paid" ? Math.max(rawPaidAmount, totalAmount) : rawPaidAmount;
 

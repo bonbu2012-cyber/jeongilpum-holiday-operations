@@ -48,6 +48,15 @@ test("api/orders manual-create supports item paymentStatus fallback to guarantee
   const ordersApi = await read("app/api/orders/route.ts");
 
   assert.match(ordersApi, /const hasPaidItem = \(payload\.items \?\? \[\]\)\.some\(\(item\) => isRecord\(item\) && item\.paymentStatus === "paid"\)/);
-  assert.match(ordersApi, /const paymentStatus = clean\(payload\.paymentStatus\) \|\| \(hasPaidItem \? "paid" : "unpaid"\)/);
+  assert.match(ordersApi, /const paymentStatus = \(hasPaidItem \|\| requestedStatus === "paid"\)/);
   assert.match(ordersApi, /const paidAmount = paymentStatus === "paid" \? Math\.max\(rawPaidAmount, totalAmount\) : rawPaidAmount/);
 });
+
+test("SalesApp notices provide clear visual feedback on payment status and collected amount", async () => {
+  const salesApp = await read("app/components/SalesApp.tsx");
+
+  assert.match(salesApp, /setNotice\(`새 주문을 등록했습니다\. \[\$\{paymentText\}\]`\)/);
+  assert.match(salesApp, /setNotice\(`주문 정보를 저장했습니다\. \[\$\{paymentText\}\]`\)/);
+  assert.match(salesApp, /setNotice\(`작업 행을 저장했습니다\.\$\{paymentNotice\}`\)/);
+});
+

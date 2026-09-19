@@ -402,18 +402,20 @@ export default function SalesApp() {
   };
 
   const saveWorkItem = async (item: import("./WorkItemEditor").EditableWorkItem, draft: WorkDraft) => {
+    const changes = toWorkItemChanges(draft);
     const response = await fetch("/api/work-items", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         id: item.id,
         expectedVersion: item.version,
-        changes: toWorkItemChanges(draft),
+        changes,
       }),
     });
     await responseData(response);
     setSelectedWorkItem(null);
-    setNotice("작업 행을 저장했습니다.");
+    const paymentNotice = changes.paymentStatus === "paid" ? " [결제완료 반영]" : "";
+    setNotice(`작업 행을 저장했습니다.${paymentNotice}`);
     await reloadActive();
   };
 
@@ -578,7 +580,12 @@ export default function SalesApp() {
     await responseData(response);
     setNewOrderOpen(false);
     setTab("customers");
-    setNotice(workItems.length ? "새 주문과 작업 항목을 추가했습니다." : "새 주문을 추가했습니다. 작업 항목을 추가해주세요.");
+    const paymentText = draft.paymentStatus === "paid"
+      ? `결제완료 (${won(Number(draft.paidAmount))} 수납)`
+      : draft.paymentStatus === "partial"
+        ? `부분결제 (${won(Number(draft.paidAmount))} 수납)`
+        : "미결제";
+    setNotice(`새 주문을 등록했습니다. [${paymentText}]`);
   };
 
   const saveOrder = async (selection: OrderSelection, draft: OrderDraft, workItems: OrderWorkItemDraft[]) => {
@@ -607,7 +614,12 @@ export default function SalesApp() {
     });
     await responseData(response);
     setSelectedOrder(null);
-    setNotice("주문 정보를 저장했습니다.");
+    const paymentText = draft.paymentStatus === "paid"
+      ? `결제완료 (${won(Number(draft.paidAmount))} 수납)`
+      : draft.paymentStatus === "partial"
+        ? `부분결제 (${won(Number(draft.paidAmount))} 수납)`
+        : "미결제";
+    setNotice(`주문 정보를 저장했습니다. [${paymentText}]`);
     await reloadActive();
   };
 
