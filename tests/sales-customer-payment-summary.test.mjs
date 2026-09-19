@@ -211,3 +211,29 @@ test("groupCustomerOrdersByCustomer accurately aggregates order rows by customer
   assert.equal(lee.unpaidAmount, 0);
   assert.equal(lee.allPaid, true);
 });
+
+test("groupWorkItemsByCustomer resolves true order total from work items when orders.totalAmount was undercounted", () => {
+  // Real 신진식 issue case: 3 orders, 6 items
+  // Order 17 had 2 items of 270k (540k total), but DB orders.totalAmount was mistakenly stored as 270k
+  const mismatchedItems = [
+    // Order 15: 3 items (미 220k + 선 270k + 진 320k = 810k)
+    { id: "i1", orderId: "ord-15", orderNo: "260917-015", orderVersion: 1, buyerName: "신진식", buyerPhone: "01036403420", paymentStatus: "unpaid", paidAmount: 0, totalAmount: 810000, quantity: 1, unitPrice: 220000, lineTotal: 220000, productName: "미" },
+    { id: "i2", orderId: "ord-15", orderNo: "260917-015", orderVersion: 1, buyerName: "신진식", buyerPhone: "01036403420", paymentStatus: "unpaid", paidAmount: 0, totalAmount: 810000, quantity: 1, unitPrice: 270000, lineTotal: 270000, productName: "선" },
+    { id: "i3", orderId: "ord-15", orderNo: "260917-015", orderVersion: 1, buyerName: "신진식", buyerPhone: "01036403420", paymentStatus: "unpaid", paidAmount: 0, totalAmount: 810000, quantity: 1, unitPrice: 320000, lineTotal: 320000, productName: "진" },
+    // Order 16: 1 item (선 270k)
+    { id: "i4", orderId: "ord-16", orderNo: "260917-016", orderVersion: 1, buyerName: "신진식", buyerPhone: "01036403420", paymentStatus: "unpaid", paidAmount: 0, totalAmount: 270000, quantity: 1, unitPrice: 270000, lineTotal: 270000, productName: "선" },
+    // Order 17: 2 items (선 270k + 선 270k = 540k), but legacy totalAmount was 270k!
+    { id: "i5", orderId: "ord-17", orderNo: "260917-017", orderVersion: 1, buyerName: "신진식", buyerPhone: "01036403420", paymentStatus: "unpaid", paidAmount: 0, totalAmount: 270000, quantity: 1, unitPrice: 270000, lineTotal: 270000, productName: "선" },
+    { id: "i6", orderId: "ord-17", orderNo: "260917-017", orderVersion: 1, buyerName: "신진식", buyerPhone: "01036403420", paymentStatus: "unpaid", paidAmount: 0, totalAmount: 270000, quantity: 1, unitPrice: 270000, lineTotal: 270000, productName: "선" },
+  ];
+
+  const groups = groupWorkItemsByCustomer(mismatchedItems);
+  assert.equal(groups.length, 1);
+  const shin = groups[0];
+  // Must resolve to 1,620,000 won (not 1,350,000 won!)
+  assert.equal(shin.totalAmount, 1620000, "전체 주문 총액은 누락 없이 162만원이어야 함");
+  assert.equal(shin.unpaidAmount, 1620000, "미결제 금액도 162만원이어야 함");
+  assert.equal(shin.totalItems, 6);
+  assert.equal(shin.totalOrders, 3);
+});
+

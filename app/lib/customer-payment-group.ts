@@ -67,6 +67,8 @@ export type WorkItemLike = {
   totalAmount: number;
   quantity: number;
   productName: string;
+  unitPrice?: number;
+  lineTotal?: number;
   deliveryMethod?: string;
   dueAt?: string;
   createdAt?: string;
@@ -87,6 +89,8 @@ export type CustomerOrderRowLike = {
     id: string;
     productName: string;
     quantity: number;
+    unitPrice?: number;
+    lineTotal?: number;
   }>;
 };
 
@@ -144,10 +148,20 @@ export function groupWorkItemsByCustomer<T extends WorkItemLike>(
       }
     }
 
-    // Build itemsSummary for each order
+    // Build itemsSummary and calculate effective totalAmount for each order from actual items
     for (const ord of orderMap.values()) {
       const orderItems = group.rows.filter((r) => r.orderId === ord.id);
       ord.itemsSummary = orderItems.map((r) => `${r.productName} ${r.quantity}개`).join(", ");
+
+      const itemsTotal = orderItems.reduce((sum, r) => {
+        const line = typeof r.lineTotal === "number" ? r.lineTotal : (typeof r.unitPrice === "number" ? r.unitPrice * r.quantity : 0);
+        return sum + line;
+      }, 0);
+
+      if (itemsTotal > 0) {
+        ord.totalAmount = itemsTotal;
+        ord.balance = Math.max(0, itemsTotal - ord.paidAmount);
+      }
     }
 
     group.orders = Array.from(orderMap.values());
@@ -190,7 +204,12 @@ export function groupCustomerOrdersByCustomer<T extends CustomerOrderRowLike>(
       groupMap.set(key, group);
     }
     group.rows.push(order);
-    const balance = Math.max(0, order.totalAmount - order.paidAmount);
+    const workItemsTotal = (order.workItems || []).reduce((s, it) => {
+      const line = typeof it.lineTotal === "number" ? it.lineTotal : (typeof it.unitPrice === "number" ? it.unitPrice * it.quantity : 0);
+      return s + line;
+    }, 0);
+    const effectiveTotal = workItemsTotal > 0 ? workItemsTotal : order.totalAmount;
+    const balance = Math.max(0, effectiveTotal - order.paidAmount);
     const itemsCount = (order.workItems || []).reduce((s, it) => s + it.quantity, 0);
     group.totalItems += itemsCount;
 
@@ -205,7 +224,7 @@ export function groupCustomerOrdersByCustomer<T extends CustomerOrderRowLike>(
       orderVersion: order.version,
       paymentStatus: order.paymentStatus,
       paidAmount: order.paidAmount,
-      totalAmount: order.totalAmount,
+      totalAmount: effectiveTotal,
       balance,
       itemsSummary,
       dueScheduleSummary,
