@@ -36,4 +36,6 @@
 - [x] typecheck (`npm run typecheck` 통과)
 - [x] lint (`npm run lint` 통과)
 - [x] build (`npm run build` 통과)
+- [x] git push & merge: `main` branch commit `fc26831`
+- [x] production deploy: Vercel deployment `dpl_7znsSUK6yhr6ArN7Sr4E39fmb4xz` (Production, Aliased to `https://jeongilpum-holiday-operations.vercel.app`)
 
