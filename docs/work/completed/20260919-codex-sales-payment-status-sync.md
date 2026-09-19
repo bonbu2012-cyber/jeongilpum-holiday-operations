@@ -63,3 +63,6 @@
 - [x] typecheck (`npm run typecheck` 통과 - 0 error)
 - [x] unit test (`node --test tests/sales-order-payment-sync.test.mjs` 4/4 통과)
 - [x] regression test (`node --test tests/sales-payment-summary.test.mjs` 2/2 통과)
+- [x] git push & merge: `main` branch commit `6b1b423`
+- [x] production deploy: Vercel deployment `dpl_GuGZH7bMM37mouyVMxvzgoxPhSsW` (Production, Aliased to `https://jeongilpum-holiday-operations.vercel.app`)
+
