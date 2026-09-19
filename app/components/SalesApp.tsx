@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { Truck } from "lucide-react";
 import AppNav from "./AppNav";
@@ -20,6 +20,7 @@ import {
   useResource,
   type DataTableColumn,
 } from "../ui";
+import type { DataTableGroup } from "../ui/DataTable";
 import {
   PIPELINE_WORK_STATUSES,
   PAYMENT_STATUS_LABELS,
@@ -33,6 +34,11 @@ import {
   type PipelineWorkStatus,
   type WorkStatus,
 } from "../lib/work-status";
+import {
+  groupWorkItemsByCustomer,
+  groupCustomerOrdersByCustomer,
+  type CustomerGroupSummary,
+} from "../lib/customer-payment-group";
 import { formatWorkItemDateTime } from "./WorkItemHistory";
 import CustomOrderDetails from "./CustomOrderDetails";
 import { MoneyFieldInput } from "./MoneyInput";
@@ -254,6 +260,39 @@ function won(value: number) {
   return `${value.toLocaleString("ko-KR")}원`;
 }
 
+type OrderDueSchedule = {
+  isDelivery: boolean;
+  date: string;
+  time: string;
+  detail: string;
+  methodLabel: string;
+};
+
+function formatOrderDueSchedules(order: CustomerOrder): { schedules: OrderDueSchedule[]; summaryText: string } {
+  if (!order.workItems || order.workItems.length === 0) {
+    return { schedules: [], summaryText: "일정 미지정" };
+  }
+  const scheduleMap = new Map<string, OrderDueSchedule>();
+  for (const item of order.workItems) {
+    const date = item.dueAt ? item.dueAt.slice(0, 10) : "";
+    if (!date) continue;
+    const isDelivery = item.deliveryMethod === "delivery";
+    const time = item.dueAt.slice(11, 16);
+    const detail = isDelivery ? "발송 예정" : (time || "시간 미지정");
+    const methodLabel = DELIVERY_LABELS[item.deliveryMethod] || (isDelivery ? "택배" : "방문수령");
+    const key = `${date} ${detail} ${methodLabel}`.trim();
+    if (!scheduleMap.has(key)) {
+      scheduleMap.set(key, { isDelivery, date, time, detail, methodLabel });
+    }
+  }
+  const schedules = Array.from(scheduleMap.values());
+  if (schedules.length === 0) {
+    return { schedules: [], summaryText: "일정 미지정" };
+  }
+  const summaryText = schedules.map((s) => `${s.date} ${s.detail}`.trim()).join(", ");
+  return { schedules, summaryText };
+}
+
 function urgentWorkItem(item: WorkItem) {
   if (item.workStatus === "completed" || item.workStatus === "cancelled") return false;
   if (item.customerArrivedAt) return true;
@@ -304,6 +343,8 @@ export default function SalesApp() {
   const [deleteOrder, setDeleteOrder] = useState<OrderSelection | null>(null);
   const [duplicateRequest, setDuplicateRequest] = useState<DuplicateRequest | null>(null);
   const [notice, setNotice] = useState("");
+  const [groupByCustomer, setGroupByCustomer] = useState(true);
+  const [customerPaymentGroup, setCustomerPaymentGroup] = useState<CustomerGroupSummary<unknown> | null>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedQuery(query), 250);
@@ -393,6 +434,152 @@ export default function SalesApp() {
       : 0;
     return totals;
   }, {} as Record<PipelineWorkStatus, number>);
+
+  const orderFromWorkItem = (item: WorkItem): CustomerOrder => ({
+    id: item.orderId,
+    orderNo: item.orderNo,
+    createdAt: item.createdAt || "",
+    paymentStatus: item.paymentStatus,
+    paidAmount: item.paidAmount,
+    totalAmount: item.totalAmount,
+    balance: Math.max(0, item.totalAmount - item.paidAmount),
+    version: item.orderVersion,
+    workItems: workItems.filter((w) => w.orderId === item.orderId),
+  });
+
+  const workCustomerGroups = useMemo(() => {
+    return groupWorkItemsByCustomer(filteredWorkItems, (item) => {
+      const methodLabel = item.deliveryMethod ? (DELIVERY_LABELS[item.deliveryMethod] || "방문수령") : "방문수령";
+      return item.deliveryMethod === "delivery"
+        ? `택배 ${item.dueAt.slice(0, 10)} 발송`
+        : `${item.dueAt.slice(0, 10)} ${item.dueAt.slice(11, 16)} (${methodLabel})`;
+    });
+  }, [filteredWorkItems]);
+
+  const orderCustomerGroups = useMemo(() => {
+    return groupCustomerOrdersByCustomer(customerOrders, (order) => {
+      return formatOrderDueSchedules(order).summaryText;
+    });
+  }, [customerOrders]);
+
+  const activeCustomerGroups = tab === "work" ? workCustomerGroups : orderCustomerGroups;
+  const singleCustomerBanner = (
+    debouncedQuery.trim() !== ""
+    && activeCustomerGroups.length >= 1
+    && activeCustomerGroups.length <= 3
+  ) ? activeCustomerGroups[0] : null;
+
+  const renderCustomerGroupHeader = (group: CustomerGroupSummary<unknown>) => (
+    <div className="sales-customer-group-header">
+      <div className="sales-customer-group-header__info">
+        <span className="sales-customer-group-header__name">👤 {group.buyerName}</span>
+        <span className="sales-customer-group-header__phone">{group.formattedPhone}</span>
+        <span className="sales-customer-group-header__count">주문 {group.totalOrders}건 ({group.totalItems}개)</span>
+      </div>
+      <div className="sales-customer-group-header__amounts">
+        <span className="sales-customer-group-header__stat">
+          <small>총 주문액</small>
+          <b>{won(group.totalAmount)}</b>
+        </span>
+        <span className="sales-customer-group-header__stat">
+          <small>수납 완료</small>
+          <span>{won(group.paidAmount)}</span>
+        </span>
+        <span className={`sales-customer-group-header__stat ${group.unpaidAmount > 0 ? "sales-customer-group-header__stat--unpaid" : "sales-customer-group-header__stat--paid"}`}>
+          <small>{group.unpaidAmount > 0 ? "미결제 금액" : "결제 상태"}</small>
+          <b>{group.unpaidAmount > 0 ? won(group.unpaidAmount) : "전액 완료"}</b>
+        </span>
+      </div>
+      <div className="sales-customer-group-header__actions">
+        {group.unpaidAmount > 0 ? (
+          <Button
+            size="sm"
+            variant="primary"
+            onClick={(event) => {
+              event.stopPropagation();
+              setCustomerPaymentGroup(group);
+            }}
+            title="고객 미결제 금액 결제 처리"
+          >
+            💳 결제 처리
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={(event) => {
+              event.stopPropagation();
+              setCustomerPaymentGroup(group);
+            }}
+            title="고객 결제 내역 확인"
+          >
+            결제 확인
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+
+  const workTableGroups = useMemo<DataTableGroup<WorkItem>[]>(() => {
+    return workCustomerGroups.map((group) => ({
+      id: group.id,
+      header: renderCustomerGroupHeader(group),
+      rows: group.rows,
+    }));
+  }, [workCustomerGroups]);
+
+  const orderTableGroups = useMemo<DataTableGroup<CustomerOrderRow>[]>(() => {
+    return orderCustomerGroups.map((group) => ({
+      id: group.id,
+      header: renderCustomerGroupHeader(group),
+      rows: group.rows,
+    }));
+  }, [orderCustomerGroups]);
+
+  const batchSettleCustomer = async (customer: CustomerGroupSummary<unknown>) => {
+    const unpaidOrders = customer.orders.filter((o) => o.balance > 0);
+    if (!unpaidOrders.length) return;
+    try {
+      await Promise.all(
+        unpaidOrders.map(async (order) => {
+          const res = await fetch("/api/orders/payment", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              orderId: order.id,
+              expectedVersion: order.orderVersion,
+              paymentStatus: "paid",
+              paidAmount: order.totalAmount,
+            }),
+          });
+          if (!res.ok) {
+            const data = (await res.json().catch(() => ({}))) as { error?: string };
+            throw new Error(data.error || `주문(${order.orderNo}) 결제 처리 실패`);
+          }
+        })
+      );
+      setCustomerPaymentGroup(null);
+      setNotice(`${customer.buyerName} 고객님의 미결제 주문 ${unpaidOrders.length}건(${won(customer.unpaidAmount)})을 모두 결제완료 처리했습니다.`);
+      await reloadActive();
+    } catch (caught) {
+      setNotice(caught instanceof Error ? caught.message : "일괄 결제를 처리하지 못했습니다.");
+      await reloadActive();
+    }
+  };
+
+  const openOrderPaymentEditor = (orderId: string) => {
+    const existing = customerOrders.find((co) => co.id === orderId);
+    if (existing) {
+      setCustomerPaymentGroup(null);
+      setPaymentOrder(existing);
+      return;
+    }
+    const matchingWorkItem = workItems.find((w) => w.orderId === orderId);
+    if (matchingWorkItem) {
+      setCustomerPaymentGroup(null);
+      setPaymentOrder(orderFromWorkItem(matchingWorkItem));
+    }
+  };
 
   const reloadActive = async () => {
     await Promise.all([
@@ -656,39 +843,6 @@ export default function SalesApp() {
     await runBulk({ action: "duplicate" }, "선택한 작업 행을 복제했습니다.");
   };
 
-  type OrderDueSchedule = {
-    isDelivery: boolean;
-    date: string;
-    time: string;
-    detail: string;
-    methodLabel: string;
-  };
-
-  const formatOrderDueSchedules = (order: CustomerOrder): { schedules: OrderDueSchedule[]; summaryText: string } => {
-    if (!order.workItems || order.workItems.length === 0) {
-      return { schedules: [], summaryText: "일정 미지정" };
-    }
-    const scheduleMap = new Map<string, OrderDueSchedule>();
-    for (const item of order.workItems) {
-      const date = item.dueAt ? item.dueAt.slice(0, 10) : "";
-      if (!date) continue;
-      const isDelivery = item.deliveryMethod === "delivery";
-      const time = item.dueAt.slice(11, 16);
-      const detail = isDelivery ? "발송 예정" : (time || "시간 미지정");
-      const methodLabel = DELIVERY_LABELS[item.deliveryMethod] || (isDelivery ? "택배" : "방문수령");
-      const key = `${date} ${detail} ${methodLabel}`.trim();
-      if (!scheduleMap.has(key)) {
-        scheduleMap.set(key, { isDelivery, date, time, detail, methodLabel });
-      }
-    }
-    const schedules = Array.from(scheduleMap.values());
-    if (schedules.length === 0) {
-      return { schedules: [], summaryText: "일정 미지정" };
-    }
-    const summaryText = schedules.map((s) => `${s.date} ${s.detail}`.trim()).join(", ");
-    return { schedules, summaryText };
-  };
-
   const columns: DataTableColumn<WorkItem>[] = [
     {
       id: "dueAt",
@@ -796,7 +950,20 @@ export default function SalesApp() {
     {
       id: "payment",
       header: "결제",
-      cell: (item) => <Badge tone={paymentStatusTone(item.paymentStatus)}>{PAYMENT_STATUS_LABELS[item.paymentStatus]}</Badge>,
+      cell: (item) => (
+        <button
+          type="button"
+          className="sales-table-payment-badge-btn"
+          onClick={(event) => {
+            event.stopPropagation();
+            setPaymentOrder(orderFromWorkItem(item));
+          }}
+          title="클릭하여 결제 상태 및 금액 변경"
+        >
+          <Badge tone={paymentStatusTone(item.paymentStatus)}>{PAYMENT_STATUS_LABELS[item.paymentStatus]}</Badge>
+        </button>
+      ),
+      sortValue: (item) => item.paymentStatus,
       exportValue: (item) => PAYMENT_STATUS_LABELS[item.paymentStatus],
       width: "92px",
     },
@@ -1142,6 +1309,18 @@ export default function SalesApp() {
             label: "작업 및 주문 검색",
           }}
           filters={<>
+            <Button
+              size="sm"
+              variant={groupByCustomer ? "primary" : "ghost"}
+              onClick={() => {
+                setGroupByCustomer((prev) => !prev);
+                setSelectedIds([]);
+                setSelectedOrderIds([]);
+              }}
+              title="동일 고객(이름+전화번호)별 주문건 묶어보기 및 미결제 총액 표시 토글"
+            >
+              👥 고객별 묶기
+            </Button>
             <FieldSelect id="sales-work-status-filter" label={<span className="sr-only">작업 상태</span>} value={workStatus} onChange={(event) => {
               setWorkStatus(event.target.value);
               setSelectedIds([]);
@@ -1217,6 +1396,55 @@ export default function SalesApp() {
           ) : null}
         </Toolbar>
 
+        {singleCustomerBanner ? (
+          <aside className="sales-customer-summary-card" aria-label="고객 결제 요약 배너">
+            <div className="sales-customer-summary-card__top">
+              <div className="sales-customer-summary-card__title-box">
+                <span className="sales-customer-summary-card__name">👤 {singleCustomerBanner.buyerName}</span>
+                <span className="sales-customer-summary-card__phone">{singleCustomerBanner.formattedPhone}</span>
+                <Badge tone="neutral">주문 {singleCustomerBanner.totalOrders}건 ({singleCustomerBanner.totalItems}개)</Badge>
+              </div>
+              <div className="sales-customer-summary-card__actions">
+                {singleCustomerBanner.unpaidAmount > 0 ? (
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    onClick={() => setCustomerPaymentGroup(singleCustomerBanner)}
+                    title="고객 미결제 금액 결제 처리"
+                  >
+                    💳 일괄 결제 처리
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setCustomerPaymentGroup(singleCustomerBanner)}
+                    title="고객 결제 내역 확인"
+                  >
+                    결제 내역 확인
+                  </Button>
+                )}
+              </div>
+            </div>
+            <div className="sales-customer-summary-card__stats">
+              <div className="sales-customer-summary-card__stat-item">
+                <small>총 주문 금액</small>
+                <b>{won(singleCustomerBanner.totalAmount)}</b>
+              </div>
+              <div className="sales-customer-summary-card__stat-divider" />
+              <div className="sales-customer-summary-card__stat-item">
+                <small>기 수납 금액</small>
+                <span>{won(singleCustomerBanner.paidAmount)}</span>
+              </div>
+              <div className="sales-customer-summary-card__stat-divider" />
+              <div className={`sales-customer-summary-card__stat-item ${singleCustomerBanner.unpaidAmount > 0 ? "sales-customer-summary-card__stat-item--unpaid" : ""}`}>
+                <small>{singleCustomerBanner.unpaidAmount > 0 ? "미결제 합계 금액" : "결제 상태"}</small>
+                <b>{singleCustomerBanner.unpaidAmount > 0 ? won(singleCustomerBanner.unpaidAmount) : "전액 결제완료"}</b>
+              </div>
+            </div>
+          </aside>
+        ) : null}
+
         {error ? <p className="sales-work-table__error" role="alert">{error.message}</p> : null}
 
         {(() => {
@@ -1291,6 +1519,7 @@ export default function SalesApp() {
               <DataTable
                 ariaLabel="판매장 작업 목록"
                 rows={filteredWorkItems}
+                groups={groupByCustomer ? workTableGroups : undefined}
                 columns={columns}
                 getRowId={(item) => item.id}
                 exportName="판매장-작업-목록"
@@ -1307,6 +1536,7 @@ export default function SalesApp() {
               <DataTable
                 ariaLabel="판매장 주문 목록"
                 rows={customerOrders}
+                groups={groupByCustomer ? orderTableGroups : undefined}
                 columns={orderColumns}
                 getRowId={(order) => order.id}
                 exportName="판매장-주문-목록"
@@ -1384,6 +1614,14 @@ export default function SalesApp() {
           order={paymentOrder}
           onClose={() => setPaymentOrder(null)}
           onSave={savePayment}
+        />
+      ) : null}
+      {customerPaymentGroup ? (
+        <CustomerPaymentModal
+          group={customerPaymentGroup}
+          onClose={() => setCustomerPaymentGroup(null)}
+          onBatchSettle={batchSettleCustomer}
+          onEditOrderPayment={openOrderPaymentEditor}
         />
       ) : null}
       <Modal
@@ -1914,6 +2152,135 @@ function NewWorkItemEditor({
         <SharedWorkItemFields draft={draft} idPrefix="new-work" onChange={update} />
         {error ? <p className="sales-work-table__error" role="alert">{error}</p> : null}
       </form>
+    </Modal>
+  );
+}
+
+function CustomerPaymentModal({
+  group,
+  onClose,
+  onBatchSettle,
+  onEditOrderPayment,
+}: {
+  group: CustomerGroupSummary<unknown>;
+  onClose: () => void;
+  onBatchSettle: (customer: CustomerGroupSummary<unknown>) => Promise<void>;
+  onEditOrderPayment: (orderId: string) => void;
+}) {
+  const [settling, setSettling] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSettle = async () => {
+    if (group.unpaidAmount <= 0) return;
+    setSettling(true);
+    setError("");
+    try {
+      await onBatchSettle(group);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "일괄 완납 처리에 실패했습니다.");
+      setSettling(false);
+    }
+  };
+
+  const unpaidCount = group.orders.filter((o) => o.balance > 0).length;
+
+  return (
+    <Modal
+      open
+      title={`고객별 결제 관리 - ${group.buyerName}`}
+      description={`${group.formattedPhone} · 총 주문 ${group.totalOrders}건`}
+      onClose={onClose}
+      footer={<>
+        <Button variant="ghost" onClick={onClose}>닫기</Button>
+        {group.unpaidAmount > 0 ? (
+          <Button
+            variant="primary"
+            disabled={settling}
+            onClick={handleSettle}
+          >
+            {settling ? "결제 처리 중..." : `전액 완납 처리 (${won(group.unpaidAmount)})`}
+          </Button>
+        ) : null}
+      </>}
+    >
+      <div className="sales-customer-payment-modal">
+        <div className="sales-customer-payment-modal__summary">
+          <div className="sales-customer-payment-modal__stat">
+            <small>총 주문 금액</small>
+            <b>{won(group.totalAmount)}</b>
+          </div>
+          <div className="sales-customer-payment-modal__stat">
+            <small>기 수납 금액</small>
+            <b>{won(group.paidAmount)}</b>
+          </div>
+          <div className={`sales-customer-payment-modal__stat ${group.unpaidAmount > 0 ? "sales-customer-payment-modal__stat--unpaid" : ""}`}>
+            <small>{group.unpaidAmount > 0 ? "미결제 합계 금액" : "결제 상태"}</small>
+            <b>{group.unpaidAmount > 0 ? won(group.unpaidAmount) : "전액 결제완료"}</b>
+          </div>
+          <div className="sales-customer-payment-modal__stat">
+            <small>주문 건수</small>
+            <b>{group.totalOrders}건 ({group.totalItems}개 상품)</b>
+          </div>
+        </div>
+
+        {error ? <p className="sales-work-table__error" role="alert">{error}</p> : null}
+
+        {group.unpaidAmount > 0 ? (
+          <div className="sales-customer-payment-modal__fast-action">
+            <p style={{ margin: 0, fontSize: "var(--text-sm)", color: "var(--wine)", fontWeight: "var(--weight-strong)" }}>
+              💡 미결제 주문 {unpaidCount}건의 미수 잔액 총 {won(group.unpaidAmount)}을(를) 한 번에 전액 결제완료 처리할 수 있습니다.
+            </p>
+          </div>
+        ) : (
+          <div className="sales-customer-payment-modal__fast-action">
+            <p style={{ margin: 0, fontSize: "var(--text-sm)", color: "var(--forest)", fontWeight: "var(--weight-strong)" }}>
+              ✓ 해당 고객님의 모든 주문이 결제완료 상태입니다.
+            </p>
+          </div>
+        )}
+
+        <div className="sales-customer-payment-modal__order-list">
+          {group.orders.map((order) => {
+            const isUnpaid = order.balance > 0;
+            return (
+              <div key={order.id} className="sales-customer-payment-modal__order-card">
+                <div className="sales-customer-payment-modal__order-header">
+                  <span className="sales-customer-payment-modal__order-no">
+                    주문번호 {order.orderNo}
+                  </span>
+                  <Badge tone={paymentStatusTone(order.paymentStatus)}>
+                    {PAYMENT_STATUS_LABELS[order.paymentStatus]}
+                  </Badge>
+                </div>
+                <div className="sales-customer-payment-modal__order-details">
+                  <div className="sales-customer-payment-modal__order-items">
+                    <span>{order.itemsSummary || "주문 상품"}</span>
+                    {order.dueScheduleSummary ? (
+                      <span style={{ marginLeft: "6px", color: "var(--muted)" }}>({order.dueScheduleSummary})</span>
+                    ) : null}
+                  </div>
+                  <div className="sales-customer-payment-modal__order-amounts">
+                    <span>주문 {won(order.totalAmount)}</span>
+                    <span>수납 {won(order.paidAmount)}</span>
+                    <strong style={{ color: isUnpaid ? "var(--wine)" : "var(--forest)" }}>
+                      {isUnpaid ? `미수 ${won(order.balance)}` : "완납"}
+                    </strong>
+                  </div>
+                </div>
+                <div className="sales-customer-payment-modal__order-actions">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => onEditOrderPayment(order.id)}
+                  >
+                    개별 결제 상태/금액 변경
+                  </Button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </Modal>
   );
 }

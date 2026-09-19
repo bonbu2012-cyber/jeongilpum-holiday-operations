@@ -622,3 +622,307 @@
   color: var(--muted, #64748b);
 }
 
+/* 고객별 그룹 헤더 및 결제 요약 스타일 */
+.sales-customer-group-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  background: #fdfbf7;
+  border-left: 4px solid var(--wine);
+  border-radius: var(--radius-sm);
+}
+
+.sales-customer-group-header__info {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.sales-customer-group-header__name {
+  font-size: var(--text-md);
+  font-weight: var(--weight-strong);
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+
+.sales-customer-group-header__phone {
+  font-size: var(--text-sm);
+  color: var(--muted);
+  font-weight: var(--weight-body);
+}
+
+.sales-customer-group-header__count {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--badge-neutral-background);
+  color: var(--badge-neutral-foreground);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-body);
+}
+
+.sales-customer-group-header__amounts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.sales-customer-group-header__stat {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.sales-customer-group-header__stat small {
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.sales-customer-group-header__stat b {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-strong);
+}
+
+.sales-customer-group-header__stat--unpaid {
+  background: var(--badge-wine-background);
+  border: 1px solid var(--wine);
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  color: var(--wine);
+}
+
+.sales-customer-group-header__stat--unpaid b {
+  color: var(--wine);
+  font-weight: var(--weight-strong);
+  font-size: var(--text-md);
+}
+
+.sales-customer-group-header__stat--paid {
+  background: var(--badge-green-background);
+  border: 1px solid var(--badge-green-foreground);
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  color: var(--badge-green-foreground);
+  font-weight: var(--weight-strong);
+}
+
+.sales-customer-group-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* 검색 시 상단 고객 요약 배너 */
+.sales-customer-summary-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 18px;
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-left: 5px solid var(--wine);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow);
+  margin-bottom: 8px;
+}
+
+.sales-customer-summary-card__top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sales-customer-summary-card__title-box {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.sales-customer-summary-card__name {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-strong);
+  color: var(--ink);
+}
+
+.sales-customer-summary-card__phone {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-body);
+  color: var(--muted);
+}
+
+.sales-customer-summary-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sales-customer-summary-card__stats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 20px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--line);
+}
+
+.sales-customer-summary-card__stat-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sales-customer-summary-card__stat-item small {
+  font-size: var(--text-sm);
+  color: var(--muted);
+  font-weight: var(--weight-body);
+}
+
+.sales-customer-summary-card__stat-item b {
+  font-size: var(--text-md);
+  font-weight: var(--weight-strong);
+  color: var(--ink);
+}
+
+.sales-customer-summary-card__stat-item--unpaid b {
+  color: var(--wine);
+  font-size: var(--text-lg);
+}
+
+.sales-customer-summary-card__stat-divider {
+  width: 1px;
+  height: 28px;
+  background: var(--line);
+}
+
+/* 고객 결제 관리 모달 */
+.sales-customer-payment-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.sales-customer-payment-modal__summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+  padding: 12px 16px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+
+.sales-customer-payment-modal__stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sales-customer-payment-modal__stat small {
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+
+.sales-customer-payment-modal__stat b {
+  font-size: var(--text-md);
+  font-weight: var(--weight-strong);
+  color: var(--ink);
+}
+
+.sales-customer-payment-modal__stat--unpaid b {
+  color: var(--wine);
+  font-size: var(--text-lg);
+}
+
+.sales-customer-payment-modal__fast-action {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sales-customer-payment-modal__order-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 380px;
+  overflow-y: auto;
+}
+
+.sales-customer-payment-modal__order-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: #ffffff;
+}
+
+.sales-customer-payment-modal__order-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sales-customer-payment-modal__order-no {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-strong);
+  color: var(--ink);
+}
+
+.sales-customer-payment-modal__order-details {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: var(--text-sm);
+}
+
+.sales-customer-payment-modal__order-items {
+  color: var(--ink);
+  font-weight: var(--weight-body);
+}
+
+.sales-customer-payment-modal__order-amounts {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sales-customer-payment-modal__order-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: flex-end;
+  padding-top: 4px;
+  border-top: 1px dashed var(--line);
+}
+
+.sales-table-payment-badge-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  display: inline-flex;
+  border-radius: var(--radius-sm);
+}
+
+.sales-table-payment-badge-btn:hover {
+  opacity: 0.85;
+}
+
+.sales-table-payment-badge-btn:focus-visible {
+  outline: 2px solid var(--wine);
+  outline-offset: 2px;
+}
