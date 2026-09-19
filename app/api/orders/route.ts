@@ -31,6 +31,7 @@ type CreateItemPayload = {
   detailAddr?: string | null;
   customizationJson?: string | null;
   note?: string;
+  paymentStatus?: string;
 };
 
 type CreatePayload = {
@@ -565,7 +566,8 @@ async function createManualOrder(payload: CreatePayload) {
       ? "onsite"
       : "pickup";
   const legacyScheduleLabel = scheduleLabel(primaryWorkItem.deliveryMethod, primaryWorkItem.dueAt);
-  const paymentStatus = clean(payload.paymentStatus) || "unpaid";
+  const hasPaidItem = (payload.items ?? []).some((item) => isRecord(item) && item.paymentStatus === "paid");
+  const paymentStatus = clean(payload.paymentStatus) || (hasPaidItem ? "paid" : "unpaid");
   const rawPaidAmount = typeof payload.paidAmount === "number" ? payload.paidAmount : 0;
   const paidAmount = paymentStatus === "paid" ? Math.max(rawPaidAmount, totalAmount) : rawPaidAmount;
 

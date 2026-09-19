@@ -571,6 +571,7 @@ export default function SalesApp() {
           customizationJson: nullable(item.customizationJson),
           workStatus: item.workStatus,
           note: item.note,
+          paymentStatus: item.paymentStatus,
         })),
       }),
     });
@@ -1494,14 +1495,76 @@ function OrderEditor({
       customizationJson: item.customizationJson ?? "",
       workStatus: item.workStatus,
       note: item.note,
+      paymentStatus: initialDraft.paymentStatus === "paid" || item.paymentStatus === "paid" ? "paid" : "unpaid",
     },
   })));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const formId = onDelete ? "sales-order-editor" : "sales-new-order-editor";
 
+  const calculateTotal = (items: OrderWorkItemDraft[]) => {
+    return items.reduce((sum, it) => {
+      const price = Number(it.draft.unitPrice) || 0;
+      const qty = Number(it.draft.quantity) || 0;
+      return sum + (price * qty);
+    }, 0);
+  };
+
   const update = <Key extends keyof OrderDraft>(key: Key, value: OrderDraft[Key]) => {
-    setDraft((current) => ({ ...current, [key]: value }));
+    setDraft((current) => {
+      const next = { ...current, [key]: value };
+      if (key === "paymentStatus") {
+        if (value === "paid") {
+          next.paidAmount = next.totalAmount;
+        } else if (value === "unpaid") {
+          next.paidAmount = "0";
+        }
+      }
+      return next;
+    });
+    if (key === "paymentStatus") {
+      const itemStatus: "unpaid" | "paid" = value === "paid" ? "paid" : "unpaid";
+      setWorkItemDrafts((current) => current.map((item) => ({
+        ...item,
+        draft: { ...item.draft, paymentStatus: itemStatus },
+      })));
+    }
+  };
+
+  const updateWorkItemDraft = <Key extends keyof WorkDraft>(id: string, key: Key, value: WorkDraft[Key]) => {
+    setWorkItemDrafts((current) => {
+      const next = current.map((item) => {
+        if (key === "paymentStatus") {
+          return { ...item, draft: { ...item.draft, paymentStatus: value as "unpaid" | "paid" } };
+        }
+        return item.id === id ? { ...item, draft: { ...item.draft, [key]: value } } : item;
+      });
+
+      const sum = calculateTotal(next);
+
+      setDraft((cur) => {
+        const nextPaymentStatus = key === "paymentStatus"
+          ? (value as "unpaid" | "paid")
+          : cur.paymentStatus;
+        const nextTotal = sum > 0 ? String(sum) : cur.totalAmount;
+        let nextPaid = cur.paidAmount;
+
+        if (key === "paymentStatus") {
+          nextPaid = value === "paid" ? nextTotal : "0";
+        } else if (key === "unitPrice" || key === "quantity" || key === "productId") {
+          nextPaid = cur.paymentStatus === "paid" ? nextTotal : cur.paidAmount;
+        }
+
+        return {
+          ...cur,
+          totalAmount: nextTotal,
+          paymentStatus: nextPaymentStatus,
+          paidAmount: nextPaid,
+        };
+      });
+
+      return next;
+    });
   };
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
@@ -1509,7 +1572,19 @@ function OrderEditor({
     setSaving(true);
     setError("");
     try {
-      await onSave(draft, workItemDrafts);
+      const isAnyPaid = draft.paymentStatus === "paid" || workItemDrafts.some((item) => item.draft.paymentStatus === "paid");
+      const effectiveDraft: OrderDraft = {
+        ...draft,
+        paymentStatus: isAnyPaid ? "paid" : draft.paymentStatus,
+        paidAmount: isAnyPaid ? String(Math.max(Number(draft.paidAmount) || 0, Number(draft.totalAmount) || 0)) : draft.paidAmount,
+      };
+      await onSave(effectiveDraft, workItemDrafts.map((item) => ({
+        ...item,
+        draft: {
+          ...item.draft,
+          paymentStatus: isAnyPaid ? "paid" : "unpaid",
+        },
+      })));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "주문을 저장하지 못했습니다.");
     } finally {
@@ -1538,9 +1613,7 @@ function OrderEditor({
               draft={item.draft}
               idPrefix={`${formId}-${item.id}`}
               existingItem={workItems[index]}
-              onChange={(key, value) => setWorkItemDrafts((current) => current.map((currentItem) => (
-                currentItem.id === item.id ? { ...currentItem, draft: { ...currentItem.draft, [key]: value } } : currentItem
-              )))}
+              onChange={(key, value) => updateWorkItemDraft(item.id, key, value)}
             />
           </section>
         ))}
@@ -1570,7 +1643,19 @@ function OrderFields({
       <FieldInput id={`${idPrefix}-order-no`} label="주문번호" value={draft.orderNo} onChange={(event) => onChange("orderNo", event.target.value)} />
       <FieldInput id={`${idPrefix}-buyer-name`} label="주문자 성함" value={draft.buyerName} onChange={(event) => onChange("buyerName", event.target.value)} />
       <FieldInput id={`${idPrefix}-buyer-phone`} label="주문자 전화번호" format="phone" value={draft.buyerPhone} onValueChange={(value) => onChange("buyerPhone", value)} />
-      <FieldInput id={`${idPrefix}-payment-status`} label="결제 상태" value={draft.paymentStatus} onChange={(event) => onChange("paymentStatus", event.target.value)} />
+      <FieldSelect
+        id={`${idPrefix}-payment-status`}
+        label="결제 상태"
+        value={draft.paymentStatus}
+        onChange={(event) => onChange("paymentStatus", event.target.value)}
+      >
+        <option value="unpaid">미결제</option>
+        <option value="paid">결제완료</option>
+        <option value="partial">부분결제</option>
+        {!["unpaid", "paid", "partial"].includes(draft.paymentStatus) && (
+          <option value={draft.paymentStatus}>{draft.paymentStatus}</option>
+        )}
+      </FieldSelect>
       <MoneyFieldInput id={`${idPrefix}-paid-amount`} label="결제 금액" value={draft.paidAmount} onValueChange={(value) => onChange("paidAmount", value)} />
       <MoneyFieldInput id={`${idPrefix}-total-amount`} label="주문 금액" value={draft.totalAmount} onValueChange={(value) => onChange("totalAmount", value)} />
       <FieldInput id={`${idPrefix}-customer-arrived-at`} label="고객 도착 시각" value={draft.customerArrivedAt} onChange={(event) => onChange("customerArrivedAt", event.target.value)} />
@@ -1615,26 +1700,59 @@ function NewOrderEditor({
   const updateOrder = <Key extends keyof OrderDraft>(key: Key, value: OrderDraft[Key]) => {
     setDraft((current) => {
       const next = { ...current, [key]: value };
-      if (key === "paymentStatus" && value === "paid") {
-        next.paidAmount = next.totalAmount;
+      if (key === "paymentStatus") {
+        if (value === "paid") {
+          const sum = calculateTotal(workItems);
+          const total = sum > 0 ? String(sum) : (next.totalAmount || "0");
+          next.totalAmount = total;
+          next.paidAmount = total;
+        } else if (value === "unpaid") {
+          next.paidAmount = "0";
+        }
       }
       return next;
     });
+    if (key === "paymentStatus") {
+      const itemStatus: "unpaid" | "paid" = value === "paid" ? "paid" : "unpaid";
+      setWorkItems((current) => current.map((item) => ({
+        ...item,
+        draft: { ...item.draft, paymentStatus: itemStatus },
+      })));
+    }
   };
 
   const updateWorkItem = <Key extends keyof WorkDraft>(id: string, key: Key, value: WorkDraft[Key]) => {
     setWorkItems((current) => {
-      const next = current.map((item) => (
-        item.id === id ? { ...item, draft: { ...item.draft, [key]: value } } : item
-      ));
-      if (key === "unitPrice" || key === "quantity" || key === "productId") {
-        const sum = calculateTotal(next);
-        setDraft((cur) => ({
+      const next = current.map((item) => {
+        if (key === "paymentStatus") {
+          return { ...item, draft: { ...item.draft, paymentStatus: value as "unpaid" | "paid" } };
+        }
+        return item.id === id ? { ...item, draft: { ...item.draft, [key]: value } } : item;
+      });
+
+      const sum = calculateTotal(next);
+
+      setDraft((cur) => {
+        const nextPaymentStatus = key === "paymentStatus"
+          ? (value as "unpaid" | "paid")
+          : cur.paymentStatus;
+        const nextTotal = sum > 0 ? String(sum) : cur.totalAmount;
+        let nextPaid = cur.paidAmount;
+
+        if (key === "paymentStatus") {
+          nextPaid = value === "paid" ? nextTotal : "0";
+        } else if (key === "unitPrice" || key === "quantity" || key === "productId") {
+          nextPaid = cur.paymentStatus === "paid" ? nextTotal : cur.paidAmount;
+        }
+
+        return {
           ...cur,
-          totalAmount: String(sum),
-          paidAmount: cur.paymentStatus === "paid" ? String(sum) : cur.paidAmount,
-        }));
-      }
+          totalAmount: nextTotal,
+          paymentStatus: nextPaymentStatus,
+          paidAmount: nextPaid,
+        };
+      });
+
       return next;
     });
   };
@@ -1645,11 +1763,20 @@ function NewOrderEditor({
     setError("");
     try {
       const itemsSum = calculateTotal(workItems);
-      const effectiveDraft = {
+      const isAnyPaid = draft.paymentStatus === "paid" || workItems.some((item) => item.draft.paymentStatus === "paid");
+      const effectiveTotalAmount = itemsSum > 0 ? String(itemsSum) : draft.totalAmount;
+      const effectiveDraft: OrderDraft = {
         ...draft,
-        totalAmount: itemsSum > 0 ? String(itemsSum) : draft.totalAmount,
+        paymentStatus: isAnyPaid ? "paid" : draft.paymentStatus,
+        totalAmount: effectiveTotalAmount,
+        paidAmount: isAnyPaid
+          ? String(Math.max(Number(draft.paidAmount) || 0, Number(effectiveTotalAmount) || 0))
+          : draft.paidAmount,
       };
-      await onCreate(effectiveDraft, workItems.map((item) => item.draft), idempotencyKey);
+      await onCreate(effectiveDraft, workItems.map((item) => ({
+        ...item.draft,
+        paymentStatus: isAnyPaid ? "paid" : "unpaid",
+      })), idempotencyKey);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "새 주문을 추가하지 못했습니다.");
     } finally {
@@ -1700,7 +1827,21 @@ function NewOrderEditor({
             />
           </section>
         ))}
-        <Button variant="ghost" onClick={() => setWorkItems((current) => [...current, { id: crypto.randomUUID(), draft: emptyWorkDraft() }])}>작업 항목 추가</Button>
+        <Button
+          variant="ghost"
+          onClick={() => setWorkItems((current) => [
+            ...current,
+            {
+              id: crypto.randomUUID(),
+              draft: {
+                ...emptyWorkDraft(),
+                paymentStatus: draft.paymentStatus === "paid" ? "paid" : "unpaid",
+              },
+            },
+          ])}
+        >
+          작업 항목 추가
+        </Button>
         {error ? <p className="sales-work-table__error" role="alert">{error}</p> : null}
       </form>
     </Modal>
@@ -1716,7 +1857,10 @@ function NewWorkItemEditor({
   onClose: () => void;
   onCreate: (order: CustomerOrder, draft: WorkDraft, idempotencyKey: string) => Promise<void>;
 }) {
-  const [draft, setDraft] = useState<WorkDraft>(emptyWorkDraft);
+  const [draft, setDraft] = useState<WorkDraft>(() => ({
+    ...emptyWorkDraft(),
+    paymentStatus: order.paymentStatus === "paid" ? "paid" : "unpaid",
+  }));
   const [idempotencyKey] = useState(() => crypto.randomUUID());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
