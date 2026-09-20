@@ -422,50 +422,50 @@ export default function WorkshopLabelModal({
               <article key={label.id} className="label-card-preview" title={`${label.productName} ${label.quantityBadge}`}>
                 {/* 1단: 상품명 및 수량 순번 (대형 강조) */}
                 <div className="preview-product-row">
-                  <span className="preview-product-name">${label.productName}</span>
-                  <span className="preview-qty-badge">${label.quantityBadge}</span>
+                  <span className="preview-product-name">{label.productName}</span>
+                  <span className="preview-qty-badge">{label.quantityBadge}</span>
                 </div>
 
                 {/* 2단: 주문자명 및 결제상태 (대형 강조) */}
                 <div className="preview-buyer-row">
                   <div className="preview-buyer-wrap">
                     <span className="preview-buyer-lbl">주문자:</span>
-                    <strong className="preview-buyer-name">${label.buyerName}</strong>
+                    <strong className="preview-buyer-name">{label.buyerName}</strong>
                   </div>
                   <span className={`preview-pay-badge ${label.isPaid ? "paid" : "unpaid"}`}>
-                    ${label.paymentStatusLabel}
+                    {label.paymentStatusLabel}
                   </span>
                 </div>
 
                 {/* 3단: 날짜 및 수령방법 */}
                 <div className="preview-meta-row">
-                  <span className="preview-date">${label.date}</span>
+                  <span className="preview-date">{label.date}</span>
                   <span className="preview-method-tag">
-                    ${label.classificationLabel}${label.pickupTime ? ` (${label.pickupTime})` : ""}
+                    {label.classificationLabel}{label.pickupTime ? ` (${label.pickupTime})` : ""}
                   </span>
                 </div>
 
                 {/* 4단: 본문 상세 (현장수령 vs 택배) */}
                 <div className="preview-label-body">
-                  ${label.classification === "shipping" ? (
+                  {label.classification === "shipping" ? (
                     <div className="preview-shipping-box">
                       <div className="preview-shipping-row">
                         <span className="preview-shipping-lbl">받는 분:</span>
                         <strong className="preview-recipient-val">
-                          ${label.recipientName} ${label.recipientPhone ? `(${formatPhone(label.recipientPhone)})` : ""}
+                          {label.recipientName} {label.recipientPhone ? `(${formatPhone(label.recipientPhone)})` : ""}
                         </strong>
                       </div>
                       <div className="preview-shipping-row">
                         <span className="preview-shipping-lbl">배송지:</span>
-                        <span className="preview-addr-val">${label.fullAddress || "주소 미입력"}</span>
+                        <span className="preview-addr-val">{label.fullAddress || "주소 미입력"}</span>
                       </div>
                       <div className="preview-shipping-row muted">
                         <span className="preview-shipping-lbl">보낸 분:</span>
-                        <span>${label.buyerName} ${label.buyerPhone ? `(${formatPhone(label.buyerPhone)})` : ""}</span>
+                        <span>{label.buyerName} {label.buyerPhone ? `(${formatPhone(label.buyerPhone)})` : ""}</span>
                       </div>
-                      ${label.note ? (
+                      {label.note ? (
                         <div className="preview-note-box">
-                          <strong>요청/메모:</strong> ${label.note}
+                          <strong>요청/메모:</strong> {label.note}
                         </div>
                       ) : null}
                     </div>
@@ -473,14 +473,14 @@ export default function WorkshopLabelModal({
                     <div className="preview-onsite-box">
                       <div className="preview-phone-row">
                         <span className="preview-phone-lbl">연락처:</span>
-                        <strong className="preview-phone-val">${formatPhone(label.buyerPhone) || "연락처 미등록"}</strong>
+                        <strong className="preview-phone-val">{formatPhone(label.buyerPhone) || "연락처 미등록"}</strong>
                       </div>
                       <div className="preview-order-no">
-                        주문번호: ${label.orderNo}
+                        주문번호: {label.orderNo}
                       </div>
-                      ${label.note ? (
+                      {label.note ? (
                         <div className="preview-note-box">
-                          <strong>메모:</strong> ${label.note}
+                          <strong>메모:</strong> {label.note}
                         </div>
                       ) : null}
                     </div>
@@ -490,13 +490,13 @@ export default function WorkshopLabelModal({
                 {/* 5단: 하단 푸터 */}
                 <div className="preview-label-footer">
                   <span className="preview-brand">정일품 한우선물세트</span>
-                  <span className="preview-order-suffix">${label.orderNo}</span>
+                  <span className="preview-order-suffix">{label.orderNo}</span>
                   <button
                     className="preview-copy-btn"
                     onClick={() => copyLabelText(label)}
                     title="라벨 텍스트 복사"
                   >
-                    ${copiedId === label.id ? <CheckCircle2 size={12} color="#16a34a" /> : <Copy size={12} />}
+                    {copiedId === label.id ? <CheckCircle2 size={12} color="#16a34a" /> : <Copy size={12} />}
                   </button>
                 </div>
               </article>
