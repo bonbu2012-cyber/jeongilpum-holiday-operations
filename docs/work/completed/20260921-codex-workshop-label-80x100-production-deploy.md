@@ -39,10 +39,11 @@
 - [x] `node --test tests/sales-customer-payment-summary.test.mjs`: 통과 (6/6 pass)
 - [x] `npm run build`: Next.js 15.2.9 프로덕션 빌드 완료 (19개 라우트 전원 통과)
 - [x] Vercel Production 배포 완료:
-  - Deployment ID: `dpl_m6PxiL5Rizpd6vZNZ4pzJ9C84A7B`
-  - URL: `https://jeongilpum-holiday-operations-eaa3i933b-happy-butcher.vercel.app`
+  - Hotfix Deployment ID: `dpl_4Tky8g7EQ9UmR62kdZLT6LrsZcFt`
+  - Hotfix Commit: `8ae3389` (미리보기 카드 JSX 내 불필요한 `$` 기호 제거)
+  - URL: `https://jeongilpum-holiday-operations-9bznhz5vg-happy-butcher.vercel.app`
   - Alias: `https://jeongilpum-holiday-operations.vercel.app`
   - Target URL: `https://jeongilpum-holiday-operations.vercel.app/workshop`
   - Status: `READY`
 - [x] Live Smoke Test:
-  - `GET /workshop`: **200 OK** (최신 CSS 및 JS 청크 로드 확인)
+  - `GET /workshop`: **200 OK** (특수문자 `$` 없이 정상 렌더링 확인)
