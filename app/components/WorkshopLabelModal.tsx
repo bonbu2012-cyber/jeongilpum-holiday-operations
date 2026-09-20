@@ -37,6 +37,7 @@ export default function WorkshopLabelModal({
   onClose,
 }: WorkshopLabelModalProps) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [orientation, setOrientation] = useState<"portrait" | "landscape">("portrait");
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
 
   const labels = useMemo(() => {
@@ -63,6 +64,13 @@ export default function WorkshopLabelModal({
     const doc = iframe.contentWindow?.document;
     if (!doc) return;
 
+    const isPortrait = orientation === "portrait";
+    const pageSize = isPortrait ? "80mm 100mm" : "100mm 80mm";
+    const cardWidth = isPortrait ? "80mm" : "100mm";
+    // 프린터 물리 갭 센서 및 드라이버 마진(2~3mm)을 고려하여 1장 안에 100% 쏙 들어가도록 안전 높이 적용
+    const cardHeight = isPortrait ? "92mm" : "73mm";
+    const cardPadding = isPortrait ? "2.5mm 4mm 2mm" : "2mm 4.5mm 1.8mm";
+
     const htmlContent = `
 <!DOCTYPE html>
 <html lang="ko">
@@ -71,8 +79,8 @@ export default function WorkshopLabelModal({
   <title>상품정보 라벨 인쇄</title>
   <style>
     @page {
-      size: 80mm 100mm;
-      margin: 0;
+      size: ${pageSize};
+      margin: 0mm;
     }
     *, *::before, *::after {
       box-sizing: border-box;
@@ -80,8 +88,8 @@ export default function WorkshopLabelModal({
       padding: 0;
     }
     html, body {
-      width: 80mm;
-      height: 100mm;
+      width: ${cardWidth};
+      height: auto;
       margin: 0;
       padding: 0;
       background: #fff;
@@ -91,13 +99,16 @@ export default function WorkshopLabelModal({
       print-color-adjust: exact;
     }
     .label-slip-card {
-      width: 80mm;
-      height: 100mm;
-      max-height: 100mm;
+      width: ${cardWidth};
+      height: ${cardHeight};
+      max-height: ${cardHeight};
       overflow: hidden;
-      padding: 3.5mm 4.5mm 3mm;
+      box-sizing: border-box;
+      padding: ${cardPadding};
       page-break-after: always;
+      break-after: page;
       page-break-inside: avoid;
+      break-inside: avoid;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
@@ -105,31 +116,32 @@ export default function WorkshopLabelModal({
     }
     .label-slip-card:last-child {
       page-break-after: auto !important;
+      break-after: auto !important;
     }
 
-    /* 1단: 상품명 및 수량 순번 (초대형 헤더) */
+    /* 1단: 상품명 및 수량 순번 */
     .label-product-row {
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
-      border-bottom: 2.2px solid #000;
-      padding-bottom: 1.2mm;
-      margin-bottom: 1.4mm;
+      border-bottom: 2px solid #000;
+      padding-bottom: 0.8mm;
+      margin-bottom: 1mm;
       gap: 2mm;
     }
     .label-product-name {
-      font-size: 22pt;
+      font-size: 20pt;
       font-weight: 900;
-      line-height: 1.15;
-      letter-spacing: -0.6px;
+      line-height: 1.1;
+      letter-spacing: -0.5px;
       word-break: keep-all;
       flex: 1;
       color: #000;
     }
     .label-qty-badge {
-      font-size: 20pt;
+      font-size: 18pt;
       font-weight: 900;
-      line-height: 1.15;
+      line-height: 1.1;
       letter-spacing: -0.3px;
       white-space: nowrap;
       color: #000;
@@ -140,44 +152,44 @@ export default function WorkshopLabelModal({
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 1.2mm;
-      line-height: 1.2;
+      margin-bottom: 1mm;
+      line-height: 1.15;
     }
     .label-buyer-wrap {
       display: flex;
       align-items: baseline;
-      gap: 1.5mm;
+      gap: 1.2mm;
       overflow: hidden;
       white-space: nowrap;
       text-overflow: ellipsis;
     }
     .label-buyer-lbl {
-      font-size: 11pt;
+      font-size: 10pt;
       font-weight: 800;
       color: #222;
       white-space: nowrap;
     }
     .label-buyer-name {
-      font-size: 18pt;
+      font-size: 16pt;
       font-weight: 900;
       letter-spacing: -0.4px;
       color: #000;
       word-break: break-all;
     }
     .label-pay-badge {
-      font-size: 11pt;
+      font-size: 10pt;
       font-weight: 900;
-      padding: 0.8mm 2mm;
-      border-radius: 2.5px;
+      padding: 0.5mm 1.8mm;
+      border-radius: 2px;
       white-space: nowrap;
     }
     .label-pay-badge.unpaid {
       background: #000;
       color: #fff;
-      border: 1.5px solid #000;
+      border: 1.2px solid #000;
     }
     .label-pay-badge.paid {
-      border: 1.5px solid #000;
+      border: 1.2px solid #000;
       color: #000;
     }
 
@@ -186,20 +198,20 @@ export default function WorkshopLabelModal({
       display: flex;
       justify-content: space-between;
       align-items: center;
-      font-size: 11pt;
+      font-size: 9.5pt;
       font-weight: 800;
-      padding: 1mm 0;
-      border-top: 1.2px dashed #000;
-      border-bottom: 1.2px dashed #000;
-      margin-bottom: 1.6mm;
-      line-height: 1.2;
+      padding: 0.8mm 0;
+      border-top: 1px dashed #000;
+      border-bottom: 1px dashed #000;
+      margin-bottom: 1.2mm;
+      line-height: 1.15;
     }
     .label-method-tag {
-      font-size: 11.5pt;
+      font-size: 10.5pt;
       font-weight: 900;
-      border: 1.5px solid #000;
-      padding: 0.5mm 2mm;
-      border-radius: 3px;
+      border: 1.2px solid #000;
+      padding: 0.3mm 1.5mm;
+      border-radius: 2.5px;
     }
 
     /* 4단: 본문 (현장수령 vs 택배) */
@@ -208,65 +220,65 @@ export default function WorkshopLabelModal({
       display: flex;
       flex-direction: column;
       justify-content: flex-start;
-      gap: 1.6mm;
-      font-size: 11pt;
-      line-height: 1.3;
+      gap: 1.2mm;
+      font-size: 9.5pt;
+      line-height: 1.25;
       overflow: hidden;
     }
     .label-phone-line {
-      font-size: 14pt;
+      font-size: 13pt;
       font-weight: 900;
       color: #000;
     }
     .label-note-box {
-      font-size: 10.5pt;
+      font-size: 9pt;
       font-weight: 700;
-      border: 1px solid #333;
-      border-radius: 3px;
-      padding: 1.2mm 2mm;
+      border: 0.8px solid #333;
+      border-radius: 2.5px;
+      padding: 0.8mm 1.6mm;
       background: #f0f0f0;
-      line-height: 1.35;
+      line-height: 1.25;
       word-break: break-all;
     }
     .shipping-section {
       background: #f5f5f5;
-      border: 1.2px solid #000;
-      border-radius: 3px;
-      padding: 1.8mm 2.2mm;
-      font-size: 10.5pt;
-      line-height: 1.3;
+      border: 1px solid #000;
+      border-radius: 2.5px;
+      padding: 1.2mm 1.8mm;
+      font-size: 9pt;
+      line-height: 1.25;
       display: flex;
       flex-direction: column;
-      gap: 1.4mm;
+      gap: 1mm;
     }
     .shipping-row {
       display: flex;
-      gap: 1.2mm;
+      gap: 1mm;
     }
     .shipping-label {
       font-weight: 900;
       white-space: nowrap;
       color: #000;
-      font-size: 11pt;
+      font-size: 9.5pt;
     }
     .shipping-val {
       font-weight: 700;
       word-break: break-all;
     }
     .shipping-val.recipient {
-      font-size: 13.5pt;
+      font-size: 12pt;
       font-weight: 900;
     }
 
     /* 5단: 하단 풋터 */
     .label-footer {
-      border-top: 1px solid #666;
-      padding-top: 1mm;
-      margin-top: 1mm;
+      border-top: 0.8px solid #666;
+      padding-top: 0.8mm;
+      margin-top: 0.8mm;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      font-size: 8.5pt;
+      font-size: 7.5pt;
       color: #333;
       line-height: 1;
     }
@@ -310,24 +322,24 @@ export default function WorkshopLabelModal({
               <span class="shipping-label">배송지:</span>
               <span class="shipping-val">${label.fullAddress || "주소 미입력"}</span>
             </div>
-            <div class="shipping-row" style="font-size: 9.5pt; color: #444;">
-              <span class="shipping-label" style="font-size: 9.5pt; color: #444;">보내는 분:</span>
+            <div class="shipping-row" style="font-size: 8.5pt; color: #444;">
+              <span class="shipping-label" style="font-size: 8.5pt; color: #444;">보내는 분:</span>
               <span class="shipping-val">${label.buyerName} ${label.buyerPhone ? `(${formatPhone(label.buyerPhone)})` : ""}</span>
             </div>
             ${
               label.note
-                ? `<div class="label-note-box" style="margin-top: 0.8mm;"><strong>요청/메모:</strong> ${label.note}</div>`
+                ? `<div class="label-note-box" style="margin-top: 0.6mm;"><strong>요청/메모:</strong> ${label.note}</div>`
                 : ""
             }
           </div>
         `
             : `
-          <div style="padding: 0.8mm 0; display: flex; flex-direction: column; gap: 1.2mm;">
+          <div style="padding: 0.5mm 0; display: flex; flex-direction: column; gap: 1mm;">
             <div class="label-phone-line">
-              <span style="font-size: 11pt; font-weight: 800; color: #333;">연락처:</span>
+              <span style="font-size: 10pt; font-weight: 800; color: #333;">연락처:</span>
               <strong>${formatPhone(label.buyerPhone) || "연락처 미등록"}</strong>
             </div>
-            <div style="font-size: 10.5pt; color: #444;">주문번호: ${label.orderNo}</div>
+            <div style="font-size: 9.5pt; color: #444;">주문번호: ${label.orderNo}</div>
             ${
               label.note
                 ? `<div class="label-note-box"><strong>요청/메모:</strong> ${label.note}</div>`
@@ -359,7 +371,7 @@ export default function WorkshopLabelModal({
       iframe.contentWindow?.focus();
       iframe.contentWindow?.print();
     }, 250);
-  }, [labels]);
+  }, [labels, orientation]);
 
   // autoPrint가 켜져 있으면 모달 오픈 시 자동 1회 인쇄 트리거
   useEffect(() => {
@@ -390,13 +402,29 @@ export default function WorkshopLabelModal({
               <Tag size={18} />
             </div>
             <div>
-              <h2>80×100mm 상품정보 라벨 출력</h2>
+              <h2>{orientation === "portrait" ? "80×100mm (세로)" : "100×80mm (가로)"} 상품정보 라벨 출력</h2>
               <p>
-                BEEPRT BY-48 감열 프린터 · 총 <strong>{labels.length}장</strong> 출력 예정 (빈 용지 방지 규격)
+                BEEPRT BY-48 감열 프린터 · 총 <strong>{labels.length}장</strong> 출력 예정 (1장 쏙 맞춤 규격)
               </p>
             </div>
           </div>
           <div className="label-modal-actions">
+            <div className="label-orientation-toggle" role="group" aria-label="라벨 출력 방향">
+              <button
+                type="button"
+                className={`orientation-btn ${orientation === "portrait" ? "active" : ""}`}
+                onClick={() => setOrientation("portrait")}
+              >
+                세로형 (80×100)
+              </button>
+              <button
+                type="button"
+                className={`orientation-btn ${orientation === "landscape" ? "active" : ""}`}
+                onClick={() => setOrientation("landscape")}
+              >
+                가로형 (100×80)
+              </button>
+            </div>
             <Button
               variant="primary"
               leadingIcon={<Printer size={16} />}
@@ -413,13 +441,22 @@ export default function WorkshopLabelModal({
         {/* 라벨 프리뷰 그리드 */}
         <div className="label-preview-container">
           <div className="label-preview-guide">
-            <span>※ 출력 시 프린터를 <strong>BEEPRT BY-48</strong>로 선택하세요. (용지: 80mm × 100mm)</span>
-            <span>완성된 패키지에 부착하여 상품 식별 및 택배 송장 매칭용으로 사용합니다.</span>
+            <span style={{ fontWeight: 800, color: "#0369a1", fontSize: "0.85rem" }}>
+              ⚠️ [라벨이 2장으로 나누어 나올 때 필수 확인 3가지]
+            </span>
+            <span style={{ color: "#334155", fontSize: "0.8rem", lineHeight: 1.45 }}>
+              Chrome 인쇄창(Ctrl+P) 우측 <strong>[설정 더보기]</strong>에서 아래 설정을 지정하면 1장 안에 정확히 출력됩니다:
+            </span>
+            <span style={{ color: "#0f172a", fontSize: "0.8rem", lineHeight: 1.45, paddingLeft: "4px" }}>
+              1. <strong>여백:</strong> <strong>&apos;없음(None)&apos;</strong> 선택 (기본 여백 시 상하 여백으로 2장 분할됨)<br />
+              2. <strong>머리글 및 바닥글:</strong> <strong>체크 해제</strong> (URL/날짜 출력 시 페이지 초과 원인)<br />
+              3. <strong>방향 전환:</strong> 롤 라벨 공급 방향에 따라 상단 <strong>[세로형 (80×100)]</strong> 또는 <strong>[가로형 (100×80)]</strong> 선택
+            </span>
           </div>
 
           <div className="label-cards-grid">
             {labels.map((label) => (
-              <article key={label.id} className="label-card-preview" title={`${label.productName} ${label.quantityBadge}`}>
+              <article key={label.id} className={`label-card-preview ${orientation}`} title={`${label.productName} ${label.quantityBadge}`}>
                 {/* 1단: 상품명 및 수량 순번 (대형 강조) */}
                 <div className="preview-product-row">
                   <span className="preview-product-name">{label.productName}</span>
