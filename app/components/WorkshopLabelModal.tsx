@@ -32,10 +32,26 @@ function formatPhone(phone?: string | null): string {
 function formatCleanNote(note?: string | null): string {
   if (!note) return "";
   // 중복 접두어(메모: 메모:, 요청/메모: 메모: 등) 정돈
-  return note
+  const clean = note
     .replace(/^(메모:\s*)+/gi, "메모: ")
     .replace(/^(요청\/메모:\s*)+/gi, "요청: ")
     .trim();
+
+  // ' / '로 결합된 내용 중 본문 내용이 동일하게 중복된 경우 정리
+  const parts = clean.split(/\s*\/\s*/);
+  if (parts.length > 1) {
+    const seen = new Set<string>();
+    const uniqueParts: string[] = [];
+    for (const p of parts) {
+      const core = p.replace(/^(메모|맞춤|요청|고객|특이사항):\s*/gi, "").trim();
+      if (core && !seen.has(core)) {
+        seen.add(core);
+        uniqueParts.push(p);
+      }
+    }
+    return uniqueParts.join(" / ");
+  }
+  return clean;
 }
 
 export default function WorkshopLabelModal({
