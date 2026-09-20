@@ -477,26 +477,47 @@ export default function WorkshopLabelModal({
   return (
     <div className="label-modal-backdrop" role="dialog" aria-modal="true" aria-label="상품정보 라벨 출력">
       <div className="label-modal-window">
-        {/* 상단 툴바 */}
+        {/* 상단 1단: 모달 타이틀 및 주요 액션 버튼 */}
         <header className="label-modal-toolbar">
           <div className="label-modal-header-left">
             <div className="label-icon-badge">
               <Tag size={18} />
             </div>
-            <div>
-              <h2>
-                {labelSize === "50x50"
-                  ? "50×50mm (소형 정사각형) 상품정보 라벨 출력"
-                  : orientation === "portrait"
-                  ? "80×100mm (세로형) 상품정보 라벨 출력"
-                  : "100×80mm (가로형) 상품정보 라벨 출력"}
-              </h2>
+            <div className="label-title-block">
+              <div className="label-title-line">
+                <h2>상품정보 라벨 출력</h2>
+                <span className="label-spec-pill">
+                  {labelSize === "50x50"
+                    ? "50×50mm (소형)"
+                    : orientation === "portrait"
+                    ? "80×100mm (세로형)"
+                    : "100×80mm (가로형)"}
+                </span>
+              </div>
               <p>
                 BEEPRT BY-48 감열 프린터 · 총 <strong>{labels.length}장</strong> 출력 예정 (1장 쏙 맞춤 규격)
               </p>
             </div>
           </div>
-          <div className="label-modal-actions">
+          <div className="label-primary-actions">
+            <Button
+              variant="primary"
+              leadingIcon={<Printer size={16} />}
+              onClick={triggerPrint}
+              className="label-print-btn"
+            >
+              라벨 인쇄 ({labels.length}장)
+            </Button>
+            <Button variant="ghost" leadingIcon={<X size={16} />} onClick={onClose}>
+              닫기
+            </Button>
+          </div>
+        </header>
+
+        {/* 상단 2단: 용지 규격 및 출력 방향 선택 컨트롤 바 */}
+        <div className="label-modal-controls-bar">
+          <div className="label-control-group">
+            <span className="label-control-title">용지 규격</span>
             <div className="label-size-toggle" role="group" aria-label="라벨 용지 규격">
               <button
                 type="button"
@@ -513,7 +534,11 @@ export default function WorkshopLabelModal({
                 50×50mm (소형)
               </button>
             </div>
-            {labelSize === "80x100" && (
+          </div>
+
+          {labelSize === "80x100" && (
+            <div className="label-control-group">
+              <span className="label-control-title">출력 방향</span>
               <div className="label-orientation-toggle" role="group" aria-label="라벨 출력 방향">
                 <button
                   type="button"
@@ -530,19 +555,13 @@ export default function WorkshopLabelModal({
                   가로형 (100×80)
                 </button>
               </div>
-            )}
-            <Button
-              variant="primary"
-              leadingIcon={<Printer size={16} />}
-              onClick={triggerPrint}
-            >
-              라벨 인쇄 ({labels.length}장)
-            </Button>
-            <Button variant="ghost" leadingIcon={<X size={16} />} onClick={onClose}>
-              닫기
-            </Button>
+            </div>
+          )}
+
+          <div className="label-control-hint">
+            💡 {labelSize === "80x100" ? "프린터에서 'BY-482BT 80x100 라벨' 선택" : "프린터에서 'BY-482BT 50x50 라벨' 선택"}
           </div>
-        </header>
+        </div>
 
         {/* 라벨 프리뷰 그리드 */}
         <div className="label-preview-container">
