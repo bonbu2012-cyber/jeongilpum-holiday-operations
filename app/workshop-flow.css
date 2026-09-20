@@ -1982,6 +1982,39 @@
   gap: 8px;
 }
 
+.label-size-toggle {
+  display: flex;
+  background: #1e293b;
+  border-radius: 6px;
+  padding: 3px;
+  gap: 2px;
+  border: 1px solid #334155;
+}
+
+.size-btn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  padding: 5px 10px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.size-btn:hover {
+  color: #f1f5f9;
+}
+
+.size-btn.active {
+  background: #0284c7;
+  color: #ffffff;
+  font-weight: 700;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
 .label-orientation-toggle {
   display: flex;
   background: #1e293b;
@@ -2042,7 +2075,7 @@
   gap: 18px;
 }
 
-/* 80x100mm 미리보기 카드 */
+/* 80x100mm vs 50x50mm 미리보기 카드 */
 .label-card-preview {
   width: 100%;
   aspect-ratio: 80 / 100;
@@ -2064,6 +2097,31 @@
 
 .label-card-preview.landscape {
   aspect-ratio: 100 / 80;
+}
+
+.label-card-preview.size-50x50 {
+  aspect-ratio: 1 / 1 !important;
+  padding: 12px 14px;
+}
+
+.label-card-preview.size-50x50 .preview-product-name {
+  font-size: 1.35rem;
+}
+
+.label-card-preview.size-50x50 .preview-qty-badge {
+  font-size: 1.25rem;
+}
+
+.label-card-preview.size-50x50 .preview-buyer-name {
+  font-size: 1.2rem;
+}
+
+.label-card-preview.size-50x50 .preview-phone-val {
+  font-size: 1.15rem;
+}
+
+.label-card-preview.size-50x50 .preview-recipient-val {
+  font-size: 1.15rem;
 }
 
 /* 1단: 상품명 및 수량 순번 (대형 강조) */

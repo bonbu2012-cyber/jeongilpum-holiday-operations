@@ -596,19 +596,23 @@ test("WorkshopLabelModal template incorporates safe 1-sheet 80x100mm/100x80mm pa
   assert.match(modalContent, /84mm/, "Portrait card height must be 84mm safe height to prevent 2-page split");
   assert.match(modalContent, /68mm/, "Landscape card height must be 68mm safe height to prevent 2-page split");
 
-  // 인쇄 템플릿 대형 폰트 규격 검증 (22pt/20pt/18pt)
-  assert.match(modalContent, /font-size:\s*22pt/, "Print template must use 22pt large font for product name");
-  assert.match(modalContent, /font-size:\s*20pt/, "Print template must use 20pt bold font for quantity badge");
-  assert.match(modalContent, /font-size:\s*18pt/, "Print template must use 18pt bold font for buyer name");
+  // 인쇄 템플릿 대형 폰트 규격 검증 (22pt/20pt/18pt) 및 80x100 / 50x50 듀얼 지원 검증
+  assert.match(modalContent, /22pt/, "Print template must support 22pt large font for 80x100 product name");
+  assert.match(modalContent, /20pt/, "Print template must support 20pt bold font for 80x100 quantity badge");
+  assert.match(modalContent, /18pt/, "Print template must support 18pt bold font for 80x100 buyer name");
+  assert.match(modalContent, /50mm\s+50mm/, "Print template must support 50mm 50mm size for other apps/rolls");
+  assert.match(modalContent, /label-size-toggle/, "Modal must provide size toggle between 80x100 and 50x50");
   assert.match(modalContent, /label-product-row/, "Print template must have dedicated product row");
   assert.match(modalContent, /label-buyer-row/, "Print template must have dedicated buyer row");
   assert.match(modalContent, /formatPhone/, "Modal must use formatPhone helper to format 010-XXXX-XXXX");
 
-  // 방향 토글 및 미리보기 CSS 80:100 / 100:80 규격 및 꽉 찬 대형 폰트 검증
+  // 방향 토글 및 미리보기 CSS 80:100 / 100:80 / 50:50 규격 및 꽉 찬 대형 폰트 검증
   assert.match(modalContent, /label-orientation-toggle/, "Modal must provide orientation toggle for portrait and landscape");
   assert.match(cssContent, /aspect-ratio:\s*80\s*\/\s*100/, "Preview card must support 80/100 aspect ratio");
   assert.match(cssContent, /aspect-ratio:\s*100\s*\/\s*80/, "Preview card must support 100/80 aspect ratio");
   assert.match(cssContent, /\.orientation-btn/, "CSS must define orientation-btn");
+  assert.match(cssContent, /\.label-size-toggle/, "CSS must define label-size-toggle");
+  assert.match(cssContent, /\.size-btn/, "CSS must define size-btn");
   assert.match(cssContent, /\.preview-product-name/, "CSS must define preview-product-name");
   assert.match(cssContent, /\.preview-buyer-name/, "CSS must define preview-buyer-name");
   assert.match(cssContent, /\.preview-onsite-box/, "CSS must define preview-onsite-box to fill vertical space");
