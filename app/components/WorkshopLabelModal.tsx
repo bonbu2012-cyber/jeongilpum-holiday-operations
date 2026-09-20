@@ -76,9 +76,10 @@ export default function WorkshopLabelModal({
     const isPortrait = orientation === "portrait";
     const pageSize = isPortrait ? "80mm 100mm" : "100mm 80mm";
     const cardWidth = isPortrait ? "80mm" : "100mm";
-    // 프린터 물리 갭 센서 및 드라이버 마진을 고려한 1장 꽉 찬 안전 높이
-    const cardHeight = isPortrait ? "92mm" : "73mm";
-    const cardPadding = isPortrait ? "3.2mm 4.5mm 2.8mm" : "2.5mm 4.5mm 2mm";
+    // 100mm 롤 라벨에서 상하 물리 갭(2~3mm) 및 프린터 하드웨어 마진(4~8mm) 감안:
+    // 카드 높이를 84mm로 지정해야 '여백: 없음' 시 2장으로 절대 넘어가지 않고 1장에 상단부터 꽉 차게 출력됨
+    const cardHeight = isPortrait ? "84mm" : "68mm";
+    const cardPadding = isPortrait ? "2.5mm 3.8mm 2mm" : "2mm 3.8mm 1.5mm";
 
     const htmlContent = `
 <!DOCTYPE html>
@@ -99,8 +100,8 @@ export default function WorkshopLabelModal({
     html, body {
       width: ${cardWidth};
       height: auto;
-      margin: 0;
-      padding: 0;
+      margin: 0 !important;
+      padding: 0 !important;
       background: #fff;
       font-family: -apple-system, BlinkMacSystemFont, "Pretendard", "Noto Sans KR", sans-serif;
       color: #000;
@@ -124,8 +125,18 @@ export default function WorkshopLabelModal({
       border: none;
     }
     .label-slip-card:last-child {
-      page-break-after: auto !important;
-      break-after: auto !important;
+      page-break-after: avoid !important;
+      break-after: avoid !important;
+    }
+    @media print {
+      body {
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+      .label-slip-card:last-child {
+        page-break-after: avoid !important;
+        break-after: avoid !important;
+      }
     }
 
     /* 1단: 상품명 및 수량 순번 (대형 볼드) */
@@ -133,13 +144,13 @@ export default function WorkshopLabelModal({
       display: flex;
       justify-content: space-between;
       align-items: flex-end;
-      border-bottom: 2.5px solid #000;
-      padding-bottom: 1.2mm;
-      margin-bottom: 1.8mm;
+      border-bottom: 2px solid #000;
+      padding-bottom: 0.8mm;
+      margin-bottom: 1.2mm;
       gap: 2mm;
     }
     .label-product-name {
-      font-size: 26pt;
+      font-size: 22pt;
       font-weight: 900;
       line-height: 1.1;
       letter-spacing: -0.5px;
@@ -148,7 +159,7 @@ export default function WorkshopLabelModal({
       color: #000;
     }
     .label-qty-badge {
-      font-size: 24pt;
+      font-size: 20pt;
       font-weight: 900;
       line-height: 1.1;
       letter-spacing: -0.3px;
@@ -161,34 +172,34 @@ export default function WorkshopLabelModal({
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 1.8mm;
+      margin-bottom: 1.2mm;
       line-height: 1.15;
     }
     .label-buyer-wrap {
       display: flex;
       align-items: baseline;
-      gap: 1.8mm;
+      gap: 1.5mm;
       overflow: hidden;
       white-space: nowrap;
       text-overflow: ellipsis;
     }
     .label-buyer-lbl {
-      font-size: 12pt;
+      font-size: 11pt;
       font-weight: 800;
       color: #111;
       white-space: nowrap;
     }
     .label-buyer-name {
-      font-size: 20pt;
+      font-size: 18pt;
       font-weight: 900;
       letter-spacing: -0.4px;
       color: #000;
       word-break: break-all;
     }
     .label-pay-badge {
-      font-size: 11.5pt;
+      font-size: 10.5pt;
       font-weight: 900;
-      padding: 0.8mm 2.2mm;
+      padding: 0.6mm 2mm;
       border-radius: 2px;
       white-space: nowrap;
     }
@@ -207,19 +218,19 @@ export default function WorkshopLabelModal({
       display: flex;
       justify-content: space-between;
       align-items: center;
-      font-size: 11.5pt;
+      font-size: 10.5pt;
       font-weight: 800;
-      padding: 1.2mm 0;
-      border-top: 1.2px dashed #000;
-      border-bottom: 1.2px dashed #000;
-      margin-bottom: 2mm;
+      padding: 0.8mm 0;
+      border-top: 1px dashed #000;
+      border-bottom: 1px dashed #000;
+      margin-bottom: 1.5mm;
       line-height: 1.15;
     }
     .label-method-tag {
-      font-size: 12.5pt;
+      font-size: 11.5pt;
       font-weight: 900;
-      border: 1.5px solid #000;
-      padding: 0.4mm 2mm;
+      border: 1.2px solid #000;
+      padding: 0.3mm 1.8mm;
       border-radius: 2.5px;
     }
 
@@ -229,83 +240,83 @@ export default function WorkshopLabelModal({
       display: flex;
       flex-direction: column;
       justify-content: space-between;
-      gap: 2mm;
+      gap: 1.5mm;
       overflow: hidden;
     }
     .label-onsite-box {
       display: flex;
       flex-direction: column;
-      gap: 2.2mm;
-      padding: 1mm 0;
+      gap: 1.8mm;
+      padding: 0.8mm 0;
     }
     .label-phone-line {
-      font-size: 17pt;
+      font-size: 15.5pt;
       font-weight: 900;
       color: #000;
       display: flex;
       align-items: baseline;
-      gap: 1.8mm;
+      gap: 1.5mm;
     }
     .label-phone-lbl {
-      font-size: 12pt;
+      font-size: 11pt;
       font-weight: 800;
       color: #222;
     }
     .label-order-no {
-      font-size: 11pt;
+      font-size: 10pt;
       font-weight: 700;
       color: #333;
     }
     .label-note-box {
-      font-size: 11pt;
+      font-size: 10pt;
       font-weight: 800;
-      border: 1.5px solid #000;
-      border-radius: 3px;
-      padding: 1.8mm 2.2mm;
+      border: 1.2px solid #000;
+      border-radius: 2.5px;
+      padding: 1.4mm 2mm;
       background: #f2f2f2;
-      line-height: 1.35;
+      line-height: 1.3;
       word-break: break-all;
     }
     .shipping-section {
       background: #f5f5f5;
-      border: 1.5px solid #000;
-      border-radius: 3px;
-      padding: 1.8mm 2.2mm;
-      font-size: 10.5pt;
-      line-height: 1.3;
+      border: 1.2px solid #000;
+      border-radius: 2.5px;
+      padding: 1.5mm 2mm;
+      font-size: 10pt;
+      line-height: 1.25;
       display: flex;
       flex-direction: column;
-      gap: 1.5mm;
+      gap: 1.2mm;
     }
     .shipping-row {
       display: flex;
-      gap: 1.5mm;
+      gap: 1.2mm;
     }
     .shipping-label {
       font-weight: 900;
       white-space: nowrap;
       color: #000;
-      font-size: 11pt;
+      font-size: 10pt;
     }
     .shipping-val {
       font-weight: 700;
       word-break: break-all;
-      font-size: 11pt;
+      font-size: 10pt;
     }
     .shipping-val.recipient {
-      font-size: 15pt;
+      font-size: 13.5pt;
       font-weight: 900;
     }
 
     /* 5단: 하단 풋터 */
     .label-footer {
-      border-top: 1px solid #333;
-      padding-top: 1.2mm;
-      margin-top: 1.5mm;
+      border-top: 0.8px solid #333;
+      padding-top: 1mm;
+      margin-top: 1mm;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      font-size: 8.5pt;
+      font-size: 8pt;
       font-weight: 700;
       color: #333;
       line-height: 1;
@@ -350,13 +361,13 @@ export default function WorkshopLabelModal({
               <span class="shipping-label">배송지:</span>
               <span class="shipping-val">${label.fullAddress || "주소 미입력"}</span>
             </div>
-            <div class="shipping-row" style="font-size: 9.5pt; color: #444;">
-              <span class="shipping-label" style="font-size: 9.5pt; color: #444;">보내는 분:</span>
+            <div class="shipping-row" style="font-size: 9pt; color: #444;">
+              <span class="shipping-label" style="font-size: 9pt; color: #444;">보내는 분:</span>
               <span class="shipping-val">${label.buyerName} ${label.buyerPhone ? `(${formatPhone(label.buyerPhone)})` : ""}</span>
             </div>
             ${
               label.note
-                ? `<div class="label-note-box" style="margin-top: 1mm;">${formatCleanNote(label.note)}</div>`
+                ? `<div class="label-note-box" style="margin-top: 0.8mm;">${formatCleanNote(label.note)}</div>`
                 : ""
             }
           </div>
@@ -469,15 +480,12 @@ export default function WorkshopLabelModal({
         {/* 라벨 프리뷰 그리드 */}
         <div className="label-preview-container">
           <div className="label-preview-guide">
-            <span style={{ fontWeight: 800, color: "#0369a1", fontSize: "0.85rem" }}>
-              ⚠️ [라벨이 2장으로 나누어 나올 때 필수 확인 3가지]
+            <span style={{ fontWeight: 800, color: "#0369a1", fontSize: "0.86rem" }}>
+              💡 [1장 출력 & 상단 여백 제거 필수 설정]
             </span>
-            <span style={{ color: "#334155", fontSize: "0.8rem", lineHeight: 1.45 }}>
-              Chrome 인쇄창(Ctrl+P) 우측 <strong>[설정 더보기]</strong>에서 아래 설정을 지정하면 1장 안에 정확히 출력됩니다:
-            </span>
-            <span style={{ color: "#0f172a", fontSize: "0.8rem", lineHeight: 1.45, paddingLeft: "4px" }}>
-              1. <strong>여백:</strong> <strong>&apos;없음(None)&apos;</strong> 선택 (기본 여백 시 상하 여백으로 2장 분할됨)<br />
-              2. <strong>머리글 및 바닥글:</strong> <strong>체크 해제</strong> (URL/날짜 출력 시 페이지 초과 원인)<br />
+            <span style={{ color: "#0f172a", fontSize: "0.82rem", lineHeight: 1.5, paddingLeft: "4px" }}>
+              1. <strong>여백(Margins):</strong> 반드시 <strong>&apos;없음(None)&apos;</strong> 선택 (카드 규격을 84mm 안전 높이로 최적화하여 2장 분할 및 상단 빈 여백 없이 1장 안에 정확히 출력됩니다)<br />
+              2. <strong>머리글 및 바닥글:</strong> <strong>체크 해제</strong> (URL/날짜 출력 시 2장으로 분할되는 원인)<br />
               3. <strong>방향 전환:</strong> 롤 라벨 공급 방향에 따라 상단 <strong>[세로형 (80×100)]</strong> 또는 <strong>[가로형 (100×80)]</strong> 선택
             </span>
           </div>
@@ -541,13 +549,17 @@ export default function WorkshopLabelModal({
                         <strong className="preview-phone-val">{formatPhone(label.buyerPhone) || "연락처 미등록"}</strong>
                       </div>
                       <div className="preview-order-no">
-                        주문번호: {label.orderNo}
+                        주문번호: <strong>{label.orderNo}</strong>
                       </div>
                       {label.note ? (
                         <div className="preview-note-box">
                           {formatCleanNote(label.note)}
                         </div>
-                      ) : null}
+                      ) : (
+                        <div className="preview-note-placeholder">
+                          ※ 세트 제작 완료 후 포장 부착용 라벨
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

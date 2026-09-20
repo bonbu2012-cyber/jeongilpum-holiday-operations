@@ -2228,6 +2228,17 @@
   word-break: break-all;
 }
 
+.preview-note-placeholder {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #94a3b8;
+  border: 1px dashed #cbd5e1;
+  border-radius: 4px;
+  padding: 8px 10px;
+  text-align: center;
+  background: #f8fafc;
+}
+
 /* 택배 박스 */
 .preview-shipping-box {
   background: #f8fafc;

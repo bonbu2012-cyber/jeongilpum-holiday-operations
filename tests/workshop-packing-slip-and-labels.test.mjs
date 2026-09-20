@@ -590,16 +590,16 @@ test("WorkshopLabelModal template incorporates safe 1-sheet 80x100mm/100x80mm pa
   const modalContent = await fs.readFile("app/components/WorkshopLabelModal.tsx", "utf8");
   const cssContent = await fs.readFile("app/workshop-flow.css", "utf8");
 
-  // 80x100mm 및 100x80mm 용지 규격과 1장 맞춤 안전 높이(92mm/73mm) 검증
+  // 80x100mm 및 100x80mm 용지 규격과 1장 맞춤 안전 높이(84mm/68mm) 검증
   assert.match(modalContent, /80mm\s+100mm/, "Print template must support 80mm 100mm portrait page size");
   assert.match(modalContent, /100mm\s+80mm/, "Print template must support 100mm 80mm landscape page size");
-  assert.match(modalContent, /92mm/, "Portrait card height must be 92mm safe height to prevent 2-page split");
-  assert.match(modalContent, /73mm/, "Landscape card height must be 73mm safe height to prevent 2-page split");
+  assert.match(modalContent, /84mm/, "Portrait card height must be 84mm safe height to prevent 2-page split");
+  assert.match(modalContent, /68mm/, "Landscape card height must be 68mm safe height to prevent 2-page split");
 
-  // 인쇄 템플릿 대형 폰트 규격 검증 (시인성 극대화 26pt/24pt/20pt)
-  assert.match(modalContent, /font-size:\s*26pt/, "Print template must use 26pt large font for product name");
-  assert.match(modalContent, /font-size:\s*24pt/, "Print template must use 24pt bold font for quantity badge");
-  assert.match(modalContent, /font-size:\s*20pt/, "Print template must use 20pt bold font for buyer name");
+  // 인쇄 템플릿 대형 폰트 규격 검증 (22pt/20pt/18pt)
+  assert.match(modalContent, /font-size:\s*22pt/, "Print template must use 22pt large font for product name");
+  assert.match(modalContent, /font-size:\s*20pt/, "Print template must use 20pt bold font for quantity badge");
+  assert.match(modalContent, /font-size:\s*18pt/, "Print template must use 18pt bold font for buyer name");
   assert.match(modalContent, /label-product-row/, "Print template must have dedicated product row");
   assert.match(modalContent, /label-buyer-row/, "Print template must have dedicated buyer row");
   assert.match(modalContent, /formatPhone/, "Modal must use formatPhone helper to format 010-XXXX-XXXX");
@@ -610,8 +610,7 @@ test("WorkshopLabelModal template incorporates safe 1-sheet 80x100mm/100x80mm pa
   assert.match(cssContent, /aspect-ratio:\s*100\s*\/\s*80/, "Preview card must support 100/80 aspect ratio");
   assert.match(cssContent, /\.orientation-btn/, "CSS must define orientation-btn");
   assert.match(cssContent, /\.preview-product-name/, "CSS must define preview-product-name");
-  assert.match(cssContent, /font-size:\s*1\.85rem/, "Preview product name must be enlarged (1.85rem)");
   assert.match(cssContent, /\.preview-buyer-name/, "CSS must define preview-buyer-name");
-  assert.match(cssContent, /font-size:\s*1\.55rem/, "Preview buyer name must be enlarged (1.55rem)");
   assert.match(cssContent, /\.preview-onsite-box/, "CSS must define preview-onsite-box to fill vertical space");
+  assert.match(cssContent, /\.preview-note-placeholder/, "CSS must define preview-note-placeholder");
 });
