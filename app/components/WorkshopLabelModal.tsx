@@ -29,6 +29,15 @@ function formatPhone(phone?: string | null): string {
   return phone;
 }
 
+function formatCleanNote(note?: string | null): string {
+  if (!note) return "";
+  // 중복 접두어(메모: 메모:, 요청/메모: 메모: 등) 정돈
+  return note
+    .replace(/^(메모:\s*)+/gi, "메모: ")
+    .replace(/^(요청\/메모:\s*)+/gi, "요청: ")
+    .trim();
+}
+
 export default function WorkshopLabelModal({
   open,
   items,
@@ -67,9 +76,9 @@ export default function WorkshopLabelModal({
     const isPortrait = orientation === "portrait";
     const pageSize = isPortrait ? "80mm 100mm" : "100mm 80mm";
     const cardWidth = isPortrait ? "80mm" : "100mm";
-    // 프린터 물리 갭 센서 및 드라이버 마진(2~3mm)을 고려하여 1장 안에 100% 쏙 들어가도록 안전 높이 적용
+    // 프린터 물리 갭 센서 및 드라이버 마진을 고려한 1장 꽉 찬 안전 높이
     const cardHeight = isPortrait ? "92mm" : "73mm";
-    const cardPadding = isPortrait ? "2.5mm 4mm 2mm" : "2mm 4.5mm 1.8mm";
+    const cardPadding = isPortrait ? "3.2mm 4.5mm 2.8mm" : "2.5mm 4.5mm 2mm";
 
     const htmlContent = `
 <!DOCTYPE html>
@@ -119,18 +128,18 @@ export default function WorkshopLabelModal({
       break-after: auto !important;
     }
 
-    /* 1단: 상품명 및 수량 순번 */
+    /* 1단: 상품명 및 수량 순번 (대형 볼드) */
     .label-product-row {
       display: flex;
       justify-content: space-between;
-      align-items: flex-start;
-      border-bottom: 2px solid #000;
-      padding-bottom: 0.8mm;
-      margin-bottom: 1mm;
+      align-items: flex-end;
+      border-bottom: 2.5px solid #000;
+      padding-bottom: 1.2mm;
+      margin-bottom: 1.8mm;
       gap: 2mm;
     }
     .label-product-name {
-      font-size: 20pt;
+      font-size: 26pt;
       font-weight: 900;
       line-height: 1.1;
       letter-spacing: -0.5px;
@@ -139,7 +148,7 @@ export default function WorkshopLabelModal({
       color: #000;
     }
     .label-qty-badge {
-      font-size: 18pt;
+      font-size: 24pt;
       font-weight: 900;
       line-height: 1.1;
       letter-spacing: -0.3px;
@@ -147,49 +156,49 @@ export default function WorkshopLabelModal({
       color: #000;
     }
 
-    /* 2단: 주문자명 및 결제상태 */
+    /* 2단: 주문자명 및 결제상태 (대형 볼드) */
     .label-buyer-row {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 1mm;
+      margin-bottom: 1.8mm;
       line-height: 1.15;
     }
     .label-buyer-wrap {
       display: flex;
       align-items: baseline;
-      gap: 1.2mm;
+      gap: 1.8mm;
       overflow: hidden;
       white-space: nowrap;
       text-overflow: ellipsis;
     }
     .label-buyer-lbl {
-      font-size: 10pt;
+      font-size: 12pt;
       font-weight: 800;
-      color: #222;
+      color: #111;
       white-space: nowrap;
     }
     .label-buyer-name {
-      font-size: 16pt;
+      font-size: 20pt;
       font-weight: 900;
       letter-spacing: -0.4px;
       color: #000;
       word-break: break-all;
     }
     .label-pay-badge {
-      font-size: 10pt;
+      font-size: 11.5pt;
       font-weight: 900;
-      padding: 0.5mm 1.8mm;
+      padding: 0.8mm 2.2mm;
       border-radius: 2px;
       white-space: nowrap;
     }
     .label-pay-badge.unpaid {
       background: #000;
       color: #fff;
-      border: 1.2px solid #000;
+      border: 1.5px solid #000;
     }
     .label-pay-badge.paid {
-      border: 1.2px solid #000;
+      border: 1.5px solid #000;
       color: #000;
     }
 
@@ -198,87 +207,106 @@ export default function WorkshopLabelModal({
       display: flex;
       justify-content: space-between;
       align-items: center;
-      font-size: 9.5pt;
+      font-size: 11.5pt;
       font-weight: 800;
-      padding: 0.8mm 0;
-      border-top: 1px dashed #000;
-      border-bottom: 1px dashed #000;
-      margin-bottom: 1.2mm;
+      padding: 1.2mm 0;
+      border-top: 1.2px dashed #000;
+      border-bottom: 1.2px dashed #000;
+      margin-bottom: 2mm;
       line-height: 1.15;
     }
     .label-method-tag {
-      font-size: 10.5pt;
+      font-size: 12.5pt;
       font-weight: 900;
-      border: 1.2px solid #000;
-      padding: 0.3mm 1.5mm;
+      border: 1.5px solid #000;
+      padding: 0.4mm 2mm;
       border-radius: 2.5px;
     }
 
-    /* 4단: 본문 (현장수령 vs 택배) */
+    /* 4단: 본문 (현장수령 vs 택배) - 꽉 찬 레이아웃 */
     .label-body {
       flex: 1;
       display: flex;
       flex-direction: column;
-      justify-content: flex-start;
-      gap: 1.2mm;
-      font-size: 9.5pt;
-      line-height: 1.25;
+      justify-content: space-between;
+      gap: 2mm;
       overflow: hidden;
     }
+    .label-onsite-box {
+      display: flex;
+      flex-direction: column;
+      gap: 2.2mm;
+      padding: 1mm 0;
+    }
     .label-phone-line {
-      font-size: 13pt;
+      font-size: 17pt;
       font-weight: 900;
       color: #000;
+      display: flex;
+      align-items: baseline;
+      gap: 1.8mm;
+    }
+    .label-phone-lbl {
+      font-size: 12pt;
+      font-weight: 800;
+      color: #222;
+    }
+    .label-order-no {
+      font-size: 11pt;
+      font-weight: 700;
+      color: #333;
     }
     .label-note-box {
-      font-size: 9pt;
-      font-weight: 700;
-      border: 0.8px solid #333;
-      border-radius: 2.5px;
-      padding: 0.8mm 1.6mm;
-      background: #f0f0f0;
-      line-height: 1.25;
+      font-size: 11pt;
+      font-weight: 800;
+      border: 1.5px solid #000;
+      border-radius: 3px;
+      padding: 1.8mm 2.2mm;
+      background: #f2f2f2;
+      line-height: 1.35;
       word-break: break-all;
     }
     .shipping-section {
       background: #f5f5f5;
-      border: 1px solid #000;
-      border-radius: 2.5px;
-      padding: 1.2mm 1.8mm;
-      font-size: 9pt;
-      line-height: 1.25;
+      border: 1.5px solid #000;
+      border-radius: 3px;
+      padding: 1.8mm 2.2mm;
+      font-size: 10.5pt;
+      line-height: 1.3;
       display: flex;
       flex-direction: column;
-      gap: 1mm;
+      gap: 1.5mm;
     }
     .shipping-row {
       display: flex;
-      gap: 1mm;
+      gap: 1.5mm;
     }
     .shipping-label {
       font-weight: 900;
       white-space: nowrap;
       color: #000;
-      font-size: 9.5pt;
+      font-size: 11pt;
     }
     .shipping-val {
       font-weight: 700;
       word-break: break-all;
+      font-size: 11pt;
     }
     .shipping-val.recipient {
-      font-size: 12pt;
+      font-size: 15pt;
       font-weight: 900;
     }
 
     /* 5단: 하단 풋터 */
     .label-footer {
-      border-top: 0.8px solid #666;
-      padding-top: 0.8mm;
-      margin-top: 0.8mm;
+      border-top: 1px solid #333;
+      padding-top: 1.2mm;
+      margin-top: 1.5mm;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      font-size: 7.5pt;
+      font-size: 8.5pt;
+      font-weight: 700;
       color: #333;
       line-height: 1;
     }
@@ -322,27 +350,27 @@ export default function WorkshopLabelModal({
               <span class="shipping-label">배송지:</span>
               <span class="shipping-val">${label.fullAddress || "주소 미입력"}</span>
             </div>
-            <div class="shipping-row" style="font-size: 8.5pt; color: #444;">
-              <span class="shipping-label" style="font-size: 8.5pt; color: #444;">보내는 분:</span>
+            <div class="shipping-row" style="font-size: 9.5pt; color: #444;">
+              <span class="shipping-label" style="font-size: 9.5pt; color: #444;">보내는 분:</span>
               <span class="shipping-val">${label.buyerName} ${label.buyerPhone ? `(${formatPhone(label.buyerPhone)})` : ""}</span>
             </div>
             ${
               label.note
-                ? `<div class="label-note-box" style="margin-top: 0.6mm;"><strong>요청/메모:</strong> ${label.note}</div>`
+                ? `<div class="label-note-box" style="margin-top: 1mm;">${formatCleanNote(label.note)}</div>`
                 : ""
             }
           </div>
         `
             : `
-          <div style="padding: 0.5mm 0; display: flex; flex-direction: column; gap: 1mm;">
+          <div class="label-onsite-box">
             <div class="label-phone-line">
-              <span style="font-size: 10pt; font-weight: 800; color: #333;">연락처:</span>
+              <span class="label-phone-lbl">연락처:</span>
               <strong>${formatPhone(label.buyerPhone) || "연락처 미등록"}</strong>
             </div>
-            <div style="font-size: 9.5pt; color: #444;">주문번호: ${label.orderNo}</div>
+            <div class="label-order-no">주문번호: ${label.orderNo}</div>
             ${
               label.note
-                ? `<div class="label-note-box"><strong>요청/메모:</strong> ${label.note}</div>`
+                ? `<div class="label-note-box">${formatCleanNote(label.note)}</div>`
                 : ""
             }
           </div>
@@ -502,7 +530,7 @@ export default function WorkshopLabelModal({
                       </div>
                       {label.note ? (
                         <div className="preview-note-box">
-                          <strong>요청/메모:</strong> {label.note}
+                          {formatCleanNote(label.note)}
                         </div>
                       ) : null}
                     </div>
@@ -517,7 +545,7 @@ export default function WorkshopLabelModal({
                       </div>
                       {label.note ? (
                         <div className="preview-note-box">
-                          <strong>메모:</strong> {label.note}
+                          {formatCleanNote(label.note)}
                         </div>
                       ) : null}
                     </div>

@@ -596,21 +596,22 @@ test("WorkshopLabelModal template incorporates safe 1-sheet 80x100mm/100x80mm pa
   assert.match(modalContent, /92mm/, "Portrait card height must be 92mm safe height to prevent 2-page split");
   assert.match(modalContent, /73mm/, "Landscape card height must be 73mm safe height to prevent 2-page split");
 
-  // 인쇄 템플릿 대형 폰트 규격 검증
-  assert.match(modalContent, /font-size:\s*20pt/, "Print template must use 20pt large font for product name");
-  assert.match(modalContent, /font-size:\s*18pt/, "Print template must use 18pt bold font for quantity badge");
-  assert.match(modalContent, /font-size:\s*16pt/, "Print template must use 16pt bold font for buyer name");
+  // 인쇄 템플릿 대형 폰트 규격 검증 (시인성 극대화 26pt/24pt/20pt)
+  assert.match(modalContent, /font-size:\s*26pt/, "Print template must use 26pt large font for product name");
+  assert.match(modalContent, /font-size:\s*24pt/, "Print template must use 24pt bold font for quantity badge");
+  assert.match(modalContent, /font-size:\s*20pt/, "Print template must use 20pt bold font for buyer name");
   assert.match(modalContent, /label-product-row/, "Print template must have dedicated product row");
   assert.match(modalContent, /label-buyer-row/, "Print template must have dedicated buyer row");
   assert.match(modalContent, /formatPhone/, "Modal must use formatPhone helper to format 010-XXXX-XXXX");
 
-  // 방향 토글 및 미리보기 CSS 80:100 / 100:80 규격 검증
+  // 방향 토글 및 미리보기 CSS 80:100 / 100:80 규격 및 꽉 찬 대형 폰트 검증
   assert.match(modalContent, /label-orientation-toggle/, "Modal must provide orientation toggle for portrait and landscape");
   assert.match(cssContent, /aspect-ratio:\s*80\s*\/\s*100/, "Preview card must support 80/100 aspect ratio");
   assert.match(cssContent, /aspect-ratio:\s*100\s*\/\s*80/, "Preview card must support 100/80 aspect ratio");
   assert.match(cssContent, /\.orientation-btn/, "CSS must define orientation-btn");
   assert.match(cssContent, /\.preview-product-name/, "CSS must define preview-product-name");
-  assert.match(cssContent, /font-size:\s*1\.45rem/, "Preview product name must be enlarged (1.45rem)");
+  assert.match(cssContent, /font-size:\s*1\.85rem/, "Preview product name must be enlarged (1.85rem)");
   assert.match(cssContent, /\.preview-buyer-name/, "CSS must define preview-buyer-name");
-  assert.match(cssContent, /font-size:\s*1\.25rem/, "Preview buyer name must be enlarged (1.25rem)");
+  assert.match(cssContent, /font-size:\s*1\.55rem/, "Preview buyer name must be enlarged (1.55rem)");
+  assert.match(cssContent, /\.preview-onsite-box/, "CSS must define preview-onsite-box to fill vertical space");
 });
