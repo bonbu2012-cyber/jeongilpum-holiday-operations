@@ -549,7 +549,7 @@ export default function WorkshopApp() {
                     openLabelModal(targets, false);
                   }}
                 >
-                  {selectedWorkItems.length ? `선택 라벨 인쇄 (${selectedWorkItems.length})` : "라벨 인쇄 (50×50)"}
+                  {selectedWorkItems.length ? `선택 라벨 인쇄 (${selectedWorkItems.length})` : "라벨 인쇄 (80×100)"}
                 </Button>
                 <Button
                   variant="ghost"

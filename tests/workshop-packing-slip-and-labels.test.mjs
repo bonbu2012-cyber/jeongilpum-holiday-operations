@@ -585,22 +585,28 @@ test("generatePackingLabels reflects custom composition and request tags on labe
   assert.match(labels[0].note, /메모: 선물용 보냉가방 포장/);
   assert.match(labels[0].note, /맞춤: 안심 500g 스테이크용/);
 });
-test("WorkshopLabelModal template incorporates large typography (15pt product, 12.5pt buyer) and hyphenated phone formatting", async () => {
+test("WorkshopLabelModal template incorporates 80x100mm page spec, large typography (22pt product, 18pt buyer) and hyphenated phone formatting", async () => {
   const fs = await import("node:fs/promises");
   const modalContent = await fs.readFile("app/components/WorkshopLabelModal.tsx", "utf8");
   const cssContent = await fs.readFile("app/workshop-flow.css", "utf8");
 
+  // 80x100mm 용지 규격 검증
+  assert.match(modalContent, /size:\s*80mm\s+100mm/, "Print template must use 80mm 100mm page size");
+  assert.match(modalContent, /width:\s*80mm/, "Card width must be 80mm");
+  assert.match(modalContent, /height:\s*100mm/, "Card height must be 100mm");
+
   // 인쇄 템플릿 대형 폰트 규격 검증
-  assert.match(modalContent, /font-size:\s*15pt/, "Print template must use 15pt large font for product name");
-  assert.match(modalContent, /font-size:\s*13\.5pt/, "Print template must use 13.5pt bold font for quantity badge");
-  assert.match(modalContent, /font-size:\s*12\.5pt/, "Print template must use 12.5pt bold font for buyer name");
+  assert.match(modalContent, /font-size:\s*22pt/, "Print template must use 22pt large font for product name");
+  assert.match(modalContent, /font-size:\s*20pt/, "Print template must use 20pt bold font for quantity badge");
+  assert.match(modalContent, /font-size:\s*18pt/, "Print template must use 18pt bold font for buyer name");
   assert.match(modalContent, /label-product-row/, "Print template must have dedicated product row");
   assert.match(modalContent, /label-buyer-row/, "Print template must have dedicated buyer row");
   assert.match(modalContent, /formatPhone/, "Modal must use formatPhone helper to format 010-XXXX-XXXX");
 
-  // 미리보기 CSS 대형 폰트 규격 검증
+  // 미리보기 CSS 80:100 규격 및 대형 폰트 검증
+  assert.match(cssContent, /aspect-ratio:\s*80\s*\/\s*100/, "Preview card must use 80/100 aspect ratio");
   assert.match(cssContent, /\.preview-product-name/, "CSS must define preview-product-name");
-  assert.match(cssContent, /font-size:\s*1\.25rem/, "Preview product name must be enlarged (1.25rem)");
+  assert.match(cssContent, /font-size:\s*1\.45rem/, "Preview product name must be enlarged (1.45rem)");
   assert.match(cssContent, /\.preview-buyer-name/, "CSS must define preview-buyer-name");
-  assert.match(cssContent, /font-size:\s*1\.05rem/, "Preview buyer name must be enlarged (1.05rem)");
+  assert.match(cssContent, /font-size:\s*1\.25rem/, "Preview buyer name must be enlarged (1.25rem)");
 });
