@@ -297,9 +297,22 @@ export function WorkItemFields({
   const productUrl = draft.dueAt ? `/api/products?date=${encodeURIComponent(draft.dueAt.slice(0, 10))}` : null;
   const { data: productData } = useResource<ProductResponse>(productUrl, 15000);
   const products = productData?.products ?? [];
-  const productOptions = existingItem && !products.some((product) => product.id === existingItem.productId)
-    ? [{ id: existingItem.productId, name: existingItem.productName, price: existingItem.unitPrice, dailyLimit: existingItem.productDailyLimit, reservedQuantity: existingItem.productScheduledQuantity }, ...products]
-    : products;
+  const otherProductOptionName = existingItem && existingItem.productId === "custom-order" && existingItem.productName && existingItem.productName !== "맞춤주문" && existingItem.productName !== "기타 상품"
+    ? `${existingItem.productName} (기타 상품)`
+    : "기타 상품";
+  const otherProductOption: Product = {
+    id: "custom-order",
+    name: otherProductOptionName,
+    price: existingItem?.productId === "custom-order" ? existingItem.unitPrice : 0,
+    dailyLimit: null,
+    reservedQuantity: 0,
+  };
+  const baseProducts = products.some((product) => product.id === "custom-order")
+    ? products
+    : [...products, otherProductOption];
+  const productOptions = existingItem && !baseProducts.some((product) => product.id === existingItem.productId)
+    ? [{ id: existingItem.productId, name: existingItem.productName, price: existingItem.unitPrice, dailyLimit: existingItem.productDailyLimit, reservedQuantity: existingItem.productScheduledQuantity }, ...baseProducts]
+    : baseProducts;
   const selectedProduct = productOptions.find((product) => product.id === draft.productId);
   const currentReservation = selectedProduct
     ? selectedProduct.reservedQuantity - (
@@ -322,9 +335,20 @@ export function WorkItemFields({
     <>
       <div className="sales-work-table__editor-grid">
         <FieldSelect id={`${idPrefix}-product`} label="상품" value={draft.productId} onChange={(event) => {
-          const product = productOptions.find((value) => value.id === event.target.value);
-          onChange("productId", event.target.value);
-          if (product) onChange("unitPrice", String(product.price));
+          const nextProductId = event.target.value;
+          const product = productOptions.find((value) => value.id === nextProductId);
+          onChange("productId", nextProductId);
+          if (product) {
+            if (product.id === "custom-order") {
+              if (draft.productId && draft.productId !== "custom-order") {
+                onChange("unitPrice", "0");
+              } else if (!draft.unitPrice) {
+                onChange("unitPrice", "0");
+              }
+            } else {
+              onChange("unitPrice", String(product.price));
+            }
+          }
         }}>
           {existingItem ? null : <option value="">상품 선택</option>}
           {productOptions.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}
@@ -406,7 +430,15 @@ export function WorkItemFields({
           </div>
         )}
 
-        <FieldTextarea id={`${idPrefix}-customization`} className="sales-work-table__editor-wide" label="구성 정보 (맞춤 주문 시 품명/부위/중량 등)" rows={2} value={draft.customizationJson} onChange={(event) => onChange("customizationJson", event.target.value)} placeholder="예: 꽃등심 600g, 살치살 400g" />
+        <FieldTextarea
+          id={`${idPrefix}-customization`}
+          className="sales-work-table__editor-wide"
+          label={draft.productId === "custom-order" ? "구성 정보 (기타 상품 품명/부위/중량 등 상세 내용)" : "구성 정보 (맞춤 주문 시 품명/부위/중량 등)"}
+          rows={2}
+          value={draft.customizationJson}
+          onChange={(event) => onChange("customizationJson", event.target.value)}
+          placeholder="예: 꽃등심 600g, 살치살 400g"
+        />
         <FieldTextarea id={`${idPrefix}-note`} className="sales-work-table__editor-wide" label="관리자 메모" rows={3} value={draft.note} onChange={(event) => onChange("note", event.target.value)} placeholder="주문 또는 작업 관련 메모" />
       </div>
       {wouldExceedDailyLimit && selectedProduct && selectedProduct.dailyLimit !== null ? <p className="sales-work-table__warning">선택한 수령일의 {selectedProduct.name} 수량이 {currentReservation + Number(draft.quantity)}개로 일일 기준 {selectedProduct.dailyLimit}개를 초과합니다. 운영자 저장은 제한하지 않습니다.</p> : null}

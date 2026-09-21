@@ -17,6 +17,7 @@ type WorkStatus = "received" | "confirmed" | "in_progress" | "ready" | "complete
 
 type CreateItemPayload = {
   productId?: string;
+  productName?: string;
   unitPrice?: number;
   quantity?: number;
   deliveryMethod?: DeliveryMethod;
@@ -169,7 +170,7 @@ type PreparedWorkItem = {
   note: string;
 };
 
-type ManualWorkItemInput = Omit<PreparedWorkItem, "id" | "productName" | "lineTotal">;
+type ManualWorkItemInput = Omit<PreparedWorkItem, "id" | "productName" | "lineTotal"> & { productName?: string };
 
 const runtimeEnv = { DB: getDb() };
 const fulfillmentTypes = new Set(["onsite", "pickup", "shipping"]);
@@ -370,6 +371,7 @@ async function prepareManualWorkItems(payload: CreatePayload) {
     }
     itemInputs.push({
       productId,
+      productName: clean(item.productName),
       unitPrice,
       quantity,
       deliveryMethod: deliveryMethod as DeliveryMethod,
@@ -397,9 +399,12 @@ async function prepareManualWorkItems(payload: CreatePayload) {
   for (const item of itemInputs) {
     const product = productsById.get(item.productId);
     if (!product) return { error: "상품을 찾을 수 없습니다.", status: 404 };
+    const customName = item.productId === "custom-order"
+      ? (item.productName || "기타 상품")
+      : product.name;
     const workItem = buildWorkItem({
       ...item,
-      productName: product.name,
+      productName: customName,
     });
     if (!workItem) return { error: "상품 금액과 수량을 확인해주세요." };
     workItems.push(workItem);

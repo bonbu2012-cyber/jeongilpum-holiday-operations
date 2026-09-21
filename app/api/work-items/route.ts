@@ -795,7 +795,9 @@ export async function PATCH(request: Request) {
       if (!Number.isInteger(product.price) || product.price < 0) {
         throw new RequestError("상품 가격 정보를 확인해주세요.");
       }
-      productName = product.name;
+      productName = productId === "custom-order"
+        ? (hasOwn(changes, "productName") && clean(changes.productName) ? clean(changes.productName) : "기타 상품")
+        : product.name;
       unitPrice = product.price;
     }
     if (hasOwn(changes, "unitPrice")) {
@@ -1073,7 +1075,9 @@ export async function POST(request: Request) {
         `).bind(
           id,
           product.id,
-          product.name,
+          product.id === "custom-order"
+            ? (hasOwn(payload, "productName") && clean(payload.productName) ? clean(payload.productName) : "기타 상품")
+            : product.name,
           Number(unitPrice),
           Number(quantity),
           lineTotal,
