@@ -796,7 +796,7 @@ export async function PATCH(request: Request) {
         throw new RequestError("상품 가격 정보를 확인해주세요.");
       }
       productName = productId === "custom-order"
-        ? (hasOwn(changes, "productName") && clean(changes.productName) ? clean(changes.productName) : "기타 상품")
+        ? (hasOwn(changes, "productName") && clean(changes.productName) ? clean(changes.productName) : "기타/맞춤주문")
         : product.name;
       unitPrice = product.price;
     }
@@ -1076,7 +1076,7 @@ export async function POST(request: Request) {
           id,
           product.id,
           product.id === "custom-order"
-            ? (hasOwn(payload, "productName") && clean(payload.productName) ? clean(payload.productName) : "기타 상품")
+            ? (hasOwn(payload, "productName") && clean(payload.productName) ? clean(payload.productName) : "기타/맞춤주문")
             : product.name,
           Number(unitPrice),
           Number(quantity),

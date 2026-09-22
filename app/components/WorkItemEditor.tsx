@@ -297,9 +297,9 @@ export function WorkItemFields({
   const productUrl = draft.dueAt ? `/api/products?date=${encodeURIComponent(draft.dueAt.slice(0, 10))}` : null;
   const { data: productData } = useResource<ProductResponse>(productUrl, 15000);
   const products = productData?.products ?? [];
-  const otherProductOptionName = existingItem && existingItem.productId === "custom-order" && existingItem.productName && existingItem.productName !== "맞춤주문" && existingItem.productName !== "기타 상품"
-    ? `${existingItem.productName} (기타 상품)`
-    : "기타 상품";
+  const otherProductOptionName = existingItem && existingItem.productId === "custom-order" && existingItem.productName && existingItem.productName !== "맞춤주문" && existingItem.productName !== "기타 상품" && existingItem.productName !== "기타/맞춤주문"
+    ? `${existingItem.productName} (기타/맞춤주문)`
+    : "기타/맞춤주문";
   const otherProductOption: Product = {
     id: "custom-order",
     name: otherProductOptionName,
@@ -433,7 +433,7 @@ export function WorkItemFields({
         <FieldTextarea
           id={`${idPrefix}-customization`}
           className="sales-work-table__editor-wide"
-          label={draft.productId === "custom-order" ? "구성 정보 (기타 상품 품명/부위/중량 등 상세 내용)" : "구성 정보 (맞춤 주문 시 품명/부위/중량 등)"}
+          label={draft.productId === "custom-order" ? "구성 정보 (기타/맞춤주문 품명/부위/중량 등 상세 내용)" : "구성 정보 (맞춤 주문 시 품명/부위/중량 등)"}
           rows={2}
           value={draft.customizationJson}
           onChange={(event) => onChange("customizationJson", event.target.value)}

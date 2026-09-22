@@ -400,7 +400,7 @@ async function prepareManualWorkItems(payload: CreatePayload) {
     const product = productsById.get(item.productId);
     if (!product) return { error: "상품을 찾을 수 없습니다.", status: 404 };
     const customName = item.productId === "custom-order"
-      ? (item.productName || "기타 상품")
+      ? (item.productName || "기타/맞춤주문")
       : product.name;
     const workItem = buildWorkItem({
       ...item,

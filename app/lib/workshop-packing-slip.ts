@@ -1081,7 +1081,7 @@ export function resolveProductSummaryMeta(item: {
   // 3. 맞춤주문 또는 기타 품목
   const isCustom = pId === "custom-order" || /맞춤/.test(norm);
   const price = item.unitPrice && item.unitPrice > 0 ? item.unitPrice : 0;
-  const name = rawName || (isCustom ? "맞춤주문" : "기타 상품");
+  const name = rawName || (isCustom ? "맞춤주문" : "기타/맞춤주문");
   const key = `${pId || "other"}_${name}_${price}`;
 
   return {
