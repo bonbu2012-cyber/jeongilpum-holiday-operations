@@ -199,6 +199,14 @@ function todayInSeoul() {
   return `${part("year")}-${part("month")}-${part("day")}`;
 }
 
+function formatCustomerPhone(phone?: string | null): string {
+  if (!phone) return "";
+  const clean = phone.replace(/\D/g, "");
+  if (clean.length === 11) return `${clean.slice(0, 3)}-${clean.slice(3, 7)}-${clean.slice(7)}`;
+  if (clean.length === 10) return `${clean.slice(0, 3)}-${clean.slice(3, 6)}-${clean.slice(6)}`;
+  return phone;
+}
+
 function workUrl({
   view,
   dateFrom,
@@ -859,86 +867,113 @@ export default function SalesApp() {
 
   const columns: DataTableColumn<WorkItem>[] = [
     {
+      id: "customer",
+      header: "주문자",
+      cell: (item) => {
+        const formattedPhone = formatCustomerPhone(item.buyerPhone);
+        return (
+          <div className="sales-customer-info">
+            <b className="sales-customer-name">{item.buyerName}</b>
+            <div className="sales-customer-meta">
+              {formattedPhone ? <span className="sales-customer-phone">{formattedPhone}</span> : null}
+              <span className="sales-customer-orderno">#{item.orderNo}</span>
+            </div>
+          </div>
+        );
+      },
+      sortValue: (item) => item.buyerName,
+      exportValue: (item) => `${item.buyerName} ${item.buyerPhone ? `(${item.buyerPhone})` : ""} · ${item.orderNo}`,
+      width: "160px",
+      rowHeader: true,
+      cellLayout: "stacked",
+    },
+    {
       id: "dueAt",
       header: "수령일시",
       cell: (item) => {
         if (item.deliveryMethod === "delivery") {
           return (
-            <>
-              <b className="sales-due-delivery-title">택배</b>
+            <div className="sales-due-block">
+              <div className="sales-due-primary">
+                <b className="sales-due-delivery-title">택배</b>
+                <Badge tone="wine">택배예약</Badge>
+              </div>
               <small className="sales-due-subtext">{item.dueAt.slice(0, 10)} 발송 예정</small>
-            </>
+            </div>
           );
         }
         return (
-          <>
-            <b className="sales-due-onsite-datetime">
-              {item.dueAt.slice(0, 10)} {item.dueAt.slice(11, 16)}
-            </b>
-            <small className="sales-due-subtext">{DELIVERY_LABELS[item.deliveryMethod]}</small>
-          </>
+          <div className="sales-due-block">
+            <div className="sales-due-primary">
+              <b className="sales-due-onsite-datetime">{item.dueAt.slice(11, 16) || "시간미지정"}</b>
+              <Badge tone={DELIVERY_TONES[item.deliveryMethod]}>{DELIVERY_LABELS[item.deliveryMethod]}</Badge>
+            </div>
+            <small className="sales-due-subtext">{item.dueAt.slice(0, 10)}</small>
+          </div>
         );
       },
       sortValue: (item) => item.dueAt,
-      exportValue: (item) => `${item.dueAt.slice(0, 10)} ${item.deliveryMethod === "delivery" ? "발송 예정" : item.dueAt.slice(11, 16)}`,
+      exportValue: (item) => `${item.dueAt.slice(0, 10)} ${item.deliveryMethod === "delivery" ? "발송 예정" : item.dueAt.slice(11, 16)} (${DELIVERY_LABELS[item.deliveryMethod]})`,
       width: "140px",
       cellLayout: "stacked",
     },
     {
       id: "createdAt",
       header: "접수일시",
-      cell: (item) => item.createdAt ? <time dateTime={item.createdAt}>{formatWorkItemDateTime(item.createdAt)}</time> : <span style={{ color: "var(--muted)" }}>-</span>,
+      cell: (item) => {
+        if (!item.createdAt) return <span style={{ color: "var(--muted)" }}>-</span>;
+        const d = new Date(item.createdAt);
+        const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        const timeStr = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+        return (
+          <div className="sales-created-block">
+            <span className="sales-created-date">{dateStr}</span>
+            <small className="sales-created-time">{timeStr}</small>
+          </div>
+        );
+      },
       sortValue: (item) => item.createdAt ?? "",
       exportValue: (item) => item.createdAt ? formatWorkItemDateTime(item.createdAt) : "",
-      width: "150px",
-    },
-    {
-      id: "customer",
-      header: "주문자",
-      cell: (item) => <><b>{item.buyerName}</b><small>{item.buyerPhone} · {item.orderNo}</small></>,
-      sortValue: (item) => item.buyerName,
-      exportValue: (item) => `${item.buyerName} ${item.buyerPhone} · ${item.orderNo}`,
-      width: "180px",
+      width: "110px",
       cellLayout: "stacked",
     },
     {
       id: "product",
-      header: "상품",
-      cell: (item) => <>
-        {item.productId === "custom-order"
-          ? <CustomOrderDetails productName={item.productName} amount={item.unitPrice} request={item.customizationJson} />
-          : <b>{item.productName}</b>}
-        {item.productId !== "custom-order" && item.customizationJson?.trim() ? (
-          <div className="sales-item-custom-box">
-            <span className="sales-item-custom-title">구성</span>
-            <span className="sales-item-custom-body">{item.customizationJson.trim()}</span>
+      header: "주문내용",
+      cell: (item) => (
+        <div className="sales-order-content">
+          <div className="sales-order-item-header">
+            {item.productId === "custom-order" ? (
+              <CustomOrderDetails productName={item.productName} amount={item.unitPrice} request={item.customizationJson} />
+            ) : (
+              <b className="sales-product-title">{item.productName}</b>
+            )}
+            <span className="sales-qty-tag">{item.quantity}개</span>
+            <span className="sales-price-tag">{won(item.lineTotal)}</span>
           </div>
-        ) : null}
-        {item.productDailyLimit !== null && item.productScheduledQuantity > item.productDailyLimit ? <small className="sales-work-table__overage">일일 수량 초과 {item.productScheduledQuantity}/{item.productDailyLimit}</small> : null}
-        {item.customerNote?.trim() ? <span className="sales-item-note-chip">🏷️ 요청: {item.customerNote.trim()}</span> : null}
-        {item.note?.trim() && item.note.trim() !== item.customerNote?.trim() ? <span className="sales-item-internal-note-chip">📝 메모: {item.note.trim()}</span> : null}
-      </>,
+          {item.productId !== "custom-order" && item.customizationJson?.trim() ? (
+            <div className="sales-item-custom-box">
+              <span className="sales-item-custom-title">구성</span>
+              <span className="sales-item-custom-body">{item.customizationJson.trim()}</span>
+            </div>
+          ) : null}
+          {item.productDailyLimit !== null && item.productScheduledQuantity > item.productDailyLimit ? (
+            <small className="sales-work-table__overage">
+              일일 수량 초과 {item.productScheduledQuantity}/{item.productDailyLimit}
+            </small>
+          ) : null}
+          {item.customerNote?.trim() ? (
+            <span className="sales-item-note-chip">🏷️ 요청: {item.customerNote.trim()}</span>
+          ) : null}
+          {item.note?.trim() && item.note.trim() !== item.customerNote?.trim() ? (
+            <span className="sales-item-internal-note-chip">📝 메모: {item.note.trim()}</span>
+          ) : null}
+        </div>
+      ),
       sortValue: (item) => item.productName,
-      exportValue: (item) => `${item.productName}${item.customizationJson ? ` [구성: ${item.customizationJson}]` : ""}${item.note ? ` [메모: ${item.note}]` : ""}${item.productDailyLimit !== null && item.productScheduledQuantity > item.productDailyLimit ? ` 일일 수량 초과 ${item.productScheduledQuantity}/${item.productDailyLimit}` : ""}`,
+      exportValue: (item) => `${item.productName} ${item.quantity}개 ${won(item.lineTotal)}${item.customizationJson ? ` [구성: ${item.customizationJson}]` : ""}${item.note ? ` [메모: ${item.note}]` : ""}`,
       cellLayout: "stacked",
       multiline: true,
-    },
-    {
-      id: "quantity",
-      header: "수량",
-      cell: (item) => <><b>{item.quantity}개</b><small>{won(item.lineTotal)}</small></>,
-      sortValue: (item) => item.quantity,
-      exportValue: (item) => `${item.quantity}개 ${won(item.lineTotal)}`,
-      align: "right",
-      width: "90px",
-      cellLayout: "stacked",
-    },
-    {
-      id: "delivery",
-      header: "수령방법",
-      cell: (item) => <Badge tone={DELIVERY_TONES[item.deliveryMethod]}>{DELIVERY_LABELS[item.deliveryMethod]}</Badge>,
-      sortValue: (item) => DELIVERY_LABELS[item.deliveryMethod],
-      width: "104px",
     },
     {
       id: "status",
@@ -979,7 +1014,7 @@ export default function SalesApp() {
       ),
       sortValue: (item) => item.paymentStatus,
       exportValue: (item) => PAYMENT_STATUS_LABELS[item.paymentStatus],
-      width: "92px",
+      width: "88px",
     },
     {
       id: "label",
@@ -1004,7 +1039,7 @@ export default function SalesApp() {
       },
       sortValue: (item) => item.labelPrintCount ?? 0,
       exportValue: (item) => (item.labelPrintCount ?? 0) > 0 ? `출력(${(item.labelPrintCount ?? 0)}회)` : "미출력",
-      width: "90px",
+      width: "88px",
     },
     {
       id: "actions",
@@ -1029,10 +1064,22 @@ export default function SalesApp() {
     {
       id: "createdAt",
       header: "접수일시",
-      cell: (order) => <time dateTime={order.createdAt}>{formatWorkItemDateTime(order.createdAt)}</time>,
+      cell: (order) => {
+        if (!order.createdAt) return <span style={{ color: "var(--muted)" }}>-</span>;
+        const d = new Date(order.createdAt);
+        const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        const timeStr = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+        return (
+          <div className="sales-created-block">
+            <span className="sales-created-date">{dateStr}</span>
+            <small className="sales-created-time">{timeStr}</small>
+          </div>
+        );
+      },
       sortValue: (order) => order.createdAt,
       exportValue: (order) => formatWorkItemDateTime(order.createdAt),
-      width: "160px",
+      width: "110px",
+      cellLayout: "stacked",
     },
     {
       id: "dueAt",
@@ -1046,17 +1093,23 @@ export default function SalesApp() {
           const s = schedules[0];
           if (s.isDelivery) {
             return (
-              <>
-                <b className="sales-due-delivery-title">택배</b>
+              <div className="sales-due-block">
+                <div className="sales-due-primary">
+                  <b className="sales-due-delivery-title">택배</b>
+                  <Badge tone="wine">택배예약</Badge>
+                </div>
                 <small className="sales-due-subtext">{s.date} 발송 예정</small>
-              </>
+              </div>
             );
           }
           return (
-            <>
-              <b className="sales-due-onsite-datetime">{s.date} {s.time}</b>
-              <small className="sales-due-subtext">{s.methodLabel}</small>
-            </>
+            <div className="sales-due-block">
+              <div className="sales-due-primary">
+                <b className="sales-due-onsite-datetime">{s.time || "시간미지정"}</b>
+                <Badge tone="amber">{s.methodLabel}</Badge>
+              </div>
+              <small className="sales-due-subtext">{s.date}</small>
+            </div>
           );
         }
         return (
@@ -1070,8 +1123,8 @@ export default function SalesApp() {
                   </>
                 ) : (
                   <>
-                    <b className="sales-due-onsite-datetime" style={{ fontSize: "13px" }}>{s.date} {s.time}</b>{" "}
-                    <small className="sales-due-subtext">({s.methodLabel})</small>
+                    <b className="sales-due-onsite-datetime" style={{ fontSize: "13px" }}>{s.time}</b>{" "}
+                    <small className="sales-due-subtext">({s.date})</small>
                   </>
                 )}
               </div>
@@ -1094,7 +1147,15 @@ export default function SalesApp() {
     {
       id: "customer",
       header: "주문자",
-      cell: (order) => <><b>{order.buyerName}</b><small>{order.buyerPhone}</small></>,
+      cell: (order) => {
+        const formattedPhone = formatCustomerPhone(order.buyerPhone);
+        return (
+          <div className="sales-customer-info">
+            <b className="sales-customer-name">{order.buyerName}</b>
+            {formattedPhone ? <span className="sales-customer-phone">{formattedPhone}</span> : null}
+          </div>
+        );
+      },
       sortValue: (order) => order.buyerName,
       exportValue: (order) => `${order.buyerName} ${order.buyerPhone}`,
       width: "156px",
@@ -1103,12 +1164,15 @@ export default function SalesApp() {
     },
     {
       id: "workItems",
-      header: "작업",
+      header: "주문내용",
       cell: (order) => order.workItems.length ? (
         <div style={{ display: "grid", gap: "4px" }}>
           {order.workItems.map((item) => (
             <div key={item.id} style={{ display: "grid", gap: "2px" }}>
-              <b>{item.productName} {item.quantity}개</b>
+              <div className="sales-order-item-header">
+                <b>{item.productName}</b>
+                <span className="sales-qty-tag">{item.quantity}개</span>
+              </div>
               {item.customizationJson?.trim() && (
                 <div className="sales-item-custom-box">
                   <span className="sales-item-custom-title">구성</span>
@@ -1123,7 +1187,7 @@ export default function SalesApp() {
               )}
             </div>
           ))}
-          <small style={{ color: "var(--muted)" }}>{order.workItems.length}개 작업</small>
+          <small style={{ color: "var(--muted)" }}>{order.workItems.length}개 상품</small>
         </div>
       ) : <span>작업 미등록</span>,
       sortValue: (order) => order.workItems.map((item) => item.productName).join(" "),

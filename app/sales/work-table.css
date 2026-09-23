@@ -965,3 +965,111 @@
   align-items: center;
   gap: 6px;
 }
+
+/* 판매장 작업 목록 가독성 향상 스타일 */
+.sales-customer-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sales-customer-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink, #111827);
+  line-height: 1.25;
+}
+
+.sales-customer-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted, #64748b);
+  line-height: 1.2;
+}
+
+.sales-customer-phone {
+  font-family: inherit;
+  font-weight: 600;
+  color: #334155;
+  letter-spacing: -0.2px;
+}
+
+.sales-customer-orderno {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.sales-due-block {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sales-due-primary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.sales-created-block {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  line-height: 1.25;
+}
+
+.sales-created-date {
+  font-size: 13px;
+  color: var(--ink, #1f2937);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.sales-created-time {
+  font-size: 12px;
+  color: var(--muted, #64748b);
+  white-space: nowrap;
+}
+
+.sales-order-content {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.sales-order-item-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sales-product-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink, #111827);
+}
+
+.sales-qty-tag {
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 800;
+  background: #fee2e2;
+  color: #b91c1c;
+  padding: 1px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.sales-price-tag {
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+  white-space: nowrap;
+}
