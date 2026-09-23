@@ -435,4 +435,85 @@ test("TodayLedgerApp includes date picker and navigation controls for date-based
   assert.match(cssSource, /\.ledger-today-btn/);
 });
 
+test("TodayLedgerApp includes real-time search toolbar and matchesSearch filters accurately", async () => {
+  const { matchesTodayLedgerSearch } = await import("../app/lib/today-ledger-search.ts");
+  const appSource = await read("app/today/TodayLedgerApp.tsx");
+  const cssSource = await read("app/today/today-ledger.css");
+
+  // UI 요소 검증
+  assert.match(appSource, /ledger-search-input/);
+  assert.match(appSource, /ledger-search-clear-btn/);
+  assert.match(appSource, /검색 결과/);
+  assert.match(cssSource, /\.ledger-search-toolbar/);
+  assert.match(cssSource, /\.ledger-search-input/);
+  assert.match(cssSource, /\.ledger-search-clear-btn/);
+
+  // matchesSearch 기능 단위 검증
+  const sampleOrder = {
+    orderId: "ord-1",
+    orderNo: "JI-260923-0001",
+    buyerName: "홍길동",
+    buyerPhone: "010-1234-5678",
+    buyerPhoneMasked: "010-****-5678",
+    totalAmount: 150000,
+    paidAmount: 150000,
+    balance: 0,
+    orderVersion: 1,
+    paymentStatus: "paid",
+    paidAt: "2026-09-23T10:00:00+09:00",
+    paidAtDisplay: "오전 10:00",
+    paidAtFull: "2026-09-23 10:00:00",
+    deliveryMethod: "onsite_reservation",
+    dueAt: "2026-09-23T14:00:00+09:00",
+    timeDisplay: "14:00",
+    itemsSummary: "봉황세트 2개",
+    totalQuantity: 2,
+    items: [
+      { name: "봉황세트", quantity: 2, unitPrice: 75000, lineTotal: 150000, customizationSummary: "기름 적게" }
+    ],
+    customerNote: "포장 신경써주세요",
+    adminNote: "단골 손님",
+    customerArrivedAt: null,
+    recipientName: "이순신",
+    recipientPhone: "010-9876-5432",
+    recipientAddress: "서울시 강남구 테헤란로 123",
+    isShipping: false,
+  };
+
+  // 빈 검색어는 전체 통과
+  assert.equal(matchesTodayLedgerSearch(sampleOrder, ""), true);
+  assert.equal(matchesTodayLedgerSearch(sampleOrder, "   "), true);
+
+  // 주문자명 검색
+  assert.equal(matchesTodayLedgerSearch(sampleOrder, "홍길동"), true);
+  assert.equal(matchesTodayLedgerSearch(sampleOrder, "길동"), true);
+  assert.equal(matchesTodayLedgerSearch(sampleOrder, "강감찬"), false);
+
+  // 전화번호 뒷 4자리 또는 하이픈 없는 검색
+  assert.equal(matchesTodayLedgerSearch(sampleOrder, "5678"), true);
+  assert.equal(matchesTodayLedgerSearch(sampleOrder, "01012345678"), true);
+  assert.equal(matchesTodayLedgerSearch(sampleOrder, "1234"), true);
+  assert.equal(matchesTodayLedgerSearch(sampleOrder, "9999"), false);
+
+  // 수령인명 및 수령인 전화번호
+  assert.equal(matchesTodayLedgerSearch(sampleOrder, "이순신"), true);
+  assert.equal(matchesTodayLedgerSearch(sampleOrder, "9876"), true);
+
+  // 배송지 주소
+  assert.equal(matchesTodayLedgerSearch(sampleOrder, "테헤란로"), true);
+
+  // 주문번호
+  assert.equal(matchesTodayLedgerSearch(sampleOrder, "JI-260923"), true);
+
+  // 상품명 및 맞춤 내용
+  assert.equal(matchesTodayLedgerSearch(sampleOrder, "봉황세트"), true);
+  assert.equal(matchesTodayLedgerSearch(sampleOrder, "기름 적게"), true);
+  assert.equal(matchesTodayLedgerSearch(sampleOrder, "팔영세트"), false);
+
+  // 고객 및 관리자 메모
+  assert.equal(matchesTodayLedgerSearch(sampleOrder, "포장"), true);
+  assert.equal(matchesTodayLedgerSearch(sampleOrder, "단골"), true);
+});
+
+
 

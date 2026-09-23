@@ -15,6 +15,7 @@ interface WorkshopLabelModalProps {
   date: string;
   autoPrint?: boolean;
   onClose: () => void;
+  onPrinted?: (workItemIds: string[]) => void;
 }
 
 function formatPhone(phone?: string | null): string {
@@ -60,19 +61,65 @@ export default function WorkshopLabelModal({
   date,
   autoPrint = false,
   onClose,
+  onPrinted,
 }: WorkshopLabelModalProps) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [labelSize, setLabelSize] = useState<"80x100" | "50x50">("80x100");
   const [orientation, setOrientation] = useState<"portrait" | "landscape">("portrait");
+  const [filterMode, setFilterMode] = useState<"all" | "unprinted">("all");
+  const [printedOverrides, setPrintedOverrides] = useState<Record<string, number>>({});
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
 
+  const allLabels = useMemo(() => {
+    return generatePackingLabels(items, date).map((l) => {
+      const overrideCount = printedOverrides[l.workItemId];
+      if (overrideCount !== undefined) {
+        return {
+          ...l,
+          labelPrintCount: overrideCount,
+          isAlreadyPrinted: overrideCount > 0,
+        };
+      }
+      return l;
+    });
+  }, [items, date, printedOverrides]);
+
+  const unprintedCount = useMemo(() => {
+    return allLabels.filter((l) => !l.isAlreadyPrinted).length;
+  }, [allLabels]);
+
+  const printedCount = allLabels.length - unprintedCount;
+
   const labels = useMemo(() => {
-    return generatePackingLabels(items, date);
-  }, [items, date]);
+    if (filterMode === "unprinted") {
+      return allLabels.filter((l) => !l.isAlreadyPrinted);
+    }
+    return allLabels;
+  }, [allLabels, filterMode]);
 
   // 라벨 HTML 및 인쇄 전용 iframe 빌드 함수
-  const triggerPrint = useCallback(() => {
+  const triggerPrint = useCallback(async () => {
     if (!labels.length) return;
+
+    // 1. 감사 이벤트 저장 비동기 호출
+    const uniqueWorkItemIds = [...new Set(labels.map((l) => l.workItemId))];
+    try {
+      await fetch("/api/work-items/labels/print", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workItemIds: uniqueWorkItemIds, labelSize }),
+      });
+      setPrintedOverrides((prev) => {
+        const next = { ...prev };
+        for (const id of uniqueWorkItemIds) {
+          next[id] = (next[id] ?? 0) + 1;
+        }
+        return next;
+      });
+      onPrinted?.(uniqueWorkItemIds);
+    } catch (err) {
+      console.error("라벨 인쇄 감사 이벤트 저장 실패:", err);
+    }
 
     let iframe = iframeRef.current;
     if (!iframe) {
@@ -370,7 +417,12 @@ export default function WorkshopLabelModal({
   ${labels
     .map(
       (label) => `
-    <div class="label-slip-card">
+    <div class="label-slip-card" style="position: relative;">
+      ${
+        label.isAlreadyPrinted
+          ? `<div style="position: absolute; right: 2.2mm; top: 1.6mm; font-size: 7.5pt; font-weight: 900; border: 1.2px solid #000; padding: 0.2mm 1.2mm; background: #fff; border-radius: 2px;">[재발행 ${label.labelPrintCount + 1}회차]</div>`
+          : ""
+      }
       <div class="label-product-row">
         <div class="label-product-name">${label.productName}</div>
         <div class="label-qty-badge">${label.quantityBadge}</div>
@@ -453,13 +505,13 @@ export default function WorkshopLabelModal({
       iframe.contentWindow?.focus();
       iframe.contentWindow?.print();
     }, 250);
-  }, [labels, orientation, labelSize]);
+  }, [labels, orientation, labelSize, onPrinted]);
 
   // autoPrint가 켜져 있으면 모달 오픈 시 자동 1회 인쇄 트리거
   useEffect(() => {
     if (open && autoPrint && labels.length > 0) {
       const timer = setTimeout(() => {
-        triggerPrint();
+        void triggerPrint();
       }, 350);
       return () => clearTimeout(timer);
     }
@@ -495,7 +547,7 @@ export default function WorkshopLabelModal({
                 </span>
               </div>
               <p>
-                BEEPRT BY-48 감열 프린터 · 총 <strong>{labels.length}장</strong> 출력 예정 (1장 쏙 맞춤 규격)
+                BEEPRT BY-48 감열 프린터 · 총 <strong>{labels.length}장</strong> 출력 예정 (미출력 {unprintedCount}장 / 기출력 {printedCount}장)
               </p>
             </div>
           </div>
@@ -503,7 +555,7 @@ export default function WorkshopLabelModal({
             <Button
               variant="primary"
               leadingIcon={<Printer size={16} />}
-              onClick={triggerPrint}
+              onClick={() => void triggerPrint()}
               className="label-print-btn"
             >
               라벨 인쇄 ({labels.length}장)
@@ -514,7 +566,7 @@ export default function WorkshopLabelModal({
           </div>
         </header>
 
-        {/* 상단 2단: 용지 규격 및 출력 방향 선택 컨트롤 바 */}
+        {/* 상단 2단: 용지 규격 및 출력 방향, 출력 대상 선택 컨트롤 바 */}
         <div className="label-modal-controls-bar">
           <div className="label-control-group">
             <span className="label-control-title">용지 규격</span>
@@ -558,6 +610,29 @@ export default function WorkshopLabelModal({
             </div>
           )}
 
+          {/* 출력 대상 필터 (중복 출력 방지 원클릭 토글) */}
+          <div className="label-control-group">
+            <span className="label-control-title">출력 대상</span>
+            <div className="label-filter-toggle" role="group" aria-label="출력 대상 선택">
+              <button
+                type="button"
+                className={`filter-btn ${filterMode === "all" ? "active" : ""}`}
+                onClick={() => setFilterMode("all")}
+              >
+                전체 라벨 ({allLabels.length}장)
+              </button>
+              <button
+                type="button"
+                className={`filter-btn ${filterMode === "unprinted" ? "active" : ""}`}
+                onClick={() => setFilterMode("unprinted")}
+                disabled={unprintedCount === 0}
+                title={unprintedCount === 0 ? "미출력된 라벨이 없습니다." : "이미 출력된 라벨을 제외하고 인쇄"}
+              >
+                미출력만 인쇄 ({unprintedCount}장)
+              </button>
+            </div>
+          </div>
+
           <div className="label-control-hint">
             💡 {labelSize === "80x100" ? "프린터에서 'BY-482BT 80x100 라벨' 선택" : "프린터에서 'BY-482BT 50x50 라벨' 선택"}
           </div>
@@ -565,13 +640,29 @@ export default function WorkshopLabelModal({
 
         {/* 라벨 프리뷰 그리드 */}
         <div className="label-preview-container">
+          {printedCount > 0 && filterMode === "all" && (
+            <div className="label-warning-banner">
+              <span>⚠️ 선택된 라벨 중 <strong>{printedCount}장</strong>은 이미 인쇄된 이력이 있습니다. 중복 출력을 방지하려면 상단 <strong>[미출력만 인쇄]</strong>를 선택하세요.</span>
+              {unprintedCount > 0 && (
+                <button
+                  type="button"
+                  className="filter-btn active"
+                  onClick={() => setFilterMode("unprinted")}
+                  style={{ marginLeft: "10px", padding: "4px 10px", fontSize: "0.78rem" }}
+                >
+                  미출력만 보기
+                </button>
+              )}
+            </div>
+          )}
+
           <div className="label-preview-guide">
             <span style={{ fontWeight: 800, color: "#0369a1", fontSize: "0.86rem" }}>
               💡 [용지 규격 선택 & 타 앱/택배송장 충돌 걱정 없는 인쇄 안내]
             </span>
             <span style={{ color: "#0f172a", fontSize: "0.82rem", lineHeight: 1.5, paddingLeft: "4px" }}>
               1. <strong>용지 크기 원클릭 전환:</strong> 현재 프린터에 장착된 라벨롤에 맞춰 상단 <strong>[80×100mm (대형)]</strong> 또는 <strong>[50×50mm (소형)]</strong>을 선택하세요.<br />
-              2. <strong>타 앱 및 택배 송장 충돌 없음:</strong> 윈도우 인쇄창에서 용지를 선택해도 다른 프로그램이나 택배사 송장(100×150)의 기본 설정은 절대 변경되지 않습니다.<br />
+              2. <strong>중복 출력 방지:</strong> 이미 인쇄된 라벨은 상단 배지 및 카드로 확인 가능하며, <strong>[미출력만 인쇄]</strong>를 누르면 첫 인쇄 건만 선별 인쇄됩니다.<br />
               3. <strong>여백(Margins):</strong> 반드시 <strong>&apos;없음(None)&apos;</strong> 선택, <strong>머리글/바닥글:</strong> <strong>해제</strong> (빈 여백이나 2장 분할 없이 1장에 딱 맞게 인쇄됩니다).
             </span>
           </div>
@@ -580,9 +671,23 @@ export default function WorkshopLabelModal({
             {labels.map((label) => (
               <article
                 key={label.id}
-                className={`label-card-preview size-${labelSize} ${orientation}`}
-                title={`${label.productName} ${label.quantityBadge}`}
+                className={`label-card-preview size-${labelSize} ${orientation} ${label.isAlreadyPrinted ? "is-reprint" : "is-first-print"}`}
+                title={`${label.productName} ${label.quantityBadge} - ${label.isAlreadyPrinted ? `기출력 ${label.labelPrintCount}회` : "미출력"}`}
               >
+                {/* 0단: 출력 상태 안내 스트립 */}
+                <div className={`preview-status-strip ${label.isAlreadyPrinted ? "printed" : "unprinted"}`}>
+                  {label.isAlreadyPrinted ? (
+                    <span>⚠️ 이미 출력됨 ({label.labelPrintCount}회 인쇄됨)</span>
+                  ) : (
+                    <span>✨ 첫 출력 (미인쇄)</span>
+                  )}
+                  {label.isAlreadyPrinted && label.labelPrintedAt && (
+                    <span style={{ fontSize: "0.68rem", opacity: 0.85 }}>
+                      최근: {label.labelPrintedAt.slice(5, 16).replace("T", " ")}
+                    </span>
+                  )}
+                </div>
+
                 {/* 1단: 상품명 및 수량 순번 (대형 강조) */}
                 <div className="preview-product-row">
                   <span className="preview-product-name">{label.productName}</span>
@@ -670,8 +775,22 @@ export default function WorkshopLabelModal({
             ))}
 
             {labels.length === 0 && (
-              <div className="label-empty-box">
-                <p>출력할 상품 라벨이 없습니다.</p>
+              <div className="label-empty-notice">
+                <p>
+                  {filterMode === "unprinted"
+                    ? "선택된 주문 중 미출력된 라벨이 없습니다. (모든 라벨이 이미 출력되었습니다.)"
+                    : "출력할 상품 라벨이 없습니다."}
+                </p>
+                {filterMode === "unprinted" && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setFilterMode("all")}
+                    style={{ marginTop: "12px" }}
+                  >
+                    전체 라벨 다시 보기
+                  </Button>
+                )}
               </div>
             )}
           </div>

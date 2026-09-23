@@ -48,6 +48,8 @@ type WorkItemRow = {
   order_version: number;
   product_daily_limit: number | null;
   daily_reserved_quantity: number;
+  label_print_count: number;
+  label_printed_at: string | null;
 };
 
 type ProductRow = {
@@ -186,7 +188,17 @@ const WORK_ITEM_SELECT = `
       WHERE reserved.product_id=w.product_id
         AND substr(reserved.due_at,1,10)=substr(w.due_at,1,10)
         AND reserved.work_status!='cancelled'
-    ),0) AS daily_reserved_quantity
+    ),0) AS daily_reserved_quantity,
+    COALESCE((
+      SELECT COUNT(1)
+      FROM work_item_events e
+      WHERE e.work_item_id=w.id AND e.event_type='label_printed'
+    ),0) AS label_print_count,
+    (
+      SELECT MAX(e.created_at)
+      FROM work_item_events e
+      WHERE e.work_item_id=w.id AND e.event_type='label_printed'
+    ) AS label_printed_at
   FROM work_items w
   JOIN orders o ON o.id=w.order_id
   JOIN products p ON p.id=w.product_id
@@ -300,6 +312,8 @@ function workItemRecord(row: WorkItemRow) {
     orderVersion: row.order_version,
     productDailyLimit: row.product_daily_limit,
     productScheduledQuantity: Number(row.daily_reserved_quantity),
+    labelPrintCount: Number(row.label_print_count || 0),
+    labelPrintedAt: row.label_printed_at || null,
   };
 }
 

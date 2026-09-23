@@ -2132,6 +2132,123 @@
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
+.label-filter-toggle {
+  display: flex;
+  background: #0f172a;
+  border-radius: 6px;
+  padding: 3px;
+  gap: 2px;
+  border: 1px solid #334155;
+}
+
+.filter-btn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  padding: 5px 11px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.filter-btn:hover:not(:disabled) {
+  color: #f1f5f9;
+}
+
+.filter-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.filter-btn.active {
+  background: #059669;
+  color: #ffffff;
+  font-weight: 700;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.label-warning-banner {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #92400e;
+  border-radius: 6px;
+  padding: 8px 14px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.preview-status-strip {
+  font-size: 0.73rem;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 4px;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.preview-status-strip.unprinted {
+  background: #e0f2fe;
+  color: #0369a1;
+  border: 1px solid #bae6fd;
+}
+
+.preview-status-strip.printed {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+.workshop-label-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 700 !important;
+  font-size: 0.8rem !important;
+  white-space: nowrap;
+}
+
+.workshop-label-btn.unprinted {
+  background-color: #f1f5f9 !important;
+  color: #475569 !important;
+  border: 1px solid #cbd5e1 !important;
+}
+
+.workshop-label-btn.unprinted:hover {
+  background-color: #e2e8f0 !important;
+  color: #1e293b !important;
+}
+
+.workshop-label-btn.printed {
+  background-color: #ecfdf5 !important;
+  color: #047857 !important;
+  border: 1px solid #a7f3d0 !important;
+}
+
+.workshop-label-btn.printed:hover {
+  background-color: #d1fae5 !important;
+  color: #065f46 !important;
+}
+
+.label-empty-notice {
+  text-align: center;
+  padding: 48px 24px;
+  background: #fff;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  color: #64748b;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
 .label-preview-container {
   padding: 20px;
   overflow-y: auto;

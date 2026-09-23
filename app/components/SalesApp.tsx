@@ -2,9 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
-import { Truck } from "lucide-react";
+import { Printer, Tag, Truck } from "lucide-react";
 import AppNav from "./AppNav";
 import { downloadCourierInvoiceCsvFile, type CourierWorkItemLike } from "../lib/courier-invoice-csv";
+import WorkshopLabelModal from "./WorkshopLabelModal";
 import {
   Badge,
   Button,
@@ -87,6 +88,8 @@ type WorkItem = {
   orderVersion: number;
   productDailyLimit: number | null;
   productScheduledQuantity: number;
+  labelPrintCount?: number;
+  labelPrintedAt?: string | null;
 };
 
 type Dashboard = Record<PipelineWorkStatus, Record<DeliveryMethod, number>>;
@@ -345,6 +348,17 @@ export default function SalesApp() {
   const [notice, setNotice] = useState("");
   const [groupByCustomer, setGroupByCustomer] = useState(true);
   const [customerPaymentGroup, setCustomerPaymentGroup] = useState<CustomerGroupSummary<unknown> | null>(null);
+  const [labelModalOpen, setLabelModalOpen] = useState(false);
+  const [labelItems, setLabelItems] = useState<WorkItem[]>([]);
+
+  const openLabelModal = (itemsToPrint: WorkItem[]) => {
+    if (!itemsToPrint.length) {
+      alert("출력할 라벨 항목이 없습니다.");
+      return;
+    }
+    setLabelItems(itemsToPrint);
+    setLabelModalOpen(true);
+  };
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedQuery(query), 250);
@@ -968,6 +982,31 @@ export default function SalesApp() {
       width: "92px",
     },
     {
+      id: "label",
+      header: "라벨",
+      cell: (item) => {
+        const count = item.labelPrintCount ?? 0;
+        return (
+          <Button
+            size="sm"
+            variant="ghost"
+            className={`sales-label-cell-btn ${count > 0 ? "printed" : "unprinted"}`}
+            onClick={(event) => {
+              event.stopPropagation();
+              openLabelModal([item]);
+            }}
+            title={count > 0 ? `이미 ${count}회 출력됨 (최근: ${item.labelPrintedAt ? formatWorkItemDateTime(item.labelPrintedAt) : "-"})` : "라벨 미출력 상태 (클릭하여 인쇄)"}
+          >
+            <Tag size={13} style={{ marginRight: "3px" }} />
+            {count > 0 ? `출력 ${count}회` : "미출력"}
+          </Button>
+        );
+      },
+      sortValue: (item) => item.labelPrintCount ?? 0,
+      exportValue: (item) => (item.labelPrintCount ?? 0) > 0 ? `출력(${(item.labelPrintCount ?? 0)}회)` : "미출력",
+      width: "90px",
+    },
+    {
       id: "actions",
       header: "처리",
       cell: (item) => <div className="sales-work-table__actions">
@@ -1119,6 +1158,21 @@ export default function SalesApp() {
         <Button size="sm" variant="ghost" onClick={(event) => { event.stopPropagation(); setSelectedOrder({ order, buyerName: order.buyerName, buyerPhone: order.buyerPhone }); }}>주문 수정</Button>
         <Button size="sm" variant="ghost" onClick={(event) => { event.stopPropagation(); setNewWorkOrder(order); }}>작업 추가</Button>
         <Button size="sm" variant="ghost" onClick={(event) => { event.stopPropagation(); setPaymentOrder(order); }}>결제 변경</Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={(event) => {
+            event.stopPropagation();
+            if (order.workItems?.length) {
+              openLabelModal(order.workItems);
+            } else {
+              alert("등록된 작업이 없습니다.");
+            }
+          }}
+          title="이 주문에 포함된 상품 라벨 인쇄"
+        >
+          라벨 인쇄
+        </Button>
       </div>,
       exportValue: () => "주문 수정, 작업 추가, 결제 변경",
       width: "268px",
@@ -1392,6 +1446,7 @@ export default function SalesApp() {
               onRun={runBulk}
               onDelete={() => setDeleteSelection(selectedWorkItems.map((item) => ({ id: item.id, expectedVersion: item.version })))}
               onDuplicate={() => setDuplicateRequest({ kind: "selection", count: selectedWorkItems.length })}
+              onPrintLabels={() => openLabelModal(selectedWorkItems)}
             />
           ) : null}
         </Toolbar>
@@ -1514,6 +1569,30 @@ export default function SalesApp() {
             </Button>
           );
 
+          const extraExportButtons = (
+            <div className="sales-table-extra-actions">
+              <Button
+                variant="ghost"
+                size="sm"
+                leadingIcon={<Printer size={16} />}
+                onClick={() => {
+                  let itemsToPrint: WorkItem[] = [];
+                  if (tab === "work") {
+                    itemsToPrint = selectedWorkItems.length ? selectedWorkItems : filteredWorkItems;
+                  } else {
+                    const source = selectedCustomerOrders.length ? selectedCustomerOrders : customerOrders;
+                    itemsToPrint = source.flatMap((order) => order.workItems || []);
+                  }
+                  openLabelModal(itemsToPrint);
+                }}
+                title="상품 정보 라벨 인쇄 (선택 항목 또는 전체 조회 항목)"
+              >
+                라벨 인쇄 {tab === "work" && selectedWorkItems.length ? `(${selectedWorkItems.length})` : tab === "customers" && selectedCustomerOrders.length ? `(${selectedCustomerOrders.length})` : ""}
+              </Button>
+              {courierExportBtn}
+            </div>
+          );
+
           return tab === "work" ? (
             <section className="sales-work-table__section" aria-label="작업 목록">
               <DataTable
@@ -1523,7 +1602,7 @@ export default function SalesApp() {
                 columns={columns}
                 getRowId={(item) => item.id}
                 exportName="판매장-작업-목록"
-                exportExtra={courierExportBtn}
+                exportExtra={extraExportButtons}
                 rowClassName={workItemRowClass}
                 onRowClick={setSelectedWorkItem}
                 selectedIds={selectedIds}
@@ -1540,7 +1619,7 @@ export default function SalesApp() {
                 columns={orderColumns}
                 getRowId={(order) => order.id}
                 exportName="판매장-주문-목록"
-                exportExtra={courierExportBtn}
+                exportExtra={extraExportButtons}
                 rowClassName={outstandingPaymentRowClass}
                 onRowClick={(order) => setSelectedOrder({ order, buyerName: order.buyerName, buyerPhone: order.buyerPhone })}
                 selectedIds={selectedOrderIds}
@@ -1556,6 +1635,14 @@ export default function SalesApp() {
         open={statsOpen}
         initialDate={dateFrom || today}
         onClose={() => setStatsOpen(false)}
+      />
+
+      <WorkshopLabelModal
+        open={labelModalOpen}
+        items={labelItems}
+        date={dateFrom || today}
+        onClose={() => setLabelModalOpen(false)}
+        onPrinted={() => void reloadActive()}
       />
 
       {selectedWorkItem ? (
@@ -1669,10 +1756,12 @@ function BulkActions({
   onRun,
   onDelete,
   onDuplicate,
+  onPrintLabels,
 }: {
   onRun: (payload: Record<string, unknown>, noticeText: string) => Promise<void>;
   onDelete: () => void;
   onDuplicate: () => void;
+  onPrintLabels?: () => void;
 }) {
   const [nextStatus, setNextStatus] = useState<WorkStatus>("confirmed");
   const [nextDueAt, setNextDueAt] = useState("");
@@ -1699,6 +1788,11 @@ function BulkActions({
         </div>
       </div>
       <div className="sales-work-table__bulk-immediate-actions" aria-label="즉시 실행">
+        {onPrintLabels ? (
+          <Button size="sm" variant="ghost" onClick={onPrintLabels} title="선택한 항목의 상품 라벨 일괄 출력 (중복 방지 확인)">
+            🏷️ 라벨 인쇄
+          </Button>
+        ) : null}
         <Button size="sm" variant="ghost" onClick={onDuplicate}>복제</Button>
         <Button size="sm" variant="danger" onClick={onDelete}>삭제</Button>
       </div>

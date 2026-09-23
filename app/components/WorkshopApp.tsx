@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  CheckCircle2,
   ClipboardList,
   Factory,
   FileSpreadsheet,
@@ -45,6 +46,8 @@ import "../workshop-flow.css";
 type WorkItem = EditableWorkItem & {
   deliveryMethod: "onsite_reservation" | "delivery" | "onsite_sale";
   address: string;
+  labelPrintCount?: number;
+  labelPrintedAt?: string | null;
   events: Array<{
     id: string;
     type: string;
@@ -323,20 +326,32 @@ export default function WorkshopApp() {
   const labelColumn: DataTableColumn<WorkItem> = {
     id: "label",
     header: "라벨",
-    cell: (item) => (
-      <Button
-        size="sm"
-        variant="ghost"
-        leadingIcon={<Tag size={14} />}
-        onClick={(event) => {
-          event.stopPropagation();
-          openLabelModal([item], false);
-        }}
-      >
-        라벨
-      </Button>
-    ),
-    width: "74px",
+    cell: (item) => {
+      const printCount = item.labelPrintCount ?? 0;
+      const isPrinted = printCount > 0;
+      return (
+        <Button
+          size="sm"
+          variant="ghost"
+          className={`workshop-label-btn ${isPrinted ? "printed" : "unprinted"}`}
+          leadingIcon={isPrinted ? <CheckCircle2 size={13} /> : <Tag size={13} />}
+          onClick={(event) => {
+            event.stopPropagation();
+            openLabelModal([item], false);
+          }}
+          title={
+            isPrinted
+              ? `라벨 ${printCount}회 출력됨${item.labelPrintedAt ? ` (${item.labelPrintedAt})` : ""} - 클릭하여 재출력`
+              : "라벨 미출력 - 클릭하여 출력"
+          }
+        >
+          {isPrinted ? `${printCount}회` : "미출력"}
+        </Button>
+      );
+    },
+    sortValue: (item) => item.labelPrintCount ?? 0,
+    exportValue: (item) => (item.labelPrintCount ? `출력(${item.labelPrintCount}회)` : "미출력"),
+    width: "84px",
     align: "center",
   };
 
@@ -681,6 +696,7 @@ export default function WorkshopApp() {
         date={date}
         autoPrint={labelAutoPrint}
         onClose={() => setLabelModalOpen(false)}
+        onPrinted={() => void reload({ silent: true })}
       />
 
       <Modal

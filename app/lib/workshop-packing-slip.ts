@@ -25,6 +25,8 @@ export type WorkItemLike = {
   address?: string;
   buyerName: string;
   buyerPhone: string;
+  labelPrintCount?: number;
+  labelPrintedAt?: string | null;
 };
 
 export function isCustomOrderItem(item: {
@@ -696,6 +698,10 @@ export type PackingSlipLabel = {
   postalCode: string;
   fullAddress: string;
   note: string;
+  // 라벨 인쇄 이력 정보
+  labelPrintCount: number;
+  labelPrintedAt: string | null;
+  isAlreadyPrinted: boolean;
 };
 
 export function generatePackingLabels(items: WorkItemLike[], targetDate: string): PackingSlipLabel[] {
@@ -712,6 +718,8 @@ export function generatePackingLabels(items: WorkItemLike[], targetDate: string)
       .join(" ")
       .trim() || item.address || "";
     const effectiveDate = targetDate || formatDueDate(item.dueAt);
+    const printCount = Number(item.labelPrintCount || 0);
+    const printedAt = item.labelPrintedAt || null;
 
     const noteParts: string[] = [];
     if (item.customerNote?.trim()) noteParts.push(`고객: ${item.customerNote.trim()}`);
@@ -745,6 +753,9 @@ export function generatePackingLabels(items: WorkItemLike[], targetDate: string)
         postalCode: item.postalCode || "",
         fullAddress,
         note: labelNote,
+        labelPrintCount: printCount,
+        labelPrintedAt: printedAt,
+        isAlreadyPrinted: printCount > 0,
       });
     }
   }

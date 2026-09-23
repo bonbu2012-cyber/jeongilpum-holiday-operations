@@ -145,6 +145,8 @@ function toWorkItem(row: WorkItemRow, events: EventRow[]) {
       ? [row.road_addr, row.detail_addr].filter(Boolean).join(" ")
       : "",
     version: row.version,
+    labelPrintCount: events.filter((e) => e.event_type === "label_printed").length,
+    labelPrintedAt: events.find((e) => e.event_type === "label_printed")?.created_at ?? null,
     events: events.map((event) => ({
       id: event.id,
       type: event.event_type,

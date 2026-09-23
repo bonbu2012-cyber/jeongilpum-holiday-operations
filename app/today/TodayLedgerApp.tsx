@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import type { TodayLedgerOrder } from "../api/today-ledger/route";
+import { matchesTodayLedgerSearch } from "../lib/today-ledger-search";
 import { useResource } from "../ui";
 import AppNav from "../components/AppNav";
 import "./today-ledger.css";
@@ -19,6 +20,8 @@ type LedgerApiResponse = {
   onsiteOrders: TodayLedgerOrder[];
   shippingOrders: TodayLedgerOrder[];
 };
+
+export { matchesTodayLedgerSearch as matchesSearch };
 
 function getTodayInSeoul(): string {
   const parts = new Intl.DateTimeFormat("en-US", {
@@ -52,6 +55,7 @@ export default function TodayLedgerApp() {
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState<string>("");
 
   const isToday = selectedDate === todayDateStr;
 
@@ -132,9 +136,25 @@ export default function TodayLedgerApp() {
     }
   };
 
-  const onsiteOrders = data?.onsiteOrders || [];
-  const shippingOrders = data?.shippingOrders || [];
   const displayDate = data?.date || selectedDate;
+
+  const trimmedQuery = searchQuery.trim();
+  const isSearching = Boolean(trimmedQuery);
+
+  const onsiteOrders = useMemo(() => {
+    const list = data?.onsiteOrders ?? [];
+    if (!trimmedQuery) return list;
+    return list.filter((order) => matchesTodayLedgerSearch(order, trimmedQuery));
+  }, [data?.onsiteOrders, trimmedQuery]);
+
+  const shippingOrders = useMemo(() => {
+    const list = data?.shippingOrders ?? [];
+    if (!trimmedQuery) return list;
+    return list.filter((order) => matchesTodayLedgerSearch(order, trimmedQuery));
+  }, [data?.shippingOrders, trimmedQuery]);
+
+  const totalFilteredCount = onsiteOrders.length + shippingOrders.length;
+  const totalRawCount = (data?.onsiteOrders?.length ?? 0) + (data?.shippingOrders?.length ?? 0);
 
   return (
     <div className="ledger-root">
@@ -229,8 +249,49 @@ export default function TodayLedgerApp() {
             )}
           </div>
 
+          {/* 장부 내 통합 실시간 검색 바 */}
+          <div className="ledger-search-toolbar">
+            <div className="ledger-search-input-wrap">
+              <span className="ledger-search-icon" aria-hidden="true">🔍</span>
+              <input
+                id="ledger-search-input"
+                type="search"
+                className="ledger-search-input"
+                placeholder="주문자명, 전화번호(뒷4자리), 받는 분, 상품명, 배송지 주소, 주문번호 검색..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                aria-label="장부 주문 검색"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  className="ledger-search-clear-btn"
+                  onClick={() => setSearchQuery("")}
+                  title="검색어 지우기"
+                  aria-label="검색어 지우기"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+            {isSearching && (
+              <div className="ledger-search-status">
+                <span className="ledger-search-badge">
+                  검색 결과 <strong>{totalFilteredCount}</strong>건 / 전체 {totalRawCount}건
+                </span>
+                <button
+                  type="button"
+                  className="ledger-search-reset-link"
+                  onClick={() => setSearchQuery("")}
+                >
+                  전체 보기 (검색 초기화)
+                </button>
+              </div>
+            )}
+          </div>
+
           {/* 2. 상단 원터치 보기 전환 탭 (큰 글씨, 큰 버튼) */}
-          <div className="ledger-view-tabs" role="tablist" aria-label="장부 보기 방식 선택">
+          <div className="ledger-view-tabs" role="tablist" aria-label="장부 보기 방식 선택" style={{ marginTop: "16px" }}>
             <button
               type="button"
               role="tab"
@@ -240,7 +301,7 @@ export default function TodayLedgerApp() {
             >
               📋 {isToday ? "오늘" : "선택일"} 전체 (방문 + 택배)
               <span className="ledger-tab-count">
-                {data?.summary.totalOrders || 0}건
+                {isSearching ? `${totalFilteredCount}건` : `${data?.summary.totalOrders || 0}건`}
               </span>
             </button>
 
@@ -253,7 +314,7 @@ export default function TodayLedgerApp() {
             >
               📦 {isToday ? "오늘" : "선택일"} 택배만 모아보기
               <span className="ledger-tab-count">
-                {data?.summary.shippingCount || 0}건
+                {isSearching ? `${shippingOrders.length}건` : `${data?.summary.shippingCount || 0}건`}
               </span>
             </button>
           </div>
@@ -311,10 +372,22 @@ export default function TodayLedgerApp() {
 
                 {onsiteOrders.length === 0 ? (
                   <div className="ledger-empty-card">
-                    <div className="ledger-empty-icon">🕒</div>
+                    <div className="ledger-empty-icon">{isSearching ? "🔍" : "🕒"}</div>
                     <p className="ledger-empty-text">
-                      {isToday ? "오늘" : "선택하신 날짜에"} 예정된 매장 방문수령 주문이 없습니다.
+                      {isSearching
+                        ? `'${searchQuery}' 검색 조건에 맞는 매장 방문수령 주문이 없습니다.`
+                        : `${isToday ? "오늘" : "선택하신 날짜에"} 예정된 매장 방문수령 주문이 없습니다.`}
                     </p>
+                    {isSearching && (
+                      <button
+                        type="button"
+                        className="ledger-date-return-btn"
+                        onClick={() => setSearchQuery("")}
+                        style={{ marginTop: "12px" }}
+                      >
+                        검색어 초기화
+                      </button>
+                    )}
                   </div>
                 ) : (
                   <div className="ledger-card-list">
@@ -349,10 +422,22 @@ export default function TodayLedgerApp() {
 
               {shippingOrders.length === 0 ? (
                 <div className="ledger-empty-card">
-                  <div className="ledger-empty-icon">📦</div>
+                  <div className="ledger-empty-icon">{isSearching ? "🔍" : "📦"}</div>
                   <p className="ledger-empty-text">
-                    {isToday ? "오늘" : "선택하신 날짜에"} 발송할 택배 주문이 없습니다.
+                    {isSearching
+                      ? `'${searchQuery}' 검색 조건에 맞는 택배 발송 주문이 없습니다.`
+                      : `${isToday ? "오늘" : "선택하신 날짜에"} 발송할 택배 주문이 없습니다.`}
                   </p>
+                  {isSearching && (
+                    <button
+                      type="button"
+                      className="ledger-date-return-btn"
+                      onClick={() => setSearchQuery("")}
+                      style={{ marginTop: "12px" }}
+                    >
+                      검색어 초기화
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div className="ledger-card-list">

@@ -926,3 +926,42 @@
   outline: 2px solid var(--wine);
   outline-offset: 2px;
 }
+
+.sales-label-cell-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.78rem !important;
+  font-weight: 700 !important;
+  padding: 3px 8px !important;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+}
+
+.sales-label-cell-btn.unprinted {
+  background-color: #f1f5f9 !important;
+  color: #475569 !important;
+  border: 1px solid #cbd5e1 !important;
+}
+
+.sales-label-cell-btn.unprinted:hover {
+  background-color: #e2e8f0 !important;
+  color: #1e293b !important;
+}
+
+.sales-label-cell-btn.printed {
+  background-color: #ecfdf5 !important;
+  color: #047857 !important;
+  border: 1px solid #a7f3d0 !important;
+}
+
+.sales-label-cell-btn.printed:hover {
+  background-color: #d1fae5 !important;
+  color: #065f46 !important;
+}
+
+.sales-table-extra-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
