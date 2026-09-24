@@ -1,0 +1,1407 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>정일품 스킨팩 생산 계산기 | 모바일 작업지시서</title>
+  <meta name="description" content="봉황, 팔영, 오미트 시그니처, 오미트 프레스티지 세트 수량 입력 기반 실시간 162202/241702 스킨팩 필요 팩수 산출기" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="스킨팩 계산기" />
+  <meta name="theme-color" content="#0f172a" />
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans KR", sans-serif;
+      color: #1e293b;
+      background: #f8fafc;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+      padding-bottom: 90px;
+    }
+    .spc-container {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 12px 14px;
+    }
+
+    /* 헤더 */
+    .spc-header {
+      background: #ffffff;
+      padding: 16px 18px;
+      border-radius: 14px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+      margin-bottom: 14px;
+      border: 1px solid #e2e8f0;
+    }
+    .spc-header-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .spc-brand {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .spc-brand-badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 700;
+      color: #0284c7;
+      background: #e0f2fe;
+      padding: 2px 8px;
+      border-radius: 6px;
+      width: fit-content;
+    }
+    .spc-title {
+      font-size: 19px;
+      font-weight: 800;
+      color: #0f172a;
+      letter-spacing: -0.02em;
+    }
+    .spc-subtitle {
+      font-size: 13px;
+      color: #64748b;
+      margin-top: 8px;
+      line-height: 1.4;
+    }
+
+    .spc-header-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .spc-btn-icon {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 1px solid #cbd5e1;
+      background: #f8fafc;
+      color: #334155;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      touch-action: manipulation;
+    }
+    .spc-btn-icon:hover {
+      background: #f1f5f9;
+    }
+    .spc-btn-icon.active {
+      background: #fef08a;
+      border-color: #facc15;
+      color: #854d0e;
+      font-weight: 700;
+    }
+    .spc-btn-icon.reset:hover {
+      background: #fee2e2;
+      color: #b91c1c;
+      border-color: #fca5a5;
+    }
+
+    /* 입력 섹션 */
+    .spc-inputs-section {
+      margin-bottom: 14px;
+    }
+    .spc-section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 10px;
+      padding: 0 4px;
+    }
+    .spc-section-header h3 {
+      font-size: 15px;
+      font-weight: 800;
+      color: #334155;
+    }
+    .spc-hint {
+      font-size: 11px;
+      color: #94a3b8;
+    }
+
+    .spc-inputs-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+    }
+    @media (max-width: 600px) {
+      .spc-inputs-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .spc-input-card {
+      background: #ffffff;
+      padding: 14px 14px 12px;
+      border-radius: 12px;
+      border: 1.5px solid #e2e8f0;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+      transition: border-color 0.15s ease;
+    }
+    .spc-input-card:focus-within {
+      border-color: #0284c7;
+    }
+    .spc-input-card.card-signature:focus-within,
+    .spc-input-card.card-prestige:focus-within {
+      border-color: #9333ea;
+    }
+
+    .spc-card-title-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+    .spc-card-meta {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .spc-card-meta h4 {
+      font-size: 16px;
+      font-weight: 700;
+      color: #0f172a;
+    }
+    .spc-set-spec-tag {
+      font-size: 11px;
+      font-weight: 600;
+      color: #0369a1;
+      background: #f0f9ff;
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid #bae6fd;
+    }
+    .spc-set-spec-tag.purple {
+      color: #7e22ce;
+      background: #faf5ff;
+      border-color: #e9d5ff;
+    }
+    .spc-card-details {
+      font-size: 11.5px;
+      color: #64748b;
+      margin-bottom: 12px;
+      line-height: 1.3;
+    }
+
+    /* 스텝퍼 (+, -, input) */
+    .spc-stepper {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .spc-step-btn {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      border: 1px solid #cbd5e1;
+      background: #f8fafc;
+      font-size: 24px;
+      font-weight: 700;
+      color: #1e293b;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.1s ease;
+      touch-action: manipulation;
+      user-select: none;
+    }
+    .spc-step-btn:active {
+      transform: scale(0.95);
+      background: #e2e8f0;
+    }
+    .spc-step-btn:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+    .spc-step-input {
+      flex: 1;
+      height: 44px;
+      text-align: center;
+      font-size: 22px;
+      font-weight: 800;
+      color: #0f172a;
+      border: 1.5px solid #cbd5e1;
+      border-radius: 10px;
+      background: #ffffff;
+      padding: 0 4px;
+      outline: none;
+    }
+    .spc-step-input:focus {
+      border-color: #0284c7;
+      background: #f0f9ff;
+    }
+
+    /* 빠른 추가 칩 */
+    .spc-quick-chips {
+      display: flex;
+      gap: 6px;
+    }
+    .spc-quick-chips button {
+      flex: 1;
+      padding: 6px 0;
+      font-size: 12px;
+      font-weight: 700;
+      color: #0369a1;
+      background: #f0f9ff;
+      border: 1px solid #bae6fd;
+      border-radius: 6px;
+      cursor: pointer;
+      touch-action: manipulation;
+      transition: all 0.1s;
+    }
+    .spc-quick-chips button:active {
+      background: #bae6fd;
+    }
+    .spc-quick-chips.purple button {
+      color: #7e22ce;
+      background: #faf5ff;
+      border-color: #e9d5ff;
+    }
+    .spc-quick-chips.purple button:active {
+      background: #e9d5ff;
+    }
+    .spc-quick-chips button.chip-zero {
+      color: #94a3b8;
+      background: #f8fafc;
+      border-color: #e2e8f0;
+    }
+
+    /* 상단 토탈 배너 */
+    .spc-totals-banner {
+      position: sticky;
+      top: 10px;
+      z-index: 20;
+      margin-bottom: 14px;
+    }
+    .spc-totals-wrapper {
+      display: flex;
+      gap: 8px;
+      background: #0f172a;
+      padding: 10px 12px;
+      border-radius: 12px;
+      box-shadow: 0 4px 14px rgba(15, 23, 42, 0.25);
+    }
+    .spc-total-pill {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 6px 8px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.08);
+      text-align: center;
+    }
+    .spc-total-pill.pill-162202 {
+      border-left: 3px solid #38bdf8;
+    }
+    .spc-total-pill.pill-241702 {
+      border-left: 3px solid #c084fc;
+    }
+    .spc-total-pill.pill-grand {
+      background: #1e293b;
+      border: 1px solid #475569;
+    }
+    .spc-total-pill .pill-label {
+      font-size: 11px;
+      color: #94a3b8;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .spc-total-pill .pill-value {
+      font-size: 18px;
+      font-weight: 800;
+      color: #ffffff;
+      margin-top: 2px;
+    }
+    .spc-total-pill.pill-grand .pill-value {
+      color: #38bdf8;
+      font-size: 20px;
+    }
+
+    /* 결과 그리드 */
+    .spc-results-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .spc-plan-card {
+      background: #ffffff;
+      border-radius: 12px;
+      border: 1.5px solid #cbd5e1;
+      padding: 14px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    }
+    .spc-plan-card.vacuum-card {
+      border-top: 4px solid #0284c7;
+    }
+    .spc-plan-card.omeat-card {
+      border-top: 4px solid #9333ea;
+    }
+
+    .spc-plan-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+    .spc-plan-title-box {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .spc-plan-title-box h4 {
+      font-size: 16px;
+      font-weight: 800;
+      color: #0f172a;
+    }
+    .spc-weight-guide {
+      font-size: 12px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 6px;
+    }
+    .highlight-blue {
+      background: #e0f2fe;
+      color: #0369a1;
+    }
+    .highlight-purple {
+      background: #f3e8ff;
+      color: #7e22ce;
+    }
+
+    /* 소요 세트 뱃지 */
+    .spc-plan-sets {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 12px;
+      padding: 8px 10px;
+      background: #f8fafc;
+      border-radius: 8px;
+      font-size: 12px;
+    }
+    .spc-sets-label {
+      font-weight: 700;
+      color: #475569;
+    }
+    .spc-prod-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 12px;
+    }
+    .spc-prod-badge.vacuum {
+      background: #e0f2fe;
+      color: #0369a1;
+      border: 1px solid #bae6fd;
+    }
+    .spc-prod-badge.omeat {
+      background: #f3e8ff;
+      color: #7e22ce;
+      border: 1px solid #e9d5ff;
+    }
+    .spc-prod-spec {
+      font-size: 10.5px;
+      color: #64748b;
+      font-style: normal;
+    }
+    .spc-muted-text {
+      color: #94a3b8;
+      font-size: 12px;
+    }
+
+    /* 테이블 */
+    .spc-table-wrapper {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .spc-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13.5px;
+      text-align: left;
+    }
+    .spc-table th,
+    .spc-table td {
+      padding: 9px 8px;
+      border: 1px solid #e2e8f0;
+    }
+    .spc-table th {
+      background: #f1f5f9;
+      font-weight: 700;
+      color: #475569;
+      font-size: 12.5px;
+    }
+    .spc-table tbody tr {
+      cursor: pointer;
+      transition: background 0.1s;
+    }
+    .spc-table tbody tr:hover {
+      background: #f8fafc;
+    }
+    .spc-table tbody tr.row-checked {
+      background: #f0fdf4 !important;
+      color: #166534;
+    }
+    .spc-table tbody tr.row-checked td.cut-name-cell strong {
+      text-decoration: line-through;
+      color: #4b5563;
+    }
+
+    .cut-name-cell {
+      font-weight: 600;
+      color: #0f172a;
+    }
+    .cut-item-note {
+      display: block;
+      font-size: 10.5px;
+      color: #ef4444;
+      font-weight: 600;
+      margin-top: 1px;
+    }
+    .weight-cell {
+      text-align: center;
+      white-space: nowrap;
+    }
+    .special-weight {
+      color: #dc2626;
+      background: #fef2f2;
+      border-radius: 4px;
+    }
+    .weight-230 {
+      color: #7e22ce;
+      font-weight: 700;
+    }
+    .weight-200 {
+      color: #2563eb;
+      font-weight: 700;
+    }
+    .container-cell {
+      text-align: center;
+    }
+    .tiny-container-tag {
+      font-size: 11px;
+      color: #64748b;
+      background: #f1f5f9;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .highlight-col {
+      text-align: center;
+      font-weight: 800;
+      font-size: 15px;
+      white-space: nowrap;
+    }
+    .highlight-col.vacuum {
+      color: #0284c7;
+    }
+    .highlight-col.omeat {
+      color: #9333ea;
+    }
+    .check-col,
+    .check-th {
+      text-align: center;
+      width: 46px;
+    }
+    .spc-check-box {
+      display: inline-flex;
+      width: 24px;
+      height: 24px;
+      border: 2px solid #94a3b8;
+      border-radius: 6px;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      font-weight: 800;
+      color: #16a34a;
+      background: #ffffff;
+      transition: all 0.1s;
+    }
+    .spc-check-box.checked {
+      background: #22c55e;
+      border-color: #22c55e;
+      color: #ffffff;
+    }
+    .all-done-badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 700;
+      color: #16a34a;
+      background: #dcfce7;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .all-done-badge.purple {
+      color: #7e22ce;
+      background: #f3e8ff;
+    }
+
+    .empty-cell {
+      text-align: center;
+      color: #94a3b8;
+      padding: 24px 8px;
+    }
+
+    .spc-table tfoot td {
+      background: #f8fafc;
+      font-size: 13.5px;
+      font-weight: 800;
+      color: #0f172a;
+    }
+
+    /* 배지 */
+    .spc-badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+      white-space: nowrap;
+    }
+    .b-162202 {
+      background: #0284c7;
+      color: #ffffff;
+    }
+    .b-241702 {
+      background: #9333ea;
+      color: #ffffff;
+    }
+
+    /* 하단 툴바 */
+    .spc-footer {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: #ffffff;
+      border-top: 1px solid #e2e8f0;
+      padding: 10px 14px;
+      box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.08);
+      z-index: 30;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .spc-footer-actions {
+      max-width: 960px;
+      margin: 0 auto;
+      width: 100%;
+      display: flex;
+      gap: 8px;
+    }
+    .spc-action-btn {
+      flex: 1;
+      height: 44px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      border: none;
+      text-decoration: none;
+      touch-action: manipulation;
+      transition: opacity 0.15s;
+    }
+    .spc-action-btn.primary {
+      background: #0284c7;
+      color: #ffffff;
+    }
+    .spc-action-btn.secondary {
+      background: #f1f5f9;
+      color: #334155;
+      border: 1px solid #cbd5e1;
+    }
+    .spc-action-btn:active {
+      opacity: 0.85;
+    }
+    .spc-footer-tip {
+      font-size: 10.5px;
+      color: #94a3b8;
+      text-align: center;
+    }
+
+    /* 토스트 팝업 */
+    .spc-toast-popup {
+      position: fixed;
+      bottom: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(15, 23, 42, 0.92);
+      color: #ffffff;
+      padding: 10px 18px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 600;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+      z-index: 50;
+      pointer-events: none;
+      transition: opacity 0.2s, transform 0.2s;
+      text-align: center;
+      white-space: nowrap;
+      opacity: 0;
+      transform: translate(-50%, 10px);
+    }
+    .spc-toast-popup.visible {
+      opacity: 1;
+      transform: translate(-50%, 0);
+    }
+
+    /* 인쇄 전용 스타일 */
+    .print-only {
+      display: none;
+    }
+    @media print {
+      .no-print {
+        display: none !important;
+      }
+      .print-only {
+        display: block !important;
+      }
+      body {
+        padding-bottom: 0;
+        background: #ffffff;
+        color: #000000;
+      }
+      .spc-container {
+        padding: 0;
+      }
+      .spc-print-header {
+        margin-bottom: 12px;
+        border-bottom: 2px solid #000000;
+        padding-bottom: 8px;
+      }
+      .spc-print-header h2 {
+        margin: 0 0 4px;
+        font-size: 20px;
+      }
+      .spc-print-meta {
+        margin: 0;
+        font-size: 12px;
+        color: #444444;
+      }
+      .spc-plan-card {
+        border: 1px solid #999999 !important;
+        box-shadow: none !important;
+        break-inside: avoid;
+        margin-bottom: 16px;
+      }
+      .spc-table th,
+      .spc-table td {
+        border-color: #999999 !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="spc-container">
+    <!-- 상단 헤더 -->
+    <header class="spc-header no-print">
+      <div class="spc-header-top">
+        <div class="spc-brand">
+          <span class="spc-brand-badge">작업장 모바일 전용</span>
+          <h1 class="spc-title">정일품 스킨팩 생산 계산기</h1>
+        </div>
+        <div class="spc-header-actions">
+          <button type="button" class="spc-btn-icon" id="btnWakeLock" title="작업 중 화면 꺼짐 방지 토글">
+            <span class="spc-icon" id="wakeLockIcon">🌙</span>
+            <span class="spc-btn-text" id="wakeLockText">화면유지 OFF</span>
+          </button>
+          <button type="button" class="spc-btn-icon reset" id="btnResetAll" title="수량 전체 초기화">
+            <span class="spc-icon">🔄</span>
+            <span class="spc-btn-text">초기화</span>
+          </button>
+        </div>
+      </div>
+      <p class="spc-subtitle">
+        세트 수량을 입력하면 162202 / 241702 부위별 필요 팩수가 즉시 실시간 계산됩니다.
+      </p>
+    </header>
+
+    <!-- 인쇄 전용 헤더 -->
+    <div class="spc-print-header print-only">
+      <h2>정일품 스킨팩 부위별 생산 작업 지시서</h2>
+      <p class="spc-print-meta">
+        생산 규격: 봉황·팔영 (162202 용기) / 오미트 시그니처·프레스티지 (241702 용기)
+      </p>
+    </div>
+
+    <!-- 세트 수량 입력 컨트롤 섹션 -->
+    <section class="spc-inputs-section no-print">
+      <div class="spc-section-header">
+        <h3>세트 수량 입력</h3>
+        <span class="spc-hint">터치 버튼 또는 숫자를 직접 입력하세요</span>
+      </div>
+
+      <div class="spc-inputs-grid">
+        <!-- 1. 봉황세트 -->
+        <div class="spc-input-card card-bonghwang">
+          <div class="spc-card-title-row">
+            <div class="spc-card-meta">
+              <span class="spc-badge b-162202">162202 용기</span>
+              <h4>봉황세트</h4>
+            </div>
+            <span class="spc-set-spec-tag">1,000g (5팩)</span>
+          </div>
+          <div class="spc-card-details">
+            치마·갈비·부채·제비 180g / 차돌박이 280g
+          </div>
+          <div class="spc-stepper">
+            <button type="button" class="spc-step-btn minus" data-key="bonghwang" data-delta="-1" aria-label="봉황 1개 감소">-</button>
+            <input type="number" inputmode="numeric" pattern="[0-9]*" min="0" class="spc-step-input" id="input_bonghwang" placeholder="0" value="" />
+            <button type="button" class="spc-step-btn plus" data-key="bonghwang" data-delta="1" aria-label="봉황 1개 증가">+</button>
+          </div>
+          <div class="spc-quick-chips">
+            <button type="button" data-key="bonghwang" data-delta="1">+1</button>
+            <button type="button" data-key="bonghwang" data-delta="5">+5</button>
+            <button type="button" data-key="bonghwang" data-delta="10">+10</button>
+            <button type="button" class="chip-zero" data-key="bonghwang" data-set="0">0개</button>
+          </div>
+        </div>
+
+        <!-- 2. 팔영세트 -->
+        <div class="spc-input-card card-palyeong">
+          <div class="spc-card-title-row">
+            <div class="spc-card-meta">
+              <span class="spc-badge b-162202">162202 용기</span>
+              <h4>팔영세트</h4>
+            </div>
+            <span class="spc-set-spec-tag">1,260g (7팩)</span>
+          </div>
+          <div class="spc-card-details">
+            치마·업진·부채·갈비·살치·제비·채끝 180g (7부위)
+          </div>
+          <div class="spc-stepper">
+            <button type="button" class="spc-step-btn minus" data-key="palyeong" data-delta="-1" aria-label="팔영 1개 감소">-</button>
+            <input type="number" inputmode="numeric" pattern="[0-9]*" min="0" class="spc-step-input" id="input_palyeong" placeholder="0" value="" />
+            <button type="button" class="spc-step-btn plus" data-key="palyeong" data-delta="1" aria-label="팔영 1개 증가">+</button>
+          </div>
+          <div class="spc-quick-chips">
+            <button type="button" data-key="palyeong" data-delta="1">+1</button>
+            <button type="button" data-key="palyeong" data-delta="5">+5</button>
+            <button type="button" data-key="palyeong" data-delta="10">+10</button>
+            <button type="button" class="chip-zero" data-key="palyeong" data-set="0">0개</button>
+          </div>
+        </div>
+
+        <!-- 3. 오미트 시그니처 -->
+        <div class="spc-input-card card-signature">
+          <div class="spc-card-title-row">
+            <div class="spc-card-meta">
+              <span class="spc-badge b-241702">241702 용기</span>
+              <h4>오미트 시그니처</h4>
+            </div>
+            <span class="spc-set-spec-tag purple">1,300g (6팩)</span>
+          </div>
+          <div class="spc-card-details">
+            치마·부채·갈비·제비·채끝 200g / 차돌박이 300g
+          </div>
+          <div class="spc-stepper">
+            <button type="button" class="spc-step-btn minus" data-key="signature" data-delta="-1" aria-label="시그니처 1개 감소">-</button>
+            <input type="number" inputmode="numeric" pattern="[0-9]*" min="0" class="spc-step-input" id="input_signature" placeholder="0" value="" />
+            <button type="button" class="spc-step-btn plus" data-key="signature" data-delta="1" aria-label="시그니처 1개 증가">+</button>
+          </div>
+          <div class="spc-quick-chips purple">
+            <button type="button" data-key="signature" data-delta="1">+1</button>
+            <button type="button" data-key="signature" data-delta="5">+5</button>
+            <button type="button" data-key="signature" data-delta="10">+10</button>
+            <button type="button" class="chip-zero" data-key="signature" data-set="0">0개</button>
+          </div>
+        </div>
+
+        <!-- 4. 오미트 프레스티지 -->
+        <div class="spc-input-card card-prestige">
+          <div class="spc-card-title-row">
+            <div class="spc-card-meta">
+              <span class="spc-badge b-241702">241702 용기</span>
+              <h4>오미트 프레스티지</h4>
+            </div>
+            <span class="spc-set-spec-tag purple">1,380g (6팩)</span>
+          </div>
+          <div class="spc-card-details">
+            부채·업진·갈비·살치·채끝·안창 230g (6부위)
+          </div>
+          <div class="spc-stepper">
+            <button type="button" class="spc-step-btn minus" data-key="prestige" data-delta="-1" aria-label="프레스티지 1개 감소">-</button>
+            <input type="number" inputmode="numeric" pattern="[0-9]*" min="0" class="spc-step-input" id="input_prestige" placeholder="0" value="" />
+            <button type="button" class="spc-step-btn plus" data-key="prestige" data-delta="1" aria-label="프레스티지 1개 증가">+</button>
+          </div>
+          <div class="spc-quick-chips purple">
+            <button type="button" data-key="prestige" data-delta="1">+1</button>
+            <button type="button" data-key="prestige" data-delta="5">+5</button>
+            <button type="button" data-key="prestige" data-delta="10">+10</button>
+            <button type="button" class="chip-zero" data-key="prestige" data-set="0">0개</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 상단 토탈 배너 -->
+    <section class="spc-totals-banner">
+      <div class="spc-totals-wrapper">
+        <div class="spc-total-pill pill-162202">
+          <span class="pill-label">162202 (봉황·팔영)</span>
+          <span class="pill-value" id="badge_total_162202">0팩</span>
+        </div>
+        <div class="spc-total-pill pill-241702">
+          <span class="pill-label">241702 (오미트)</span>
+          <span class="pill-value" id="badge_total_241702">0팩</span>
+        </div>
+        <div class="spc-total-pill pill-grand">
+          <span class="pill-label">총 스킨팩 합계</span>
+          <span class="pill-value" id="badge_total_grand">0팩</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 결과 카드 그리드 -->
+    <main class="spc-results-grid">
+      <!-- [카드 1] 162202 용기 스킨팩 준비 (봉황·팔영 세트) -->
+      <div class="spc-plan-card vacuum-card">
+        <div class="spc-plan-card-header">
+          <div class="spc-plan-title-box">
+            <span class="spc-badge b-162202">162202 용기</span>
+            <h4>봉황·팔영 진공 스킨팩</h4>
+          </div>
+          <span class="spc-weight-guide highlight-blue">일반 180g / 차돌 280g</span>
+        </div>
+
+        <div class="spc-plan-sets" id="sets_container_vacuum">
+          <span class="spc-sets-label">소요 세트:</span>
+          <span class="spc-muted-text">봉황/팔영 세트 입력 없음</span>
+        </div>
+
+        <div class="spc-table-wrapper">
+          <table class="spc-table vacuum-table">
+            <thead>
+              <tr>
+                <th scope="col">부위명</th>
+                <th scope="col" class="weight-th">실측 중량</th>
+                <th scope="col" class="container-th">용기</th>
+                <th scope="col" class="highlight-col vacuum">필요 팩수</th>
+                <th scope="col" class="check-th">
+                  확인 <span class="spc-check-ratio" id="ratio_162202">(0/0)</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody id="tbody_162202">
+              <tr>
+                <td colspan="5" class="empty-cell">162202 용기 스킨팩 대상 세트(봉황·팔영) 수량이 0개입니다.</td>
+              </tr>
+            </tbody>
+            <tfoot id="tfoot_162202" style="display: none;">
+              <tr>
+                <td colspan="3"><strong>162202 용기 합계</strong></td>
+                <td class="highlight-col vacuum"><strong id="tfoot_total_162202">0팩</strong></td>
+                <td class="check-col" id="tfoot_check_162202">✓</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+
+      <!-- [카드 2] 241702 용기 오미트팩 준비 (시그니처·프레스티지) -->
+      <div class="spc-plan-card omeat-card">
+        <div class="spc-plan-card-header">
+          <div class="spc-plan-title-box">
+            <span class="spc-badge b-241702">241702 용기</span>
+            <h4>오미트(O'meat) 전용팩</h4>
+          </div>
+          <span class="spc-weight-guide highlight-purple">시그니처 200g(차돌300g) / 프레스티지 230g</span>
+        </div>
+
+        <div class="spc-plan-sets" id="sets_container_omeat">
+          <span class="spc-sets-label">소요 세트:</span>
+          <span class="spc-muted-text">오미트 예약/수량 없음</span>
+        </div>
+
+        <div class="spc-table-wrapper">
+          <table class="spc-table omeat-table">
+            <thead>
+              <tr>
+                <th scope="col">부위명</th>
+                <th scope="col" class="weight-th">실측 중량</th>
+                <th scope="col" class="container-th">용기</th>
+                <th scope="col" class="highlight-col omeat">필요 팩수</th>
+                <th scope="col" class="check-th">
+                  확인 <span class="spc-check-ratio" id="ratio_241702">(0/0)</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody id="tbody_241702">
+              <tr>
+                <td colspan="5" class="empty-cell">241702 용기 오미트 세트(시그니처·프레스티지) 수량이 0개입니다.</td>
+              </tr>
+            </tbody>
+            <tfoot id="tfoot_241702" style="display: none;">
+              <tr>
+                <td colspan="3"><strong>241702 용기 합계</strong></td>
+                <td class="highlight-col omeat"><strong id="tfoot_total_241702">0팩</strong></td>
+                <td class="check-col" id="tfoot_check_241702">✓</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    </main>
+
+    <!-- 하단 고정 툴바 -->
+    <footer class="spc-footer no-print">
+      <div class="spc-footer-actions">
+        <button type="button" class="spc-action-btn primary" id="btnCopyShare">📋 작업 지시 복사</button>
+        <button type="button" class="spc-action-btn secondary" id="btnPrint">🖨️ 인쇄 / PDF</button>
+      </div>
+      <div class="spc-footer-tip">
+        Tip: 모바일 브라우저 메뉴에서 &lsquo;홈 화면에 추가&rsquo;를 누르면 앱처럼 단독 실행됩니다.
+      </div>
+    </footer>
+
+    <!-- 토스트 알림창 -->
+    <div class="spc-toast-popup" id="toastPopup">토스트 메시지</div>
+  </div>
+
+  <script>
+    (function () {
+      var state = {
+        bonghwang: 0,
+        palyeong: 0,
+        signature: 0,
+        prestige: 0,
+        checked: {},
+        wakeLock: null,
+        wakeLockActive: false
+      };
+
+      var PREFERRED_CUT_ORDER = [
+        "치마살",
+        "갈비살",
+        "부채살",
+        "업진살",
+        "살치살",
+        "제비추리",
+        "채끝",
+        "안창살",
+        "차돌박이"
+      ];
+
+      function sortCuts(a, b) {
+        var ia = PREFERRED_CUT_ORDER.indexOf(a);
+        var ib = PREFERRED_CUT_ORDER.indexOf(b);
+        if (ia !== -1 && ib !== -1) return ia - ib;
+        if (ia !== -1) return -1;
+        if (ib !== -1) return 1;
+        return a.localeCompare(b, "ko");
+      }
+
+      function sortItems(a, b) {
+        var diff = sortCuts(a.cutName, b.cutName);
+        if (diff !== 0) return diff;
+        return a.weight.localeCompare(b.weight, "ko");
+      }
+
+      function calculate(raw) {
+        var bh = Math.max(0, parseInt(raw.bonghwang, 10) || 0);
+        var py = Math.max(0, parseInt(raw.palyeong, 10) || 0);
+        var sg = Math.max(0, parseInt(raw.signature, 10) || 0);
+        var pr = Math.max(0, parseInt(raw.prestige, 10) || 0);
+
+        var map162202 = {};
+        function add16(cutName, weight, packs, note) {
+          if (packs <= 0) return;
+          var key = cutName + "_" + weight;
+          if (map162202[key]) {
+            map162202[key].packs += packs;
+          } else {
+            map162202[key] = {
+              id: "162202-" + key,
+              cutName: cutName,
+              weight: weight,
+              container: "162202",
+              packs: packs,
+              note: note
+            };
+          }
+        }
+
+        if (bh > 0) {
+          add16("치마살", "180g", bh);
+          add16("갈비살", "180g", bh);
+          add16("부채살", "180g", bh);
+          add16("제비추리", "180g", bh);
+          add16("차돌박이", "280g", bh, "차돌박이 대용량 280g");
+        }
+
+        if (py > 0) {
+          add16("치마살", "180g", py);
+          add16("업진살", "180g", py);
+          add16("부채살", "180g", py);
+          add16("갈비살", "180g", py);
+          add16("살치살", "180g", py);
+          add16("제비추리", "180g", py);
+          add16("채끝", "180g", py);
+        }
+
+        var map241702 = {};
+        function add24(cutName, weight, packs, note) {
+          if (packs <= 0) return;
+          var key = cutName + "_" + weight;
+          if (map241702[key]) {
+            map241702[key].packs += packs;
+          } else {
+            map241702[key] = {
+              id: "241702-" + key,
+              cutName: cutName,
+              weight: weight,
+              container: "241702",
+              packs: packs,
+              note: note
+            };
+          }
+        }
+
+        if (sg > 0) {
+          add24("치마살", "200g", sg);
+          add24("갈비살", "200g", sg);
+          add24("부채살", "200g", sg);
+          add24("제비추리", "200g", sg);
+          add24("채끝", "200g", sg);
+          add24("차돌박이", "300g", sg, "오미트 차돌박이 300g");
+        }
+
+        if (pr > 0) {
+          add24("갈비살", "230g", pr);
+          add24("부채살", "230g", pr);
+          add24("업진살", "230g", pr);
+          add24("살치살", "230g", pr);
+          add24("채끝", "230g", pr);
+          add24("안창살", "230g", pr);
+        }
+
+        var list16 = Object.values(map162202).sort(sortItems);
+        var list24 = Object.values(map241702).sort(sortItems);
+
+        var total16 = list16.reduce(function (s, i) { return s + i.packs; }, 0);
+        var total24 = list24.reduce(function (s, i) { return s + i.packs; }, 0);
+
+        return {
+          bh: bh,
+          py: py,
+          sg: sg,
+          pr: pr,
+          list16: list16,
+          list24: list24,
+          total16: total16,
+          total24: total24,
+          totalAll: total16 + total24
+        };
+      }
+
+      function showToast(msg) {
+        var el = document.getElementById("toastPopup");
+        el.textContent = msg;
+        el.classList.add("visible");
+        clearTimeout(el._timer);
+        el._timer = setTimeout(function () {
+          el.classList.remove("visible");
+        }, 2200);
+      }
+
+      function render() {
+        var res = calculate(state);
+
+        // 상단 배지
+        document.getElementById("badge_total_162202").textContent = res.total16 + "팩";
+        document.getElementById("badge_total_241702").textContent = res.total24 + "팩";
+        document.getElementById("badge_total_grand").textContent = res.totalAll + "팩";
+
+        // 소요 세트 뱃지 (진공)
+        var setsVacEl = document.getElementById("sets_container_vacuum");
+        var vacHtml = '<span class="spc-sets-label">소요 세트:</span>';
+        if (res.bh === 0 && res.py === 0) {
+          vacHtml += '<span class="spc-muted-text">봉황/팔영 세트 입력 없음</span>';
+        } else {
+          if (res.bh > 0) {
+            vacHtml += '<span class="spc-prod-badge vacuum"><strong>봉황세트 ' + res.bh + '개</strong><em class="spc-prod-spec">(1,000g (5팩) · [162202 × 5])</em></span>';
+          }
+          if (res.py > 0) {
+            vacHtml += '<span class="spc-prod-badge vacuum"><strong>팔영세트 ' + res.py + '개</strong><em class="spc-prod-spec">(1,260g (7팩) · [162202 × 7])</em></span>';
+          }
+        }
+        setsVacEl.innerHTML = vacHtml;
+
+        // 소요 세트 뱃지 (오미트)
+        var setsOmEl = document.getElementById("sets_container_omeat");
+        var omHtml = '<span class="spc-sets-label">소요 세트:</span>';
+        if (res.sg === 0 && res.pr === 0) {
+          omHtml += '<span class="spc-muted-text">오미트 예약/수량 없음</span>';
+        } else {
+          if (res.sg > 0) {
+            omHtml += '<span class="spc-prod-badge omeat"><strong>오미트 시그니처 ' + res.sg + '개</strong><em class="spc-prod-spec">(1,300g (6팩))</em></span>';
+          }
+          if (res.pr > 0) {
+            omHtml += '<span class="spc-prod-badge omeat"><strong>오미트 프레스티지 ' + res.pr + '개</strong><em class="spc-prod-spec">(1,380g (6팩))</em></span>';
+          }
+        }
+        setsOmEl.innerHTML = omHtml;
+
+        // 162202 테이블
+        var tbody16 = document.getElementById("tbody_162202");
+        var tfoot16 = document.getElementById("tfoot_162202");
+        var checked16 = 0;
+        if (res.list16.length === 0) {
+          tbody16.innerHTML = '<tr><td colspan="5" class="empty-cell">162202 용기 스킨팩 대상 세트(봉황·팔영) 수량이 0개입니다.</td></tr>';
+          tfoot16.style.display = "none";
+          document.getElementById("ratio_162202").textContent = "(0/0)";
+        } else {
+          var h16 = "";
+          res.list16.forEach(function (item) {
+            var isChk = !!state.checked[item.id];
+            if (isChk) checked16++;
+            var rowClass = isChk ? "row-checked" : "";
+            var noteHtml = item.note ? '<span class="cut-item-note">(' + item.note + ')</span>' : '';
+            var wClass = item.weight === "280g" ? "special-weight" : "";
+            var chkBoxClass = isChk ? "spc-check-box checked" : "spc-check-box";
+            var chkMark = isChk ? "✓" : "";
+
+            h16 += '<tr class="' + rowClass + '" data-check-id="' + item.id + '">';
+            h16 += '<td class="cut-name-cell"><strong>' + item.cutName + '</strong>' + noteHtml + '</td>';
+            h16 += '<td class="weight-cell ' + wClass + '"><strong>' + item.weight + '</strong></td>';
+            h16 += '<td class="container-cell"><span class="tiny-container-tag">' + item.container + '</span></td>';
+            h16 += '<td class="highlight-col vacuum"><strong>' + item.packs + '팩</strong></td>';
+            h16 += '<td class="check-col"><span class="' + chkBoxClass + '">' + chkMark + '</span></td>';
+            h16 += '</tr>';
+          });
+          tbody16.innerHTML = h16;
+          tfoot16.style.display = "";
+          document.getElementById("tfoot_total_162202").textContent = res.total16 + "팩";
+          document.getElementById("ratio_162202").textContent = "(" + checked16 + "/" + res.list16.length + ")";
+          document.getElementById("tfoot_check_162202").innerHTML = (checked16 === res.list16.length) ? '<span class="all-done-badge">완료</span>' : '✓';
+        }
+
+        // 241702 테이블
+        var tbody24 = document.getElementById("tbody_241702");
+        var tfoot24 = document.getElementById("tfoot_241702");
+        var checked24 = 0;
+        if (res.list24.length === 0) {
+          tbody24.innerHTML = '<tr><td colspan="5" class="empty-cell">241702 용기 오미트 세트(시그니처·프레스티지) 수량이 0개입니다.</td></tr>';
+          tfoot24.style.display = "none";
+          document.getElementById("ratio_241702").textContent = "(0/0)";
+        } else {
+          var h24 = "";
+          res.list24.forEach(function (item) {
+            var isChk = !!state.checked[item.id];
+            if (isChk) checked24++;
+            var rowClass = isChk ? "row-checked" : "";
+            var noteHtml = item.note ? '<span class="cut-item-note">(' + item.note + ')</span>' : '';
+            var wClass = item.weight === "300g" ? "special-weight" : (item.weight === "230g" ? "weight-230" : "weight-200");
+            var chkBoxClass = isChk ? "spc-check-box checked" : "spc-check-box";
+            var chkMark = isChk ? "✓" : "";
+
+            h24 += '<tr class="' + rowClass + '" data-check-id="' + item.id + '">';
+            h24 += '<td class="cut-name-cell"><strong>' + item.cutName + '</strong>' + noteHtml + '</td>';
+            h24 += '<td class="weight-cell ' + wClass + '"><strong>' + item.weight + '</strong></td>';
+            h24 += '<td class="container-cell"><span class="tiny-container-tag">' + item.container + '</span></td>';
+            h24 += '<td class="highlight-col omeat"><strong>' + item.packs + '팩</strong></td>';
+            h24 += '<td class="check-col"><span class="' + chkBoxClass + '">' + chkMark + '</span></td>';
+            h24 += '</tr>';
+          });
+          tbody24.innerHTML = h24;
+          tfoot24.style.display = "";
+          document.getElementById("tfoot_total_241702").textContent = res.total24 + "팩";
+          document.getElementById("ratio_241702").textContent = "(" + checked24 + "/" + res.list24.length + ")";
+          document.getElementById("tfoot_check_241702").innerHTML = (checked24 === res.list24.length) ? '<span class="all-done-badge purple">완료</span>' : '✓';
+        }
+      }
+
+      // 이벤트 리스너 바인딩
+      ["bonghwang", "palyeong", "signature", "prestige"].forEach(function (key) {
+        var input = document.getElementById("input_" + key);
+        input.addEventListener("input", function (e) {
+          var val = parseInt(e.target.value, 10);
+          state[key] = isNaN(val) || val < 0 ? 0 : val;
+          render();
+        });
+      });
+
+      // 빠른 증감 버튼
+      document.addEventListener("click", function (e) {
+        var btn = e.target.closest("button");
+        if (!btn) {
+          // 테이블 행 클릭 시 체크 토글
+          var tr = e.target.closest("tr[data-check-id]");
+          if (tr) {
+            var cid = tr.getAttribute("data-check-id");
+            state.checked[cid] = !state.checked[cid];
+            render();
+          }
+          return;
+        }
+
+        var key = btn.getAttribute("data-key");
+        var delta = btn.getAttribute("data-delta");
+        var setVal = btn.getAttribute("data-set");
+
+        if (key && delta !== null) {
+          var d = parseInt(delta, 10);
+          state[key] = Math.max(0, (state[key] || 0) + d);
+          document.getElementById("input_" + key).value = state[key] > 0 ? state[key] : "";
+          render();
+        } else if (key && setVal !== null) {
+          state[key] = parseInt(setVal, 10);
+          document.getElementById("input_" + key).value = state[key] > 0 ? state[key] : "";
+          render();
+        }
+      });
+
+      // 전체 초기화
+      document.getElementById("btnResetAll").addEventListener("click", function () {
+        if (state.bonghwang === 0 && state.palyeong === 0 && state.signature === 0 && state.prestige === 0) {
+          state.checked = {};
+          render();
+          showToast("이미 수량이 0입니다.");
+          return;
+        }
+        if (confirm("모든 세트 수량과 체크 표시를 초기화하시겠습니까?")) {
+          state.bonghwang = 0;
+          state.palyeong = 0;
+          state.signature = 0;
+          state.prestige = 0;
+          state.checked = {};
+          ["bonghwang", "palyeong", "signature", "prestige"].forEach(function (k) {
+            document.getElementById("input_" + k).value = "";
+          });
+          render();
+          showToast("모든 수량이 초기화되었습니다.");
+        }
+      });
+
+      // 작업 지시 복사
+      document.getElementById("btnCopyShare").addEventListener("click", function () {
+        var res = calculate(state);
+        if (res.totalAll === 0) {
+          showToast("수량을 1개 이상 입력해주세요.");
+          return;
+        }
+
+        var lines = [];
+        lines.push("📋 [정일품 스킨팩 작업 지시]");
+        var sets = [];
+        if (res.bh > 0) sets.push("봉황 " + res.bh + "개");
+        if (res.py > 0) sets.push("팔영 " + res.py + "개");
+        if (res.sg > 0) sets.push("오미트 시그니처 " + res.sg + "개");
+        if (res.pr > 0) sets.push("오미트 프레스티지 " + res.pr + "개");
+        lines.push("• 소요 세트: " + sets.join(" / "));
+        lines.push("• 총 스킨팩: " + res.totalAll + "팩 (162202: " + res.total16 + "팩 / 241702: " + res.total24 + "팩)");
+        lines.push("");
+
+        if (res.list16.length > 0) {
+          lines.push("[162202 용기 봉황·팔영] 총 " + res.total16 + "팩");
+          res.list16.forEach(function (item) {
+            var n = item.note ? " (" + item.note + ")" : "";
+            lines.push("- " + item.cutName + " " + item.weight + ": " + item.packs + "팩" + n);
+          });
+          lines.push("");
+        }
+
+        if (res.list24.length > 0) {
+          lines.push("[241702 용기 오미트] 총 " + res.total24 + "팩");
+          res.list24.forEach(function (item) {
+            var n = item.note ? " (" + item.note + ")" : "";
+            lines.push("- " + item.cutName + " " + item.weight + ": " + item.packs + "팩" + n);
+          });
+        }
+
+        var shareText = lines.join("\n").trim();
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(shareText).then(function () {
+            showToast("작업 지시 텍스트가 복사되었습니다!");
+          }).catch(function () {
+            copyFallback(shareText);
+          });
+        } else {
+          copyFallback(shareText);
+        }
+      });
+
+      function copyFallback(text) {
+        var ta = document.createElement("textarea");
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+        showToast("작업 지시 텍스트가 복사되었습니다!");
+      }
+
+      // 인쇄
+      document.getElementById("btnPrint").addEventListener("click", function () {
+        window.print();
+      });
+
+      // 화면 켜짐 유지 (Wake Lock)
+      var wakeLockBtn = document.getElementById("btnWakeLock");
+      var wakeLockIcon = document.getElementById("wakeLockIcon");
+      var wakeLockText = document.getElementById("wakeLockText");
+
+      wakeLockBtn.addEventListener("click", function () {
+        if (!("wakeLock" in navigator)) {
+          showToast("이 기기에서는 화면 켜짐 유지를 지원하지 않습니다.");
+          return;
+        }
+
+        if (state.wakeLockActive && state.wakeLock) {
+          state.wakeLock.release().then(function () {
+            state.wakeLock = null;
+            state.wakeLockActive = false;
+            wakeLockBtn.classList.remove("active");
+            wakeLockIcon.textContent = "🌙";
+            wakeLockText.textContent = "화면유지 OFF";
+            showToast("화면 켜짐 유지가 해제되었습니다.");
+          });
+        } else {
+          navigator.wakeLock.request("screen").then(function (sentinel) {
+            state.wakeLock = sentinel;
+            state.wakeLockActive = true;
+            wakeLockBtn.classList.add("active");
+            wakeLockIcon.textContent = "💡";
+            wakeLockText.textContent = "화면유지 ON";
+            showToast("화면 켜짐 유지가 활성화되었습니다.");
+
+            sentinel.addEventListener("release", function () {
+              state.wakeLockActive = false;
+              state.wakeLock = null;
+              wakeLockBtn.classList.remove("active");
+              wakeLockIcon.textContent = "🌙";
+              wakeLockText.textContent = "화면유지 OFF";
+            });
+          }).catch(function () {
+            showToast("화면 켜짐 유지 활성화 실패");
+          });
+        }
+      });
+
+      // 초기 렌더링
+      render();
+    })();
+  </script>
+</body>
+</html>
