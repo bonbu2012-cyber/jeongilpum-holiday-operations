@@ -15,7 +15,7 @@ type WorkItemRow = {
   order_paid_amount: number;
   order_total_amount: number;
   order_id: string;
-  order_number: string;
+  order_no: string;
   customer_name: string;
   customer_phone: string;
   customer_note: string;
@@ -107,7 +107,7 @@ export async function GET(request: NextRequest) {
       o.paid_amount AS order_paid_amount,
       o.total_amount AS order_total_amount,
       w.order_id,
-      o.order_number,
+      o.order_no,
       o.buyer_name_snapshot AS customer_name,
       o.buyer_phone_snapshot AS customer_phone,
       o.customer_note,
@@ -139,7 +139,8 @@ export async function GET(request: NextRequest) {
     rows = (result.results || []) as WorkItemRow[];
   } catch (err) {
     console.error("[product-stats-export] Query error:", err);
-    return NextResponse.json({ error: "판매 통계 데이터를 조회하지 못했습니다." }, { status: 500 });
+    const msg = err instanceof Error ? err.message : "판매 통계 데이터를 조회하지 못했습니다.";
+    return NextResponse.json({ error: `판매 통계 데이터를 조회하지 못했습니다. (${msg})` }, { status: 500 });
   }
 
   // 데이터 집계
@@ -751,7 +752,7 @@ export async function GET(request: NextRequest) {
 
     row.getCell(1).value = baseDate || "";
     row.getCell(2).value = r.submitted_at ? r.submitted_at.replace("T", " ") : "";
-    row.getCell(3).value = r.order_number || "";
+    row.getCell(3).value = r.order_no || "";
     row.getCell(4).value = r.customer_name || "";
     row.getCell(5).value = r.customer_phone || "";
     row.getCell(6).value = formatFulfillmentMethod(r.fulfillment_type);
