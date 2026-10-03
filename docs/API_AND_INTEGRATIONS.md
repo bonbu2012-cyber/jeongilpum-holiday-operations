@@ -17,7 +17,8 @@
 | POST | `/api/orders` | main kiosk 주문 원자적 생성 | 공개 |
 | GET | `/api/orders` | 날짜별 주문·검색·상세 데이터 | 운영자 |
 | POST | `/api/orders/fulfillment` | legacy 주문 일정 지정 | 운영자 |
-| GET | `/api/sales/product-stats` | 일자별/기간별 상품 판매 통계(수량,금액,결제현황) | 운영자 |
+| GET | `/api/sales/product-stats` | 일자별/기간별 상품 판매 통계 및 일자별 리스트(수량,금액,결제현황) | 운영자 |
+| GET | `/api/sales/product-stats/export` | 상품 판매 통계 종합 및 일자별·주문별 실무 엑셀(.xlsx) 내보내기 | 운영자 |
 | POST/DELETE | `/api/operator-session` | 운영 세션 생성·삭제 | 공개 |
 | GET | `/api/customer-ledger` | 고객 장부 목록·상세·미수·선수금 조회 | 운영자 |
 | POST | `/api/customer-ledger/transactions` | 고객 결제와 원본 보존 정정 | 운영자 |

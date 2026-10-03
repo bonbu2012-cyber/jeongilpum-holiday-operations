@@ -42,5 +42,47 @@ test("stats API source file exists and verifies parameter validation, column nam
   assert.match(source, /grandTotalQty/);
   assert.match(source, /grandTotalAmount/);
   assert.match(source, /paymentBreakdown/);
+  assert.match(source, /dailyList/);
+  assert.match(source, /dayOfWeek/);
+  assert.match(source, /sortedDates/);
 });
 
+test("stats export API route exists and verifies ExcelJS workbook with 3 worksheets, styling, and operator auth", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const source = await readFile(new URL("../app/api/sales/product-stats/export/route.ts", import.meta.url), "utf8");
+
+  assert.match(source, /requireOperatorApi/);
+  assert.match(source, /ExcelJS\.Workbook/);
+  assert.match(source, /workbook\.addWorksheet\("종합_상품별통계"\)/);
+  assert.match(source, /workbook\.addWorksheet\("일자별_판매리스트"\)/);
+  assert.match(source, /workbook\.addWorksheet\("주문_상세내역"\)/);
+  assert.match(source, /application\/vnd\.openxmlformats-officedocument\.spreadsheetml\.sheet/);
+  assert.match(source, /attachment; filename=/);
+  assert.match(source, /w\.work_status != 'cancelled'/);
+  assert.match(source, /o\.order_status != 'cancelled'/);
+  assert.match(source, /writeBuffer/);
+});
+
+test("ProductSalesStatsModal includes daily list tab, date accordion toggle, and Excel download action", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const modalSource = await readFile(new URL("../app/components/ProductSalesStatsModal.tsx", import.meta.url), "utf8");
+  const cssSource = await readFile(new URL("../app/sales/product-stats.css", import.meta.url), "utf8");
+
+  // 모달 탭 및 기능 검증
+  assert.match(modalSource, /일자별 판매 리스트/);
+  assert.match(modalSource, /downloadExcel/);
+  assert.match(modalSource, /\/api\/sales\/product-stats\/export\?/);
+  assert.match(modalSource, /product-stats-excel-btn/);
+  assert.match(modalSource, /📥 엑셀/);
+  assert.match(modalSource, /toggleDateCollapse/);
+  assert.match(modalSource, /setAllDatesCollapse/);
+  assert.match(modalSource, /기간 전체 누적 합계/);
+
+  // CSS 스타일 검증
+  assert.match(cssSource, /\.product-stats-excel-btn/);
+  assert.match(cssSource, /\.product-stats-main-tabs/);
+  assert.match(cssSource, /\.product-stats-daily-container/);
+  assert.match(cssSource, /\.product-stats-daily-card/);
+  assert.match(cssSource, /\.product-stats-daily-header/);
+  assert.match(cssSource, /\.product-stats-daily-grand-bar/);
+});

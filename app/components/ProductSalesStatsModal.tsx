@@ -31,6 +31,21 @@ type PaymentBreakdown = {
   unpaidAmount: number;
 };
 
+type DailyStat = {
+  date: string;
+  dayOfWeek: string;
+  totalOrders: number;
+  totalProductKinds: number;
+  totalQuantity: number;
+  totalAmount: number;
+  paidOrders: number;
+  paidAmount: number;
+  unpaidOrders: number;
+  unpaidAmount: number;
+  categories: CategoryStat[];
+  products: ProductStat[];
+};
+
 type StatsResponse = {
   startDate: string;
   endDate: string;
@@ -44,6 +59,7 @@ type StatsResponse = {
     paymentBreakdown: PaymentBreakdown;
   };
   categories: CategoryStat[];
+  dailyList?: DailyStat[];
 };
 
 const won = (value: number) => value.toLocaleString("ko-KR") + "원";
@@ -70,13 +86,16 @@ export default function ProductSalesStatsModal({
 }) {
   const [mode, setMode] = useState<"day" | "period">("day");
   const [dateType, setDateType] = useState<"due" | "reception">("due");
+  const [activeTab, setActiveTab] = useState<"overview" | "daily">("overview");
   const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
   const [startDate, setStartDate] = useState(() => initialDate || todayInSeoul());
   const [endDate, setEndDate] = useState(() => initialDate || todayInSeoul());
   const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [error, setError] = useState("");
   const [data, setData] = useState<StatsResponse | null>(null);
   const [copyFeedback, setCopyFeedback] = useState(false);
+  const [collapsedDates, setCollapsedDates] = useState<Record<string, boolean>>({});
 
   const [prevDateProp, setPrevDateProp] = useState(initialDate);
   if (initialDate !== prevDateProp) {
@@ -127,10 +146,15 @@ export default function ProductSalesStatsModal({
     setMode(newMode);
     if (newMode === "day") {
       setEndDate(startDate);
+    } else {
+      // 기간별 선택 시 일자별 리스트 탭을 권장하거나 기본 선택 가능
+      if (activeTab === "daily") {
+        // 이미 daily 탭이면 유지
+      }
     }
   };
 
-  const setPreset = (type: "today" | "yesterday" | "week" | "month") => {
+  const setPreset = (type: "today" | "yesterday" | "week" | "month" | "holiday") => {
     const today = todayInSeoul();
     if (type === "today") {
       setMode("day");
@@ -157,9 +181,65 @@ export default function ProductSalesStatsModal({
       const past = d.toISOString().slice(0, 10);
       setStartDate(past);
       setEndDate(today);
+    } else if (type === "holiday") {
+      // 명절 성수기 2주 전후 조회
+      setMode("period");
+      const d = new Date();
+      d.setDate(d.getDate() - 14);
+      const past = d.toISOString().slice(0, 10);
+      setStartDate(past);
+      setEndDate(today);
     }
   };
 
+  const toggleDateCollapse = (dateStr: string) => {
+    setCollapsedDates((prev) => ({
+      ...prev,
+      [dateStr]: !prev[dateStr],
+    }));
+  };
+
+  const setAllDatesCollapse = (collapsed: boolean) => {
+    if (!data?.dailyList) return;
+    const next: Record<string, boolean> = {};
+    for (const d of data.dailyList) {
+      next[d.date] = collapsed;
+    }
+    setCollapsedDates(next);
+  };
+
+  // 엑셀(.xlsx) 다운로드 실행
+  const downloadExcel = async () => {
+    if (exporting) return;
+    const targetEnd = mode === "day" ? startDate : endDate;
+    const exportUrl = `/api/sales/product-stats/export?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(targetEnd)}&dateType=${dateType}`;
+
+    setExporting(true);
+    try {
+      const res = await fetch(exportUrl);
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => null) as { error?: string } | null;
+        throw new Error(errJson?.error || "엑셀 다운로드에 실패했습니다.");
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      const fileDateStr = startDate === targetEnd ? startDate : `${startDate}_${targetEnd}`;
+      anchor.href = url;
+      anchor.download = `정일품_판매통계_일자별리스트_${fileDateStr}.xlsx`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "엑셀 다운로드 중 오류가 발생했습니다.");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  // 클립보드 텍스트 복사
   const copySummaryText = () => {
     if (!data) return;
     const dateLabel = mode === "day"
@@ -173,12 +253,24 @@ export default function ProductSalesStatsModal({
     if (data.summary.paymentBreakdown) {
       text += `· 결제 현황: 결제완료 ${data.summary.paymentBreakdown.paidOrders}건 (${won(data.summary.paymentBreakdown.paidAmount)}) / 미결제 ${data.summary.paymentBreakdown.unpaidOrders}건 (${won(data.summary.paymentBreakdown.unpaidAmount)})\n`;
     }
-    text += `\n■ 품목별 판매 내역\n`;
 
-    for (const cat of data.categories) {
-      text += `\n[${cat.categoryName}] 소계: ${cat.totalQuantity}세트 / ${won(cat.totalAmount)}\n`;
-      for (const prod of cat.products) {
-        text += `- ${prod.displayName} (${won(prod.unitPrice)}): ${prod.totalQuantity}개 (${won(prod.totalAmount)})\n`;
+    if (activeTab === "daily" && data.dailyList && data.dailyList.length > 0) {
+      text += `\n■ 일자별 판매 현황 리스트\n`;
+      for (const day of data.dailyList) {
+        text += `\n▶ [${day.date} (${day.dayOfWeek || "요일미상"})] 총 ${day.totalOrders}건 주문 / ${day.totalQuantity}세트 / ${won(day.totalAmount)}\n`;
+        for (const cat of day.categories) {
+          for (const prod of cat.products) {
+            text += `  - [${cat.categoryName}] ${prod.displayName} (${won(prod.unitPrice)}): ${prod.totalQuantity}개 (${won(prod.totalAmount)})\n`;
+          }
+        }
+      }
+    } else {
+      text += `\n■ 품목별 판매 내역 (기간 전체 합계)\n`;
+      for (const cat of data.categories) {
+        text += `\n[${cat.categoryName}] 소계: ${cat.totalQuantity}세트 / ${won(cat.totalAmount)}\n`;
+        for (const prod of cat.products) {
+          text += `- ${prod.displayName} (${won(prod.unitPrice)}): ${prod.totalQuantity}개 (${won(prod.totalAmount)})\n`;
+        }
       }
     }
 
@@ -195,6 +287,7 @@ export default function ProductSalesStatsModal({
   const totalOrders = data?.summary.totalOrders || 0;
   const totalProductKinds = data?.summary.totalProductKinds || 0;
   const paymentBreakdown = data?.summary.paymentBreakdown;
+  const dailyList = data?.dailyList || [];
 
   const dateDescription = mode === "day"
     ? `${startDate} 하루 ${dateType === "due" ? "수령·발송 예정일" : "주문 접수일"} 기준 실적`
@@ -207,11 +300,20 @@ export default function ProductSalesStatsModal({
       description={dateDescription}
       onClose={onClose}
       footer={
-        <div style={{ display: "flex", justifyContent: "space-between", width: "100%", alignItems: "center" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", width: "100%", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
           <span style={{ fontSize: "12px", color: "var(--muted)" }}>
             * 취소된 주문을 제외한 모든 유효 주문을 집계합니다 (결제 여부와 무관).
           </span>
-          <div style={{ display: "flex", gap: "8px" }}>
+          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+            <button
+              type="button"
+              className="product-stats-excel-btn"
+              onClick={downloadExcel}
+              disabled={exporting || loading}
+              title="현재 조건의 판매 통계 및 일자별 리스트를 엑셀 파일(.xlsx)로 저장합니다"
+            >
+              {exporting ? "⏳ 엑셀 생성 중…" : "📥 엑셀 다운로드 (.xlsx)"}
+            </button>
             <Button variant="ghost" onClick={copySummaryText}>
               {copyFeedback ? "✅ 복사 완료!" : "📋 텍스트 복사"}
             </Button>
@@ -223,7 +325,7 @@ export default function ProductSalesStatsModal({
       }
     >
       <div className="product-stats-modal">
-        {/* 컨트롤 패널 */}
+        {/* 상단 컨트롤 패널 */}
         <div className="product-stats-controls">
           <div className="product-stats-control-row">
             {/* 기준일 타입 선택 */}
@@ -313,8 +415,24 @@ export default function ProductSalesStatsModal({
                 <button type="button" className="product-stats-quick-btn" onClick={() => setPreset("month")}>
                   최근 30일
                 </button>
+                <button type="button" className="product-stats-quick-btn" onClick={() => setPreset("holiday")}>
+                  최근 2주 (명절 성수기)
+                </button>
               </>
             )}
+
+            {/* 엑셀 다운로드 원클릭 버튼 */}
+            <div style={{ marginLeft: "auto" }}>
+              <button
+                type="button"
+                className="product-stats-excel-btn"
+                onClick={downloadExcel}
+                disabled={exporting || loading}
+                title="통계 및 상세 판매 리스트를 엑셀 파일로 내려받습니다"
+              >
+                {exporting ? "⏳ 엑셀 다운로드 중…" : "📥 엑셀 (.xlsx) 저장"}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -362,146 +480,328 @@ export default function ProductSalesStatsModal({
           </div>
         ) : null}
 
+        {/* 메인 탭 네비게이션: [📦 상품별 종합 집계] vs [📅 일자별 판매 리스트] */}
+        <div className="product-stats-main-tabs" role="tablist">
+          <button
+            type="button"
+            className={`product-stats-main-tab-btn ${activeTab === "overview" ? "product-stats-main-tab-btn--active" : ""}`}
+            onClick={() => setActiveTab("overview")}
+          >
+            📦 상품별 종합 집계
+          </button>
+          <button
+            type="button"
+            className={`product-stats-main-tab-btn ${activeTab === "daily" ? "product-stats-main-tab-btn--active" : ""}`}
+            onClick={() => setActiveTab("daily")}
+          >
+            📅 일자별 판매 리스트 ({dailyList.length}개 일자)
+          </button>
+        </div>
+
         {/* 에러 및 로딩 */}
-        {loading && <p style={{ textAlign: "center", padding: "20px", color: "var(--muted)" }}>통계 집계 중…</p>}
+        {loading && <p style={{ textAlign: "center", padding: "24px", color: "var(--muted)" }}>통계 집계 중…</p>}
         {error && <p className="sales-work-table__error" role="alert">{error}</p>}
 
-        {/* 상단 뷰 모드 토글 (카드 보기 vs 표 보기) */}
-        {!loading && data && data.categories.length > 0 ? (
-          <div className="product-stats-view-switcher">
-            <span className="product-stats-section-title">
-              📦 상품별 판매 현황 <small>({data.summary.totalProductKinds}개 품목)</small>
-            </span>
-            <div className="product-stats-view-buttons">
-              <button
-                type="button"
-                className={`product-stats-view-btn ${viewMode === "cards" ? "product-stats-view-btn--active" : ""}`}
-                onClick={() => setViewMode("cards")}
-              >
-                🗂️ 카드 보기
-              </button>
-              <button
-                type="button"
-                className={`product-stats-view-btn ${viewMode === "table" ? "product-stats-view-btn--active" : ""}`}
-                onClick={() => setViewMode("table")}
-              >
-                📑 표(테이블) 보기
-              </button>
-            </div>
-          </div>
-        ) : null}
-
-        {/* 본문: 카테고리별 목록 */}
-        {!loading && data && (
-          <div className="product-stats-categories">
-            {data.categories.length === 0 ? (
-              <div className="product-stats-empty">
-                <span style={{ fontSize: "32px" }}>📦</span>
-                <p>선택하신 조건(기간/기준) 동안 판매된 상품이 없습니다.</p>
+        {/* 탭 1: 상품별 종합 집계 뷰 */}
+        {!loading && data && activeTab === "overview" && (
+          <>
+            {/* 상단 서브 뷰 모드 토글 (카드 보기 vs 표 보기) */}
+            {data.categories.length > 0 ? (
+              <div className="product-stats-view-switcher">
+                <span className="product-stats-section-title">
+                  📦 상품별 판매 현황 <small>({data.summary.totalProductKinds}개 품목)</small>
+                </span>
+                <div className="product-stats-view-buttons">
+                  <button
+                    type="button"
+                    className={`product-stats-view-btn ${viewMode === "cards" ? "product-stats-view-btn--active" : ""}`}
+                    onClick={() => setViewMode("cards")}
+                  >
+                    🗂️ 카드 보기
+                  </button>
+                  <button
+                    type="button"
+                    className={`product-stats-view-btn ${viewMode === "table" ? "product-stats-view-btn--active" : ""}`}
+                    onClick={() => setViewMode("table")}
+                  >
+                    📑 표(테이블) 보기
+                  </button>
+                </div>
               </div>
-            ) : viewMode === "table" ? (
-              /* 테이블 뷰 */
-              <div className="product-stats-table-wrapper">
-                <table className="product-stats-table">
-                  <thead>
-                    <tr>
-                      <th scope="col" style={{ width: "120px" }}>카테고리</th>
-                      <th scope="col">상품명</th>
-                      <th scope="col" style={{ width: "110px", textAlign: "right" }}>단가</th>
-                      <th scope="col" style={{ width: "100px", textAlign: "right" }}>판매량</th>
-                      <th scope="col" style={{ width: "80px", textAlign: "center" }}>비중</th>
-                      <th scope="col" style={{ width: "140px", textAlign: "right" }}>총 판매금액</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.categories.map((cat) => (
-                      cat.products.map((prod, idx) => (
-                        <tr key={prod.key}>
-                          {idx === 0 ? (
-                            <td
-                              rowSpan={cat.products.length}
-                              className="product-stats-td-cat"
-                            >
-                              <div className="td-cat-name">{cat.categoryName}</div>
-                              <small className="td-cat-sub">{cat.totalQuantity}세트</small>
-                            </td>
-                          ) : null}
-                          <td className="product-stats-td-name">
-                            <strong>{prod.displayName}</strong>
-                            {prod.customDetails && prod.customDetails.length > 0 ? (
-                              <div className="product-stats-table-custom-details">
-                                {prod.customDetails.map((d, i) => (
-                                  <span key={i} className="custom-detail-chip">구성 {i + 1}: {d}</span>
-                                ))}
-                              </div>
+            ) : null}
+
+            {/* 본문: 카테고리별 목록 */}
+            <div className="product-stats-categories">
+              {data.categories.length === 0 ? (
+                <div className="product-stats-empty">
+                  <span style={{ fontSize: "32px" }}>📦</span>
+                  <p>선택하신 조건(기간/기준) 동안 판매된 상품이 없습니다.</p>
+                </div>
+              ) : viewMode === "table" ? (
+                /* 테이블 뷰 */
+                <div className="product-stats-table-wrapper">
+                  <table className="product-stats-table">
+                    <thead>
+                      <tr>
+                        <th scope="col" style={{ width: "120px" }}>카테고리</th>
+                        <th scope="col">상품명</th>
+                        <th scope="col" style={{ width: "110px", textAlign: "right" }}>단가</th>
+                        <th scope="col" style={{ width: "100px", textAlign: "right" }}>판매량</th>
+                        <th scope="col" style={{ width: "80px", textAlign: "center" }}>비중</th>
+                        <th scope="col" style={{ width: "140px", textAlign: "right" }}>총 판매금액</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.categories.map((cat) => (
+                        cat.products.map((prod, idx) => (
+                          <tr key={prod.key}>
+                            {idx === 0 ? (
+                              <td
+                                rowSpan={cat.products.length}
+                                className="product-stats-td-cat"
+                              >
+                                <div className="td-cat-name">{cat.categoryName}</div>
+                                <small className="td-cat-sub">{cat.totalQuantity}세트</small>
+                              </td>
                             ) : null}
-                          </td>
-                          <td className="product-stats-td-price">{won(prod.unitPrice)}</td>
-                          <td className="product-stats-td-qty">
-                            <strong>{prod.totalQuantity}</strong>개
-                          </td>
-                          <td className="product-stats-td-share">
-                            <span className="share-badge">{prod.sharePercent}%</span>
-                          </td>
-                          <td className="product-stats-td-total">
-                            <strong>{won(prod.totalAmount)}</strong>
-                          </td>
-                        </tr>
-                      ))
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr>
-                      <th colSpan={3} style={{ textAlign: "center" }}>전체 합계</th>
-                      <th style={{ textAlign: "right" }}>{totalQuantity.toLocaleString()}세트</th>
-                      <th style={{ textAlign: "center" }}>100%</th>
-                      <th style={{ textAlign: "right" }}>{won(totalAmount)}</th>
-                    </tr>
-                  </tfoot>
-                </table>
+                            <td className="product-stats-td-name">
+                              <strong>{prod.displayName}</strong>
+                              {prod.customDetails && prod.customDetails.length > 0 ? (
+                                <div className="product-stats-table-custom-details">
+                                  {prod.customDetails.map((d, i) => (
+                                    <span key={i} className="custom-detail-chip">구성 {i + 1}: {d}</span>
+                                  ))}
+                                </div>
+                              ) : null}
+                            </td>
+                            <td className="product-stats-td-price">{won(prod.unitPrice)}</td>
+                            <td className="product-stats-td-qty">
+                              <strong>{prod.totalQuantity}</strong>개
+                            </td>
+                            <td className="product-stats-td-share">
+                              <span className="share-badge">{prod.sharePercent}%</span>
+                            </td>
+                            <td className="product-stats-td-total">
+                              <strong>{won(prod.totalAmount)}</strong>
+                            </td>
+                          </tr>
+                        ))
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr>
+                        <th colSpan={3} style={{ textAlign: "center" }}>전체 합계</th>
+                        <th style={{ textAlign: "right" }}>{totalQuantity.toLocaleString()}세트</th>
+                        <th style={{ textAlign: "center" }}>100%</th>
+                        <th style={{ textAlign: "right" }}>{won(totalAmount)}</th>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              ) : (
+                /* 카드 뷰 */
+                data.categories.map((cat) => (
+                  <section key={cat.categoryName} className="product-stats-cat-section">
+                    <div className="product-stats-cat-header">
+                      <div className="product-stats-cat-title">
+                        <span>{cat.categoryName}</span>
+                        <span className="product-stats-cat-badge">{cat.totalQuantity}세트</span>
+                      </div>
+                      <span className="product-stats-cat-subtotal">소계 {won(cat.totalAmount)}</span>
+                    </div>
+
+                    <div className="product-stats-grid">
+                      {cat.products.map((prod) => (
+                        <article key={prod.key} className="product-stats-item-card">
+                          <div className="product-stats-item-header">
+                            <span className="product-stats-item-name">{prod.displayName}</span>
+                            <span className="product-stats-item-price">{won(prod.unitPrice)}</span>
+                          </div>
+
+                          <div className="product-stats-item-body">
+                            <div className="product-stats-item-qty-wrap">
+                              <span className="product-stats-item-qty">{prod.totalQuantity}세트</span>
+                              <span className="product-stats-item-share">점유율 {prod.sharePercent}%</span>
+                            </div>
+                            <span className="product-stats-item-total">{won(prod.totalAmount)}</span>
+                          </div>
+
+                          {prod.customDetails && prod.customDetails.length > 0 && (
+                            <div className="product-stats-custom-list">
+                              {prod.customDetails.map((detail, idx) => (
+                                <div key={idx} className="product-stats-custom-item">
+                                  <b>구성 {idx + 1}:</b> {detail}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </article>
+                      ))}
+                    </div>
+                  </section>
+                ))
+              )}
+            </div>
+          </>
+        )}
+
+        {/* 탭 2: 📅 일자별 판매 리스트 뷰 */}
+        {!loading && data && activeTab === "daily" && (
+          <div className="product-stats-daily-container">
+            {/* 일자별 상단 툴바 */}
+            <div className="product-stats-daily-toolbar">
+              <div className="product-stats-daily-toolbar__info">
+                <span className="product-stats-daily-title">
+                  📅 기간 내 일자별 판매 리스트
+                </span>
+                <span className="product-stats-daily-count">
+                  총 <strong>{dailyList.length}</strong>개 일자 ({startDate} ~ {mode === "day" ? startDate : endDate})
+                </span>
+              </div>
+              <div className="product-stats-daily-toolbar__actions">
+                <button
+                  type="button"
+                  className="product-stats-sub-btn"
+                  onClick={() => setAllDatesCollapse(false)}
+                >
+                  모두 펼치기
+                </button>
+                <button
+                  type="button"
+                  className="product-stats-sub-btn"
+                  onClick={() => setAllDatesCollapse(true)}
+                >
+                  모두 접기
+                </button>
+              </div>
+            </div>
+
+            {dailyList.length === 0 ? (
+              <div className="product-stats-empty">
+                <span style={{ fontSize: "32px" }}>📅</span>
+                <p>선택하신 기간 동안 접수되거나 출고된 일자별 내역이 없습니다.</p>
               </div>
             ) : (
-              /* 카드 뷰 */
-              data.categories.map((cat) => (
-                <section key={cat.categoryName} className="product-stats-cat-section">
-                  <div className="product-stats-cat-header">
-                    <div className="product-stats-cat-title">
-                      <span>{cat.categoryName}</span>
-                      <span className="product-stats-cat-badge">{cat.totalQuantity}세트</span>
-                    </div>
-                    <span className="product-stats-cat-subtotal">소계 {won(cat.totalAmount)}</span>
-                  </div>
-
-                  <div className="product-stats-grid">
-                    {cat.products.map((prod) => (
-                      <article key={prod.key} className="product-stats-item-card">
-                        <div className="product-stats-item-header">
-                          <span className="product-stats-item-name">{prod.displayName}</span>
-                          <span className="product-stats-item-price">{won(prod.unitPrice)}</span>
+              <div className="product-stats-daily-cards">
+                {dailyList.map((day) => {
+                  const isCollapsed = Boolean(collapsedDates[day.date]);
+                  return (
+                    <section key={day.date} className="product-stats-daily-card">
+                      {/* 일자 헤더 */}
+                      <div
+                        className="product-stats-daily-header"
+                        onClick={() => toggleDateCollapse(day.date)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            toggleDateCollapse(day.date);
+                          }
+                        }}
+                      >
+                        <div className="product-stats-daily-header__left">
+                          <span className="product-stats-daily-badge">
+                            📅 {day.date} {day.dayOfWeek ? `(${day.dayOfWeek})` : ""}
+                          </span>
+                          <span className="product-stats-daily-header-summary">
+                            주문 <strong>{day.totalOrders}건</strong> · 판매 <strong>{day.totalQuantity}세트</strong>
+                          </span>
                         </div>
 
-                        <div className="product-stats-item-body">
-                          <div className="product-stats-item-qty-wrap">
-                            <span className="product-stats-item-qty">{prod.totalQuantity}세트</span>
-                            <span className="product-stats-item-share">점유율 {prod.sharePercent}%</span>
-                          </div>
-                          <span className="product-stats-item-total">{won(prod.totalAmount)}</span>
+                        <div className="product-stats-daily-header__right">
+                          <span className="product-stats-daily-header-amount">
+                            {won(day.totalAmount)}
+                          </span>
+                          {day.paidOrders > 0 || day.unpaidOrders > 0 ? (
+                            <span className="product-stats-daily-pay-tag">
+                              완료 {day.paidOrders} / 미결제 {day.unpaidOrders}
+                            </span>
+                          ) : null}
+                          <span className="product-stats-daily-collapse-icon">
+                            {isCollapsed ? "▼ 펼치기" : "▲ 접기"}
+                          </span>
                         </div>
+                      </div>
 
-                        {prod.customDetails && prod.customDetails.length > 0 && (
-                          <div className="product-stats-custom-list">
-                            {prod.customDetails.map((detail, idx) => (
-                              <div key={idx} className="product-stats-custom-item">
-                                <b>구성 {idx + 1}:</b> {detail}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </article>
-                    ))}
+                      {/* 일자 상세 품목 테이블 */}
+                      {!isCollapsed && (
+                        <div className="product-stats-daily-table-wrap">
+                          <table className="product-stats-table">
+                            <thead>
+                              <tr>
+                                <th scope="col" style={{ width: "110px" }}>카테고리</th>
+                                <th scope="col">상품명</th>
+                                <th scope="col" style={{ width: "110px", textAlign: "right" }}>단가</th>
+                                <th scope="col" style={{ width: "90px", textAlign: "right" }}>판매량</th>
+                                <th scope="col" style={{ width: "70px", textAlign: "center" }}>비중</th>
+                                <th scope="col" style={{ width: "130px", textAlign: "right" }}>판매금액</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {day.categories.map((cat) => (
+                                cat.products.map((prod, idx) => (
+                                  <tr key={prod.key}>
+                                    {idx === 0 ? (
+                                      <td
+                                        rowSpan={cat.products.length}
+                                        className="product-stats-td-cat"
+                                      >
+                                        <div className="td-cat-name">{cat.categoryName}</div>
+                                      </td>
+                                    ) : null}
+                                    <td className="product-stats-td-name">
+                                      <strong>{prod.displayName}</strong>
+                                      {prod.customDetails && prod.customDetails.length > 0 ? (
+                                        <div className="product-stats-table-custom-details">
+                                          {prod.customDetails.map((d, i) => (
+                                            <span key={i} className="custom-detail-chip">구성 {i + 1}: {d}</span>
+                                          ))}
+                                        </div>
+                                      ) : null}
+                                    </td>
+                                    <td className="product-stats-td-price">{won(prod.unitPrice)}</td>
+                                    <td className="product-stats-td-qty">
+                                      <strong>{prod.totalQuantity}</strong>개
+                                    </td>
+                                    <td className="product-stats-td-share">
+                                      <span className="share-badge">{prod.sharePercent}%</span>
+                                    </td>
+                                    <td className="product-stats-td-total">
+                                      <strong>{won(prod.totalAmount)}</strong>
+                                    </td>
+                                  </tr>
+                                ))
+                              ))}
+                            </tbody>
+                            <tfoot>
+                              <tr className="product-stats-daily-tfoot-row">
+                                <th colSpan={3} style={{ textAlign: "center" }}>
+                                  {day.date} ({day.dayOfWeek}) 소계 (주문 {day.totalOrders}건)
+                                </th>
+                                <th style={{ textAlign: "right" }}>{day.totalQuantity.toLocaleString()}세트</th>
+                                <th style={{ textAlign: "center" }}>100%</th>
+                                <th style={{ textAlign: "right" }}>{won(day.totalAmount)}</th>
+                              </tr>
+                            </tfoot>
+                          </table>
+                        </div>
+                      )}
+                    </section>
+                  );
+                })}
+
+                {/* 기간 전체 종합 합계 배너 */}
+                <div className="product-stats-daily-grand-bar">
+                  <div className="grand-bar-left">
+                    <span className="grand-bar-title">기간 전체 누적 합계</span>
+                    <span className="grand-bar-sub">총 {dailyList.length}일간 · 주문 {totalOrders.toLocaleString()}건</span>
                   </div>
-                </section>
-              ))
+                  <div className="grand-bar-right">
+                    <span className="grand-bar-qty">총 <strong>{totalQuantity.toLocaleString()}</strong>세트</span>
+                    <span className="grand-bar-amount">{won(totalAmount)}</span>
+                  </div>
+                </div>
+              </div>
             )}
           </div>
         )}
@@ -509,4 +809,3 @@ export default function ProductSalesStatsModal({
     </Modal>
   );
 }
-
