@@ -96,6 +96,72 @@ try {
     ], { onConflict: "id" });
   }
 
+  // 4. Ensure BAND reservation MVP tables exist
+  console.log("[migrate-postgres] Ensuring BAND reservation MVP tables...");
+  const bandStatements = [
+    `CREATE TABLE IF NOT EXISTS band_sales (
+      id text PRIMARY KEY,
+      product_id text NOT NULL REFERENCES products(id),
+      title text NOT NULL,
+      subtitle text NOT NULL DEFAULT '',
+      price integer NOT NULL,
+      production_limit integer NOT NULL CHECK (production_limit > 0),
+      reserved_qty integer NOT NULL DEFAULT 0 CHECK (reserved_qty >= 0),
+      deposit_per_unit integer NOT NULL DEFAULT 1000 CHECK (deposit_per_unit >= 0),
+      reservation_start_at text NOT NULL,
+      reservation_end_at text NOT NULL,
+      production_lock_at text NOT NULL,
+      pickup_date text NOT NULL,
+      pickup_start text NOT NULL DEFAULT '10:00',
+      pickup_end text NOT NULL DEFAULT '19:00',
+      pickup_location text NOT NULL DEFAULT '',
+      status text NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','open','closed','completed')),
+      active boolean NOT NULL DEFAULT false,
+      created_at text NOT NULL,
+      updated_at text NOT NULL
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_band_sales_active_start ON band_sales(active,reservation_start_at)`,
+    `CREATE INDEX IF NOT EXISTS idx_band_sales_pickup_date ON band_sales(pickup_date)`,
+    `CREATE TABLE IF NOT EXISTS band_reservations (
+      id text PRIMARY KEY,
+      reservation_no text NOT NULL UNIQUE,
+      sale_id text NOT NULL REFERENCES band_sales(id),
+      customer_name text NOT NULL,
+      customer_phone text NOT NULL,
+      idempotency_key text NOT NULL UNIQUE,
+      quantity integer NOT NULL CHECK (quantity > 0),
+      unit_price integer NOT NULL,
+      total_amount integer NOT NULL CHECK (total_amount >= 0),
+      deposit_amount integer NOT NULL CHECK (deposit_amount >= 0),
+      pickup_window text NOT NULL,
+      status text NOT NULL DEFAULT 'confirmed' CHECK (status IN ('confirmed','picked_up','cancelled','no_show')),
+      payment_status text NOT NULL DEFAULT 'test_paid',
+      payment_provider text NOT NULL DEFAULT 'test',
+      payment_tid text,
+      policy_version text NOT NULL,
+      policy_agreed_at text NOT NULL,
+      cancelled_at text,
+      picked_up_at text,
+      no_show_at text,
+      created_at text NOT NULL,
+      updated_at text NOT NULL
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_band_reservations_sale_status ON band_reservations(sale_id,status)`,
+    `CREATE INDEX IF NOT EXISTS idx_band_reservations_phone ON band_reservations(customer_phone,created_at)`,
+    `CREATE TABLE IF NOT EXISTS band_reservation_events (
+      id text PRIMARY KEY,
+      reservation_id text NOT NULL REFERENCES band_reservations(id),
+      event_type text NOT NULL,
+      payload_json text NOT NULL DEFAULT '',
+      created_at text NOT NULL
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_band_reservation_events_reservation ON band_reservation_events(reservation_id,created_at)`,
+  ];
+  for (const statement of bandStatements) {
+    const { error: bandError } = await supabase.rpc("exec_dml", { statement });
+    if (bandError) throw new Error(`BAND reservation schema failed: ${bandError.message}`);
+  }
+
   console.log("[migrate-postgres] Migration and seed verification completed successfully.");
 } catch (e) {
   console.warn("[migrate-postgres] Warning during migration check (non-fatal):", e.message);

@@ -634,3 +634,76 @@ export const kioskEvents = sqliteTable("kiosk_events", {
   index("idx_kiosk_events_type_time").on(table.eventType, table.createdAt),
   index("idx_kiosk_events_session_time").on(table.sessionId, table.createdAt),
 ]);
+
+
+export const bandSales = sqliteTable("band_sales", {
+  id: text("id").primaryKey(),
+  productId: text("product_id").notNull().references(() => products.id),
+  title: text("title").notNull(),
+  subtitle: text("subtitle").notNull().default(""),
+  price: integer("price").notNull(),
+  productionLimit: integer("production_limit").notNull(),
+  reservedQty: integer("reserved_qty").notNull().default(0),
+  depositPerUnit: integer("deposit_per_unit").notNull().default(1000),
+  reservationStartAt: text("reservation_start_at").notNull(),
+  reservationEndAt: text("reservation_end_at").notNull(),
+  productionLockAt: text("production_lock_at").notNull(),
+  pickupDate: text("pickup_date").notNull(),
+  pickupStart: text("pickup_start").notNull().default("10:00"),
+  pickupEnd: text("pickup_end").notNull().default("19:00"),
+  pickupLocation: text("pickup_location").notNull().default(""),
+  status: text("status").notNull().default("draft"),
+  active: integer("active", { mode: "boolean" }).notNull().default(false),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, (table) => [
+  index("idx_band_sales_active_start").on(table.active, table.reservationStartAt),
+  index("idx_band_sales_pickup_date").on(table.pickupDate),
+  check("band_sales_limit_positive", sql`${table.productionLimit} > 0`),
+  check("band_sales_reserved_nonnegative", sql`${table.reservedQty} >= 0`),
+  check("band_sales_deposit_nonnegative", sql`${table.depositPerUnit} >= 0`),
+  check("band_sales_status_valid", sql`${table.status} in ('draft','open','closed','completed')`),
+]);
+
+export const bandReservations = sqliteTable("band_reservations", {
+  id: text("id").primaryKey(),
+  reservationNo: text("reservation_no").notNull(),
+  saleId: text("sale_id").notNull().references(() => bandSales.id),
+  customerName: text("customer_name").notNull(),
+  customerPhone: text("customer_phone").notNull(),
+  idempotencyKey: text("idempotency_key").notNull(),
+  quantity: integer("quantity").notNull(),
+  unitPrice: integer("unit_price").notNull(),
+  totalAmount: integer("total_amount").notNull(),
+  depositAmount: integer("deposit_amount").notNull(),
+  pickupWindow: text("pickup_window").notNull(),
+  status: text("status").notNull().default("confirmed"),
+  paymentStatus: text("payment_status").notNull().default("test_paid"),
+  paymentProvider: text("payment_provider").notNull().default("test"),
+  paymentTid: text("payment_tid"),
+  policyVersion: text("policy_version").notNull(),
+  policyAgreedAt: text("policy_agreed_at").notNull(),
+  cancelledAt: text("cancelled_at"),
+  pickedUpAt: text("picked_up_at"),
+  noShowAt: text("no_show_at"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, (table) => [
+  uniqueIndex("idx_band_reservations_no").on(table.reservationNo),
+  uniqueIndex("idx_band_reservations_idempotency").on(table.idempotencyKey),
+  index("idx_band_reservations_sale_status").on(table.saleId, table.status),
+  index("idx_band_reservations_phone").on(table.customerPhone, table.createdAt),
+  check("band_reservations_quantity_positive", sql`${table.quantity} > 0`),
+  check("band_reservations_amount_nonnegative", sql`${table.totalAmount} >= 0 and ${table.depositAmount} >= 0`),
+  check("band_reservations_status_valid", sql`${table.status} in ('confirmed','picked_up','cancelled','no_show')`),
+]);
+
+export const bandReservationEvents = sqliteTable("band_reservation_events", {
+  id: text("id").primaryKey(),
+  reservationId: text("reservation_id").notNull().references(() => bandReservations.id),
+  eventType: text("event_type").notNull(),
+  payloadJson: text("payload_json").notNull().default(""),
+  createdAt: text("created_at").notNull(),
+}, (table) => [
+  index("idx_band_reservation_events_reservation").on(table.reservationId, table.createdAt),
+]);

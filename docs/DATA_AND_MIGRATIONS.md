@@ -149,3 +149,62 @@ client-side disabled button만으로 중복을 막지 않는다.
 7. 성공한 경우에만 앱 배포
 
 실패하면 앱 배포를 중단하며 기존 migration을 즉석 수정해 재실행하지 않는다.
+
+
+## BAND 예약 MVP migration 0009
+
+상태: 10월 MVP 개발 중, Production 미적용
+
+`0009_band_reservation_mvp.sql`은 기존 명절 주문 테이블과 분리된 BAND 예약 MVP 테이블을 추가한다.
+
+### `band_sales`
+
+- 판매회차와 상품 연결
+- 회차 판매가 snapshot
+- 최대 생산수량 `production_limit`
+- 확정/확보 예약수량 `reserved_qty`
+- 상품당 예약금
+- 예약 시작·마감·생산확정 시각
+- 픽업일·시간·장소
+- 활성 회차와 상태
+
+### `band_reservations`
+
+- 예약번호
+- 판매회차
+- 이름·휴대전화 snapshot
+- 요청 idempotency key
+- 수량·단가·총액·예약금
+- 예상 픽업시간
+- 예약·테스트 결제 상태
+- 결제 provider/TID 확장 필드
+- 정책 버전과 동의시각
+- 취소·수령·노쇼 시각
+
+`reservation_no`와 `idempotency_key`는 unique index로 중복 생성을 방지한다.
+
+### `band_reservation_events`
+
+예약확정, 취소, 생산확정 이후 취소, 수령, 노쇼 등 상태변경을 append-only 감사 이벤트로 기록한다.
+
+### 생산한도 동시성
+
+예약 API는 읽은 수량을 클라이언트에서 계산해 저장하지 않는다. DB에서 다음 조건을 포함하는 단일 조건부 update로 생산수량을 확보한다.
+
+```sql
+UPDATE band_sales
+SET reserved_qty=reserved_qty+?
+WHERE id=?
+  AND active=1
+  AND status='open'
+  AND reserved_qty+? <= production_limit
+RETURNING *
+```
+
+조건을 만족하지 않으면 예약을 생성하지 않는다. 예약 row 저장에 실패하면 이미 확보한 수량을 복원한다.
+
+### 배포 주의
+
+- 0009는 아직 Production에 적용하지 않는다.
+- 10월 MVP 검증 후 Production 백업, 기존 row count, 0000→0009 isolated migration 검증을 완료해야 한다.
+- 11월 KakaoPay 연동 시 payment 상태와 환불 이벤트를 확장하되 기존 예약 이력을 덮어쓰거나 삭제하지 않는다.
