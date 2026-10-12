@@ -671,6 +671,7 @@ export const bandReservations = sqliteTable("band_reservations", {
   saleId: text("sale_id").notNull().references(() => bandSales.id),
   customerName: text("customer_name").notNull(),
   customerPhone: text("customer_phone").notNull(),
+  idempotencyKey: text("idempotency_key").notNull(),
   quantity: integer("quantity").notNull(),
   unitPrice: integer("unit_price").notNull(),
   totalAmount: integer("total_amount").notNull(),
@@ -689,6 +690,7 @@ export const bandReservations = sqliteTable("band_reservations", {
   updatedAt: text("updated_at").notNull(),
 }, (table) => [
   uniqueIndex("idx_band_reservations_no").on(table.reservationNo),
+  uniqueIndex("idx_band_reservations_idempotency").on(table.idempotencyKey),
   index("idx_band_reservations_sale_status").on(table.saleId, table.status),
   index("idx_band_reservations_phone").on(table.customerPhone, table.createdAt),
   check("band_reservations_quantity_positive", sql`${table.quantity} > 0`),
