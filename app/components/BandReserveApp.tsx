@@ -84,7 +84,27 @@ export default function BandReserveApp() {
     }
   };
 
-  useEffect(() => { void loadSale(); }, []);
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/band-sales", { cache: "no-store" })
+      .then(async (response) => ({
+        response,
+        data: await response.json() as { sale?: Sale | null; paymentMode?: string; error?: string },
+      }))
+      .then(({ response, data }) => {
+        if (!response.ok) throw new Error(data.error || "판매정보를 불러오지 못했습니다.");
+        if (cancelled) return;
+        setSale(data.sale ?? null);
+        setPaymentMode(data.paymentMode || "test");
+      })
+      .catch((caught) => {
+        if (!cancelled) setError(caught instanceof Error ? caught.message : "판매정보를 불러오지 못했습니다.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, []);
 
   const deposit = useMemo(() => (sale?.depositPerUnit ?? 0) * quantity, [sale, quantity]);
   const total = useMemo(() => (sale?.price ?? 0) * quantity, [sale, quantity]);
