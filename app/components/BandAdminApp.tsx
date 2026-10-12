@@ -18,6 +18,11 @@ type Customer = {
   purchaseQty: number; purchaseAmount: number; pickupRate: number; label: string; lastReservationAt: string;
 };
 
+type AdminSalesResponse = { sales?: Sale[]; products?: Product[]; paymentMode?: string; error?: string };
+type AdminReservationsResponse = { reservations?: Reservation[]; error?: string };
+type AdminCustomersResponse = { customers?: Customer[]; error?: string };
+type ErrorResponse = { error?: string };
+
 const won = (value: number) => new Intl.NumberFormat("ko-KR").format(value) + "원";
 const dt = (value: string) => new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(value));
 const toKstIso = (value: string) => value ? new Date(value + ":00+09:00").toISOString() : "";
@@ -53,9 +58,9 @@ export default function BandAdminApp() {
         fetch("/api/band-reservations", { cache: "no-store" }),
         fetch("/api/band-customers", { cache: "no-store" }),
       ]);
-      const saleData = await saleRes.json();
-      const reservationData = await reservationRes.json();
-      const customerData = await customerRes.json();
+      const saleData = await saleRes.json() as AdminSalesResponse;
+      const reservationData = await reservationRes.json() as AdminReservationsResponse;
+      const customerData = await customerRes.json() as AdminCustomersResponse;
       if (!saleRes.ok) throw new Error(saleData.error || "판매회차를 불러오지 못했습니다.");
       if (!reservationRes.ok) throw new Error(reservationData.error || "예약목록을 불러오지 못했습니다.");
       if (!customerRes.ok) throw new Error(customerData.error || "고객DB를 불러오지 못했습니다.");
@@ -103,7 +108,7 @@ export default function BandAdminApp() {
           pickupDate, pickupStart, pickupEnd, pickupLocation,
         }),
       });
-      const data = await response.json();
+      const data = await response.json() as ErrorResponse;
       if (!response.ok) throw new Error(data.error || "판매회차를 만들지 못했습니다.");
       await load();
       setTab("reservations");
@@ -121,7 +126,7 @@ export default function BandAdminApp() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
     });
-    const data = await response.json();
+    const data = await response.json() as ErrorResponse;
     if (!response.ok) {
       setError(data.error || "예약상태를 변경하지 못했습니다.");
       return;
@@ -135,7 +140,7 @@ export default function BandAdminApp() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id, action: "close" }),
     });
-    const data = await response.json();
+    const data = await response.json() as ErrorResponse;
     if (!response.ok) setError(data.error || "예약을 마감하지 못했습니다.");
     else await load();
   };
