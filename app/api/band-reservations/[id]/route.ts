@@ -66,36 +66,46 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   let paymentStatus = current.payment_status;
   let eventType = nextStatus;
 
+  let transitioned: { id: string } | null = null;
+
   if (nextStatus === "picked_up") {
-    await DB.prepare(`
+    transitioned = await DB.prepare(`
       UPDATE band_reservations
       SET status='picked_up',picked_up_at=?,updated_at=?
       WHERE id=? AND status='confirmed'
-    `).bind(nowIso, nowIso, id).run();
+      RETURNING id
+    `).bind(nowIso, nowIso, id).first<{ id: string }>();
   } else if (nextStatus === "no_show") {
     if (current.payment_provider === "test") paymentStatus = "forfeited";
-    await DB.prepare(`
+    transitioned = await DB.prepare(`
       UPDATE band_reservations
       SET status='no_show',no_show_at=?,payment_status=?,updated_at=?
       WHERE id=? AND status='confirmed'
-    `).bind(nowIso, paymentStatus, nowIso, id).run();
+      RETURNING id
+    `).bind(nowIso, paymentStatus, nowIso, id).first<{ id: string }>();
   } else if (beforeProductionLock) {
     if (current.payment_provider === "test") paymentStatus = "test_refunded";
-    await DB.prepare(`
+    transitioned = await DB.prepare(`
       UPDATE band_reservations
       SET status='cancelled',cancelled_at=?,payment_status=?,updated_at=?
       WHERE id=? AND status='confirmed'
-    `).bind(nowIso, paymentStatus, nowIso, id).run();
-    await releaseCapacity(current.sale_id, current.quantity, nowIso);
+      RETURNING id
+    `).bind(nowIso, paymentStatus, nowIso, id).first<{ id: string }>();
+    if (transitioned) await releaseCapacity(current.sale_id, current.quantity, nowIso);
     eventType = "cancelled_refund_eligible";
   } else {
     if (current.payment_provider === "test") paymentStatus = "forfeited";
-    await DB.prepare(`
+    transitioned = await DB.prepare(`
       UPDATE band_reservations
       SET status='cancelled',cancelled_at=?,payment_status=?,updated_at=?
       WHERE id=? AND status='confirmed'
-    `).bind(nowIso, paymentStatus, nowIso, id).run();
+      RETURNING id
+    `).bind(nowIso, paymentStatus, nowIso, id).first<{ id: string }>();
     eventType = "cancelled_after_production_lock";
+  }
+
+  if (!transitioned) {
+    return Response.json({ error: "다른 화면에서 먼저 예약상태를 변경했습니다. 새로고침 후 다시 확인해주세요." }, { status: 409 });
   }
 
   await DB.prepare(`
