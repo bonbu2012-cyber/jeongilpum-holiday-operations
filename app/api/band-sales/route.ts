@@ -1,4 +1,4 @@
-import { supabaseAdmin } from "../../../db";
+import { getDb } from "../../../db";
 import { publicSale, saleState, type BandSaleRow } from "../../lib/band-reservation";
 import { requireOperatorApi } from "../../lib/operator-session";
 
@@ -18,12 +18,26 @@ type SaleInput = {
   pickupLocation?: string;
 };
 
+type ProductRow = {
+  id: string;
+  name: string;
+  price: number;
+  daily_limit: number | null;
+  active: number | boolean;
+};
+
+const DB = getDb();
+
 function clean(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
 
 function validIso(value: string) {
   return Boolean(value && Number.isFinite(new Date(value).getTime()));
+}
+
+function paymentMode() {
+  return process.env.BAND_PAYMENT_MODE || "test";
 }
 
 export async function GET(request: Request) {
@@ -34,35 +48,39 @@ export async function GET(request: Request) {
     const denied = await requireOperatorApi();
     if (denied) return denied;
 
-    const [{ data: sales, error: salesError }, { data: products, error: productsError }] = await Promise.all([
-      supabaseAdmin.from("band_sales").select("*").order("created_at", { ascending: false }).limit(30),
-      supabaseAdmin.from("products").select("id,name,price,daily_limit,active").eq("active", true).order("sort_order", { ascending: true }),
+    const [salesResult, productsResult] = await Promise.all([
+      DB.prepare(`
+        SELECT *
+        FROM band_sales
+        ORDER BY created_at DESC
+        LIMIT 30
+      `).all<BandSaleRow>(),
+      DB.prepare(`
+        SELECT id,name,price,daily_limit,active
+        FROM products
+        WHERE active=1
+        ORDER BY sort_order,display_order,name
+      `).all<ProductRow>(),
     ]);
 
-    if (salesError) return Response.json({ error: salesError.message }, { status: 500 });
-    if (productsError) return Response.json({ error: productsError.message }, { status: 500 });
-
     return Response.json({
-      sales: (sales ?? []).map((sale) => ({ ...sale, state: saleState(sale as BandSaleRow) })),
-      products: products ?? [],
-      paymentMode: process.env.BAND_PAYMENT_MODE || "test",
+      sales: salesResult.results.map((sale) => ({ ...sale, state: saleState(sale) })),
+      products: productsResult.results,
+      paymentMode: paymentMode(),
     });
   }
 
-  const { data, error } = await supabaseAdmin
-    .from("band_sales")
-    .select("*")
-    .eq("active", true)
-    .order("reservation_start_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (error) return Response.json({ error: error.message }, { status: 500 });
-  if (!data) return Response.json({ sale: null, paymentMode: process.env.BAND_PAYMENT_MODE || "test" });
+  const sale = await DB.prepare(`
+    SELECT *
+    FROM band_sales
+    WHERE active=1
+    ORDER BY reservation_start_at DESC
+    LIMIT 1
+  `).first<BandSaleRow>();
 
   return Response.json({
-    sale: publicSale(data as BandSaleRow),
-    paymentMode: process.env.BAND_PAYMENT_MODE || "test",
+    sale: sale ? publicSale(sale) : null,
+    paymentMode: paymentMode(),
   });
 }
 
@@ -101,51 +119,51 @@ export async function POST(request: Request) {
     return Response.json({ error: "예약시작 < 예약마감 <= 생산확정 순서로 입력해주세요." }, { status: 400 });
   }
 
-  const { data: product, error: productError } = await supabaseAdmin
-    .from("products")
-    .select("id,name,active")
-    .eq("id", productId)
-    .maybeSingle();
-  if (productError) return Response.json({ error: productError.message }, { status: 500 });
-  if (!product || !product.active) return Response.json({ error: "판매 가능한 상품을 찾을 수 없습니다." }, { status: 404 });
+  const product = await DB.prepare(`
+    SELECT id,name,price,daily_limit,active
+    FROM products
+    WHERE id=? AND active=1
+    LIMIT 1
+  `).bind(productId).first<ProductRow>();
+  if (!product) return Response.json({ error: "판매 가능한 상품을 찾을 수 없습니다." }, { status: 404 });
 
   const now = new Date().toISOString();
   const id = crypto.randomUUID();
 
-  const deactivate = await supabaseAdmin
-    .from("band_sales")
-    .update({ active: false, updated_at: now })
-    .eq("active", true);
-  if (deactivate.error) return Response.json({ error: deactivate.error.message }, { status: 500 });
-
-  const { data, error } = await supabaseAdmin
-    .from("band_sales")
-    .insert({
+  await DB.batch([
+    DB.prepare(`
+      UPDATE band_sales
+      SET active=0,updated_at=?
+      WHERE active=1
+    `).bind(now),
+    DB.prepare(`
+      INSERT INTO band_sales(
+        id,product_id,title,subtitle,price,production_limit,reserved_qty,deposit_per_unit,
+        reservation_start_at,reservation_end_at,production_lock_at,pickup_date,pickup_start,pickup_end,
+        pickup_location,status,active,created_at,updated_at
+      ) VALUES(?,?,?,?,?,?,0,?,?,?,?,?,?,?,?, 'open',1,?,?)
+    `).bind(
       id,
-      product_id: productId,
+      productId,
       title,
       subtitle,
       price,
-      production_limit: productionLimit,
-      reserved_qty: 0,
-      deposit_per_unit: depositPerUnit,
-      reservation_start_at: reservationStartAt,
-      reservation_end_at: reservationEndAt,
-      production_lock_at: productionLockAt,
-      pickup_date: pickupDate,
-      pickup_start: pickupStart,
-      pickup_end: pickupEnd,
-      pickup_location: pickupLocation,
-      status: "open",
-      active: true,
-      created_at: now,
-      updated_at: now,
-    })
-    .select("*")
-    .single();
+      productionLimit,
+      depositPerUnit,
+      reservationStartAt,
+      reservationEndAt,
+      productionLockAt,
+      pickupDate,
+      pickupStart,
+      pickupEnd,
+      pickupLocation,
+      now,
+      now,
+    ),
+  ]);
 
-  if (error) return Response.json({ error: error.message }, { status: 500 });
-  return Response.json({ sale: data }, { status: 201 });
+  const sale = await DB.prepare("SELECT * FROM band_sales WHERE id=? LIMIT 1").bind(id).first<BandSaleRow>();
+  return Response.json({ sale }, { status: 201 });
 }
 
 export async function PATCH(request: Request) {
@@ -161,18 +179,21 @@ export async function PATCH(request: Request) {
 
   const now = new Date().toISOString();
   if (action === "activate") {
-    await supabaseAdmin.from("band_sales").update({ active: false, updated_at: now }).eq("active", true);
+    await DB.prepare("UPDATE band_sales SET active=0,updated_at=? WHERE active=1").bind(now).run();
   }
 
-  const changes = action === "open"
-    ? { status: "open", active: true, updated_at: now }
-    : action === "activate"
-      ? { active: true, updated_at: now }
-      : action === "complete"
-        ? { status: "completed", active: false, updated_at: now }
-        : { status: "closed", updated_at: now };
+  const status = action === "open" ? "open" : action === "complete" ? "completed" : action === "close" ? "closed" : null;
+  const active = action === "complete" ? 0 : action === "activate" || action === "open" ? 1 : null;
 
-  const { data, error } = await supabaseAdmin.from("band_sales").update(changes).eq("id", id).select("*").single();
-  if (error) return Response.json({ error: error.message }, { status: 500 });
-  return Response.json({ sale: data });
+  if (status !== null && active !== null) {
+    await DB.prepare("UPDATE band_sales SET status=?,active=?,updated_at=? WHERE id=?").bind(status, active, now, id).run();
+  } else if (status !== null) {
+    await DB.prepare("UPDATE band_sales SET status=?,updated_at=? WHERE id=?").bind(status, now, id).run();
+  } else if (active !== null) {
+    await DB.prepare("UPDATE band_sales SET active=?,updated_at=? WHERE id=?").bind(active, now, id).run();
+  }
+
+  const sale = await DB.prepare("SELECT * FROM band_sales WHERE id=? LIMIT 1").bind(id).first<BandSaleRow>();
+  if (!sale) return Response.json({ error: "판매회차를 찾을 수 없습니다." }, { status: 404 });
+  return Response.json({ sale });
 }
