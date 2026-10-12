@@ -133,15 +133,15 @@ export async function POST(request: Request) {
   await DB.batch([
     DB.prepare(`
       UPDATE band_sales
-      SET active=0,updated_at=?
-      WHERE active=1
+      SET active=FALSE,updated_at=?
+      WHERE active=TRUE
     `).bind(now),
     DB.prepare(`
       INSERT INTO band_sales(
         id,product_id,title,subtitle,price,production_limit,reserved_qty,deposit_per_unit,
         reservation_start_at,reservation_end_at,production_lock_at,pickup_date,pickup_start,pickup_end,
         pickup_location,status,active,created_at,updated_at
-      ) VALUES(?,?,?,?,?,?,0,?,?,?,?,?,?,?,?, 'open',1,?,?)
+      ) VALUES(?,?,?,?,?,?,0,?,?,?,?,?,?,?,?, 'open',TRUE,?,?)
     `).bind(
       id,
       productId,
@@ -179,11 +179,11 @@ export async function PATCH(request: Request) {
 
   const now = new Date().toISOString();
   if (action === "activate") {
-    await DB.prepare("UPDATE band_sales SET active=0,updated_at=? WHERE active=1").bind(now).run();
+    await DB.prepare("UPDATE band_sales SET active=FALSE,updated_at=? WHERE active=TRUE").bind(now).run();
   }
 
   const status = action === "open" ? "open" : action === "complete" ? "completed" : action === "close" ? "closed" : null;
-  const active = action === "complete" ? 0 : action === "activate" || action === "open" ? 1 : null;
+  const active = action === "complete" ? false : action === "activate" || action === "open" ? true : null;
 
   if (status !== null && active !== null) {
     await DB.prepare("UPDATE band_sales SET status=?,active=?,updated_at=? WHERE id=?").bind(status, active, now, id).run();
