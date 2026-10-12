@@ -39,22 +39,6 @@ jobs:
         run: npm test
       - name: Generate DB migration metadata
         run: npm run db:generate
-      - name: Show generated follow-up migration
-        run: |
-          shopt -s nullglob
-          files=(drizzle/0010_*.sql)
-          if (( ${#files[@]} )); then
-            echo "::group::Generated follow-up migration"
-            cat "${files[@]}"
-            echo "::endgroup::"
-          fi
-          snapshots=(drizzle/meta/0010_snapshot.json)
-          if [[ -f "${snapshots[0]}" ]]; then
-            echo "SNAPSHOT_BASE64_BEGIN"
-            base64 -w0 "${snapshots[0]}"
-            echo
-            echo "SNAPSHOT_BASE64_END"
-          fi
       - name: Verify DB schema snapshot is current
         run: |
           test -z "$(git status --porcelain -- db/schema.ts drizzle)"
