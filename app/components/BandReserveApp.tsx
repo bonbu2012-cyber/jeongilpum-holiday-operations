@@ -67,7 +67,7 @@ export default function BandReserveApp() {
   const [pickupWindow, setPickupWindow] = useState("");
   const [agreed, setAgreed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [receipt, setReceipt] = useState<ReservationReceipt | null>(null);
+  const [receipt, setReceipt] = useState<ReservationReceipt | null>(null);\n  const [idempotencyKey, setIdempotencyKey] = useState("");
 
   const loadSale = async () => {
     setLoading(true);
