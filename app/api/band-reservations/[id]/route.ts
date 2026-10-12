@@ -1,26 +1,31 @@
-import { supabaseAdmin } from "../../../../db";
+import { getDb } from "../../../../db";
 import { requireOperatorApi } from "../../../lib/operator-session";
 
 type Payload = { status?: string };
 
-async function releaseCapacity(saleId: string, quantity: number) {
-  for (let attempt = 0; attempt < 6; attempt += 1) {
-    const { data: current } = await supabaseAdmin
-      .from("band_sales")
-      .select("reserved_qty")
-      .eq("id", saleId)
-      .maybeSingle();
-    if (!current) return;
-    const next = Math.max(0, Number(current.reserved_qty || 0) - quantity);
-    const { data: updated } = await supabaseAdmin
-      .from("band_sales")
-      .update({ reserved_qty: next, updated_at: new Date().toISOString() })
-      .eq("id", saleId)
-      .eq("reserved_qty", current.reserved_qty)
-      .select("id")
-      .maybeSingle();
-    if (updated) return;
-  }
+type ReservationRow = {
+  id: string;
+  sale_id: string;
+  quantity: number;
+  status: string;
+  payment_status: string;
+  payment_provider: string;
+};
+
+type SaleRow = {
+  id: string;
+  production_lock_at: string;
+};
+
+const DB = getDb();
+
+async function releaseCapacity(saleId: string, quantity: number, now: string) {
+  await DB.prepare(`
+    UPDATE band_sales
+    SET reserved_qty=CASE WHEN reserved_qty-? < 0 THEN 0 ELSE reserved_qty-? END,
+        updated_at=?
+    WHERE id=?
+  `).bind(quantity, quantity, now, saleId).run();
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -34,62 +39,80 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return Response.json({ error: "변경할 예약상태를 확인해주세요." }, { status: 400 });
   }
 
-  const { data: current, error } = await supabaseAdmin
-    .from("band_reservations")
-    .select("*")
-    .eq("id", id)
-    .maybeSingle();
-  if (error) return Response.json({ error: error.message }, { status: 500 });
+  const current = await DB.prepare(`
+    SELECT id,sale_id,quantity,status,payment_status,payment_provider
+    FROM band_reservations
+    WHERE id=?
+    LIMIT 1
+  `).bind(id).first<ReservationRow>();
+
   if (!current) return Response.json({ error: "예약을 찾을 수 없습니다." }, { status: 404 });
   if (["picked_up", "no_show", "cancelled"].includes(current.status)) {
     return Response.json({ error: "이미 처리된 예약입니다." }, { status: 409 });
   }
 
-  const { data: sale, error: saleError } = await supabaseAdmin
-    .from("band_sales")
-    .select("id,production_lock_at")
-    .eq("id", current.sale_id)
-    .single();
-  if (saleError) return Response.json({ error: saleError.message }, { status: 500 });
+  const sale = await DB.prepare(`
+    SELECT id,production_lock_at
+    FROM band_sales
+    WHERE id=?
+    LIMIT 1
+  `).bind(current.sale_id).first<SaleRow>();
+  if (!sale) return Response.json({ error: "판매회차를 찾을 수 없습니다." }, { status: 404 });
 
   const now = new Date();
   const nowIso = now.toISOString();
   const beforeProductionLock = now.getTime() < new Date(sale.production_lock_at).getTime();
-  const changes: Record<string, unknown> = { status: nextStatus, updated_at: nowIso };
+
+  let paymentStatus = current.payment_status;
   let eventType = nextStatus;
 
   if (nextStatus === "picked_up") {
-    changes.picked_up_at = nowIso;
+    await DB.prepare(`
+      UPDATE band_reservations
+      SET status='picked_up',picked_up_at=?,updated_at=?
+      WHERE id=? AND status='confirmed'
+    `).bind(nowIso, nowIso, id).run();
   } else if (nextStatus === "no_show") {
-    changes.no_show_at = nowIso;
-    changes.payment_status = current.payment_provider === "test" ? "forfeited" : current.payment_status;
+    if (current.payment_provider === "test") paymentStatus = "forfeited";
+    await DB.prepare(`
+      UPDATE band_reservations
+      SET status='no_show',no_show_at=?,payment_status=?,updated_at=?
+      WHERE id=? AND status='confirmed'
+    `).bind(nowIso, paymentStatus, nowIso, id).run();
+  } else if (beforeProductionLock) {
+    if (current.payment_provider === "test") paymentStatus = "test_refunded";
+    await DB.prepare(`
+      UPDATE band_reservations
+      SET status='cancelled',cancelled_at=?,payment_status=?,updated_at=?
+      WHERE id=? AND status='confirmed'
+    `).bind(nowIso, paymentStatus, nowIso, id).run();
+    await releaseCapacity(current.sale_id, current.quantity, nowIso);
+    eventType = "cancelled_refund_eligible";
   } else {
-    changes.cancelled_at = nowIso;
-    if (beforeProductionLock) {
-      changes.payment_status = current.payment_provider === "test" ? "test_refunded" : current.payment_status;
-      await releaseCapacity(current.sale_id, current.quantity);
-      eventType = "cancelled_refund_eligible";
-    } else {
-      changes.payment_status = current.payment_provider === "test" ? "forfeited" : current.payment_status;
-      eventType = "cancelled_after_production_lock";
-    }
+    if (current.payment_provider === "test") paymentStatus = "forfeited";
+    await DB.prepare(`
+      UPDATE band_reservations
+      SET status='cancelled',cancelled_at=?,payment_status=?,updated_at=?
+      WHERE id=? AND status='confirmed'
+    `).bind(nowIso, paymentStatus, nowIso, id).run();
+    eventType = "cancelled_after_production_lock";
   }
 
-  const { data: updated, error: updateError } = await supabaseAdmin
-    .from("band_reservations")
-    .update(changes)
-    .eq("id", id)
-    .select("*")
-    .single();
-  if (updateError) return Response.json({ error: updateError.message }, { status: 500 });
+  await DB.prepare(`
+    INSERT INTO band_reservation_events(
+      id,reservation_id,event_type,payload_json,created_at
+    ) VALUES(?,?,?,?,?)
+  `).bind(
+    crypto.randomUUID(),
+    id,
+    eventType,
+    JSON.stringify({ beforeProductionLock }),
+    nowIso,
+  ).run();
 
-  await supabaseAdmin.from("band_reservation_events").insert({
-    id: crypto.randomUUID(),
-    reservation_id: id,
-    event_type: eventType,
-    payload_json: JSON.stringify({ beforeProductionLock }),
-    created_at: nowIso,
+  const updated = await DB.prepare("SELECT * FROM band_reservations WHERE id=? LIMIT 1").bind(id).first();
+  return Response.json({
+    reservation: updated,
+    refundEligible: nextStatus === "cancelled" && beforeProductionLock,
   });
-
-  return Response.json({ reservation: updated, refundEligible: nextStatus === "cancelled" && beforeProductionLock });
 }
