@@ -128,6 +128,7 @@ try {
       sale_id text NOT NULL REFERENCES band_sales(id),
       customer_name text NOT NULL,
       customer_phone text NOT NULL,
+      idempotency_key text NOT NULL UNIQUE,
       quantity integer NOT NULL CHECK (quantity > 0),
       unit_price integer NOT NULL,
       total_amount integer NOT NULL CHECK (total_amount >= 0),
