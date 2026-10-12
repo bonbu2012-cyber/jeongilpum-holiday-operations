@@ -33,6 +33,7 @@
 - `docs/BAND_RESERVATION_MVP.md`
 - `docs/DATA_AND_MIGRATIONS.md`
 - `tests/band-reservation.test.mjs`
+- `.github/workflows/band-mvp-check.yml`
 - `docs/work/active/20261012-codex-band-reservation-mvp.md`
 
 ## Shared contracts
