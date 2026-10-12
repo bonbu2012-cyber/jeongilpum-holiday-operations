@@ -71,8 +71,6 @@ export default function BandReserveApp() {
   const requestIdRef = useRef("");
 
   const loadSale = async () => {
-    setLoading(true);
-    setError("");
     try {
       const response = await fetch("/api/band-sales", { cache: "no-store" });
       const data = await response.json() as { sale?: Sale | null; paymentMode?: string; error?: string };
