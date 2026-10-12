@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type Sale = {
   id: string;
@@ -67,7 +67,8 @@ export default function BandReserveApp() {
   const [pickupWindow, setPickupWindow] = useState("");
   const [agreed, setAgreed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [receipt, setReceipt] = useState<ReservationReceipt | null>(null);\n  const [idempotencyKey, setIdempotencyKey] = useState("");
+  const [receipt, setReceipt] = useState<ReservationReceipt | null>(null);
+  const requestIdRef = useRef("");
 
   const loadSale = async () => {
     setLoading(true);
@@ -106,6 +107,8 @@ export default function BandReserveApp() {
     setSubmitting(true);
     setError("");
     try {
+      const requestKey = requestIdRef.current || crypto.randomUUID();
+      requestIdRef.current = requestKey;
       const response = await fetch("/api/band-reservations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -116,6 +119,7 @@ export default function BandReserveApp() {
           quantity,
           pickupWindow,
           policyAgreed: agreed,
+          idempotencyKey: requestKey,
         }),
       });
       const data = await response.json() as { reservation?: ReservationReceipt; error?: string };
