@@ -1,4 +1,4 @@
-import { supabaseAdmin } from "../../../db";
+import { getDb } from "../../../db";
 import {
   BAND_POLICY_VERSION,
   PICKUP_WINDOWS,
@@ -17,60 +17,106 @@ type CreatePayload = {
   quantity?: number;
   pickupWindow?: string;
   policyAgreed?: boolean;
+  idempotencyKey?: string;
 };
+
+type ReservationRow = {
+  id: string;
+  reservation_no: string;
+  sale_id: string;
+  customer_name: string;
+  customer_phone: string;
+  idempotency_key: string;
+  quantity: number;
+  unit_price: number;
+  total_amount: number;
+  deposit_amount: number;
+  pickup_window: string;
+  status: string;
+  payment_status: string;
+  payment_provider: string;
+  payment_tid: string | null;
+  policy_version: string;
+  policy_agreed_at: string;
+  created_at: string;
+  updated_at: string;
+};
+
+type AdminReservationRow = ReservationRow & {
+  sale_title: string | null;
+  sale_pickup_date: string | null;
+  sale_production_lock_at: string | null;
+};
+
+const DB = getDb();
 
 function clean(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
 
-async function reserveCapacity(saleId: string, quantity: number) {
-  for (let attempt = 0; attempt < 6; attempt += 1) {
-    const { data: current, error } = await supabaseAdmin
-      .from("band_sales")
-      .select("*")
-      .eq("id", saleId)
-      .maybeSingle();
-    if (error) throw new Error(error.message);
-    if (!current) throw new Error("판매회차를 찾을 수 없습니다.");
-
-    const sale = current as BandSaleRow;
-    if (saleState(sale) !== "open") return { ok: false as const, sale };
-    if (sale.reserved_qty + quantity > sale.production_limit) return { ok: false as const, sale };
-
-    const nextReserved = sale.reserved_qty + quantity;
-    const { data: updated, error: updateError } = await supabaseAdmin
-      .from("band_sales")
-      .update({ reserved_qty: nextReserved, updated_at: new Date().toISOString() })
-      .eq("id", saleId)
-      .eq("reserved_qty", sale.reserved_qty)
-      .eq("active", true)
-      .select("*")
-      .maybeSingle();
-
-    if (updateError) throw new Error(updateError.message);
-    if (updated) return { ok: true as const, sale: updated as BandSaleRow };
-  }
-  throw new Error("동시에 많은 예약이 접수되었습니다. 다시 시도해주세요.");
+function paymentMode() {
+  return process.env.BAND_PAYMENT_MODE || "test";
 }
 
-async function releaseCapacity(saleId: string, quantity: number) {
-  for (let attempt = 0; attempt < 6; attempt += 1) {
-    const { data: current } = await supabaseAdmin
-      .from("band_sales")
-      .select("reserved_qty")
-      .eq("id", saleId)
-      .maybeSingle();
-    if (!current) return;
-    const next = Math.max(0, Number(current.reserved_qty || 0) - quantity);
-    const { data: updated } = await supabaseAdmin
-      .from("band_sales")
-      .update({ reserved_qty: next, updated_at: new Date().toISOString() })
-      .eq("id", saleId)
-      .eq("reserved_qty", current.reserved_qty)
-      .select("id")
-      .maybeSingle();
-    if (updated) return;
-  }
+async function existingByIdempotency(idempotencyKey: string) {
+  return DB.prepare(`
+    SELECT r.*,s.pickup_date,s.pickup_start,s.pickup_end,s.pickup_location
+    FROM band_reservations r
+    JOIN band_sales s ON s.id=r.sale_id
+    WHERE r.idempotency_key=?
+    LIMIT 1
+  `).bind(idempotencyKey).first<ReservationRow & {
+    pickup_date: string;
+    pickup_start: string;
+    pickup_end: string;
+    pickup_location: string;
+  }>();
+}
+
+function receipt(row: ReservationRow & {
+  pickup_date: string;
+  pickup_start: string;
+  pickup_end: string;
+  pickup_location: string;
+}) {
+  return {
+    id: row.id,
+    reservationNo: row.reservation_no,
+    customerName: row.customer_name,
+    quantity: row.quantity,
+    totalAmount: row.total_amount,
+    depositAmount: row.deposit_amount,
+    pickupWindow: row.pickup_window,
+    status: row.status,
+    paymentStatus: row.payment_status,
+    pickupDate: row.pickup_date,
+    pickupStart: row.pickup_start,
+    pickupEnd: row.pickup_end,
+    pickupLocation: row.pickup_location,
+  };
+}
+
+async function claimCapacity(saleId: string, quantity: number, now: string) {
+  const claimed = await DB.prepare(`
+    UPDATE band_sales
+    SET reserved_qty=reserved_qty+?,updated_at=?
+    WHERE id=?
+      AND active=1
+      AND status='open'
+      AND reserved_qty+? <= production_limit
+    RETURNING *
+  `).bind(quantity, now, saleId, quantity).first<BandSaleRow>();
+
+  return claimed;
+}
+
+async function releaseCapacity(saleId: string, quantity: number, now: string) {
+  await DB.prepare(`
+    UPDATE band_sales
+    SET reserved_qty=CASE WHEN reserved_qty-? < 0 THEN 0 ELSE reserved_qty-? END,
+        updated_at=?
+    WHERE id=?
+  `).bind(quantity, quantity, now, saleId).run();
 }
 
 export async function GET(request: Request) {
@@ -79,26 +125,39 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const saleId = clean(url.searchParams.get("saleId"));
-  let query = supabaseAdmin
-    .from("band_reservations")
-    .select("*")
-    .order("created_at", { ascending: false })
-    .limit(300);
-  if (saleId) query = query.eq("sale_id", saleId);
 
-  const { data: reservations, error } = await query;
-  if (error) return Response.json({ error: error.message }, { status: 500 });
+  const sql = saleId
+    ? `
+      SELECT r.*,s.title AS sale_title,s.pickup_date AS sale_pickup_date,
+        s.production_lock_at AS sale_production_lock_at
+      FROM band_reservations r
+      LEFT JOIN band_sales s ON s.id=r.sale_id
+      WHERE r.sale_id=?
+      ORDER BY r.created_at DESC
+      LIMIT 300
+    `
+    : `
+      SELECT r.*,s.title AS sale_title,s.pickup_date AS sale_pickup_date,
+        s.production_lock_at AS sale_production_lock_at
+      FROM band_reservations r
+      LEFT JOIN band_sales s ON s.id=r.sale_id
+      ORDER BY r.created_at DESC
+      LIMIT 300
+    `;
 
-  const saleIds = [...new Set((reservations ?? []).map((item) => item.sale_id))];
-  const { data: sales } = saleIds.length
-    ? await supabaseAdmin.from("band_sales").select("id,title,pickup_date,production_lock_at").in("id", saleIds)
-    : { data: [] as Record<string, unknown>[] };
-  const saleMap = new Map((sales ?? []).map((sale) => [sale.id, sale]));
+  const result = saleId
+    ? await DB.prepare(sql).bind(saleId).all<AdminReservationRow>()
+    : await DB.prepare(sql).all<AdminReservationRow>();
 
   return Response.json({
-    reservations: (reservations ?? []).map((item) => ({
+    reservations: result.results.map((item) => ({
       ...item,
-      sale: saleMap.get(item.sale_id) ?? null,
+      sale: item.sale_title ? {
+        id: item.sale_id,
+        title: item.sale_title,
+        pickup_date: item.sale_pickup_date,
+        production_lock_at: item.sale_production_lock_at,
+      } : null,
     })),
   });
 }
@@ -110,6 +169,7 @@ export async function POST(request: Request) {
   const customerPhone = normalizePhone(clean(payload.customerPhone));
   const quantity = Number(payload.quantity);
   const pickupWindow = clean(payload.pickupWindow);
+  const idempotencyKey = clean(payload.idempotencyKey).slice(0, 80);
 
   if (!saleId || customerName.length < 2) {
     return Response.json({ error: "예약자 이름을 확인해주세요." }, { status: 400 });
@@ -126,83 +186,91 @@ export async function POST(request: Request) {
   if (!payload.policyAgreed) {
     return Response.json({ error: "예약 및 취소·환불 정책에 동의해주세요." }, { status: 400 });
   }
+  if (!/^[A-Za-z0-9_-]{12,80}$/.test(idempotencyKey)) {
+    return Response.json({ error: "예약 요청을 다시 시작해주세요." }, { status: 400 });
+  }
 
-  const paymentMode = process.env.BAND_PAYMENT_MODE || "test";
-  if (paymentMode !== "test") {
+  const existing = await existingByIdempotency(idempotencyKey);
+  if (existing) return Response.json({ reservation: receipt(existing), paymentMode: existing.payment_provider });
+
+  const mode = paymentMode();
+  if (mode !== "test") {
     return Response.json({ error: "실결제 연동 전입니다. 현재는 테스트 모드에서만 예약할 수 있습니다." }, { status: 503 });
   }
 
-  let held = false;
+  const now = new Date().toISOString();
+  let capacityClaimed = false;
   try {
-    const capacity = await reserveCapacity(saleId, quantity);
-    if (!capacity.ok) {
-      const remaining = Math.max(0, capacity.sale.production_limit - capacity.sale.reserved_qty);
-      return Response.json({ error: remaining ? `현재 최대 ${remaining}개까지 예약할 수 있습니다.` : "이번 회차 예약이 마감되었습니다." }, { status: 409 });
+    const before = await DB.prepare("SELECT * FROM band_sales WHERE id=? LIMIT 1").bind(saleId).first<BandSaleRow>();
+    if (!before) return Response.json({ error: "판매회차를 찾을 수 없습니다." }, { status: 404 });
+    if (saleState(before) !== "open") {
+      const remaining = Math.max(0, before.production_limit - before.reserved_qty);
+      return Response.json({ error: remaining ? "현재 예약 가능한 시간이 아닙니다." : "이번 회차 예약이 마감되었습니다." }, { status: 409 });
     }
-    held = true;
 
-    const sale = capacity.sale;
+    const sale = await claimCapacity(saleId, quantity, now);
+    if (!sale) {
+      const current = await DB.prepare("SELECT * FROM band_sales WHERE id=? LIMIT 1").bind(saleId).first<BandSaleRow>();
+      const remaining = current ? Math.max(0, current.production_limit - current.reserved_qty) : 0;
+      return Response.json({
+        error: remaining ? `현재 최대 ${remaining}개까지 예약할 수 있습니다.` : "이번 회차 예약이 마감되었습니다.",
+      }, { status: 409 });
+    }
+    capacityClaimed = true;
+
     const id = crypto.randomUUID();
     const no = reservationNo();
-    const now = new Date().toISOString();
     const totalAmount = sale.price * quantity;
     const depositAmount = sale.deposit_per_unit * quantity;
 
-    const { data, error } = await supabaseAdmin
-      .from("band_reservations")
-      .insert({
+    await DB.batch([
+      DB.prepare(`
+        INSERT INTO band_reservations(
+          id,reservation_no,sale_id,customer_name,customer_phone,idempotency_key,
+          quantity,unit_price,total_amount,deposit_amount,pickup_window,status,payment_status,
+          payment_provider,payment_tid,policy_version,policy_agreed_at,created_at,updated_at
+        ) VALUES(?,?,?,?,?,?,?,?,?,?,?,'confirmed','test_paid','test',NULL,?,?,?,?)
+      `).bind(
         id,
-        reservation_no: no,
-        sale_id: saleId,
-        customer_name: customerName,
-        customer_phone: customerPhone,
+        no,
+        saleId,
+        customerName,
+        customerPhone,
+        idempotencyKey,
         quantity,
-        unit_price: sale.price,
-        total_amount: totalAmount,
-        deposit_amount: depositAmount,
-        pickup_window: pickupWindow,
-        status: "confirmed",
-        payment_status: "test_paid",
-        payment_provider: "test",
-        payment_tid: null,
-        policy_version: BAND_POLICY_VERSION,
-        policy_agreed_at: now,
-        created_at: now,
-        updated_at: now,
-      })
-      .select("*")
-      .single();
+        sale.price,
+        totalAmount,
+        depositAmount,
+        pickupWindow,
+        BAND_POLICY_VERSION,
+        now,
+        now,
+        now,
+      ),
+      DB.prepare(`
+        INSERT INTO band_reservation_events(
+          id,reservation_id,event_type,payload_json,created_at
+        ) VALUES(?,?,'reservation_confirmed',?,?)
+      `).bind(
+        crypto.randomUUID(),
+        id,
+        JSON.stringify({ paymentMode: "test", quantity, depositAmount }),
+        now,
+      ),
+    ]);
 
-    if (error) throw new Error(error.message);
-
-    await supabaseAdmin.from("band_reservation_events").insert({
-      id: crypto.randomUUID(),
-      reservation_id: id,
-      event_type: "reservation_confirmed",
-      payload_json: JSON.stringify({ paymentMode: "test", quantity, depositAmount }),
-      created_at: now,
-    });
+    const stored = await existingByIdempotency(idempotencyKey);
+    if (!stored) throw new Error("예약 저장 결과를 확인하지 못했습니다.");
 
     return Response.json({
-      reservation: {
-        id: data.id,
-        reservationNo: data.reservation_no,
-        customerName: data.customer_name,
-        quantity: data.quantity,
-        totalAmount: data.total_amount,
-        depositAmount: data.deposit_amount,
-        pickupWindow: data.pickup_window,
-        status: data.status,
-        paymentStatus: data.payment_status,
-        pickupDate: sale.pickup_date,
-        pickupStart: sale.pickup_start,
-        pickupEnd: sale.pickup_end,
-        pickupLocation: sale.pickup_location,
-      },
+      reservation: receipt(stored),
       paymentMode: "test",
     }, { status: 201 });
   } catch (error) {
-    if (held) await releaseCapacity(saleId, quantity);
+    const duplicated = await existingByIdempotency(idempotencyKey);
+    if (duplicated) return Response.json({ reservation: receipt(duplicated), paymentMode: duplicated.payment_provider });
+
+    if (capacityClaimed) await releaseCapacity(saleId, quantity, new Date().toISOString());
     return Response.json({ error: error instanceof Error ? error.message : "예약을 완료하지 못했습니다." }, { status: 500 });
   }
 }
