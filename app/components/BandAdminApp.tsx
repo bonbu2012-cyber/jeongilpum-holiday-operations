@@ -51,7 +51,6 @@ export default function BandAdminApp() {
   const [pickupLocation, setPickupLocation] = useState("정일품 BAND 전용 작업장");
 
   const load = async () => {
-    setError("");
     try {
       const [saleRes, reservationRes, customerRes] = await Promise.all([
         fetch("/api/band-sales?admin=1", { cache: "no-store" }),
