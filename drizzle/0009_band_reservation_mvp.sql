@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS `band_reservations` (
   `sale_id` text NOT NULL,
   `customer_name` text NOT NULL,
   `customer_phone` text NOT NULL,
+  `idempotency_key` text NOT NULL,
   `quantity` integer NOT NULL,
   `unit_price` integer NOT NULL,
   `total_amount` integer NOT NULL,
@@ -58,6 +59,8 @@ CREATE TABLE IF NOT EXISTS `band_reservations` (
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS `idx_band_reservations_no` ON `band_reservations` (`reservation_no`);
+--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS `idx_band_reservations_idempotency` ON `band_reservations` (`idempotency_key`);
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS `idx_band_reservations_sale_status` ON `band_reservations` (`sale_id`,`status`);
 --> statement-breakpoint
