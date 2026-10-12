@@ -1,0 +1,40 @@
+name: BAND reservation MVP checks
+
+on:
+  push:
+    branches:
+      - codex/band-reservation-mvp
+  pull_request:
+    paths:
+      - "app/api/band-**"
+      - "app/band-**"
+      - "app/components/Band*.tsx"
+      - "app/lib/band-reservation.ts"
+      - "app/ui/band-reservation.css"
+      - "db/schema.ts"
+      - "drizzle/0009_band_reservation_mvp.sql"
+      - "drizzle/meta/0009_snapshot.json"
+      - "tests/band-reservation.test.mjs"
+      - ".github/workflows/band-mvp-check.yml"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.16"
+          cache: npm
+      - run: npm ci
+      - name: Focused BAND tests
+        run: node --experimental-strip-types --test tests/band-reservation.test.mjs
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Full test suite
+        run: npm test
+      - name: Build
+        run: npm run build
