@@ -1,9 +1,501 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "94b7d4a3-2fe4-46b3-82ee-1e4f0d2c9009",
+  "id": "59df1432-895a-432f-b026-14fec0253e2d",
   "prevId": "d3c38b63-df4e-439f-a327-ff66d3a874c5",
   "tables": {
+    "band_reservation_events": {
+      "name": "band_reservation_events",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "reservation_id": {
+          "name": "reservation_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "event_type": {
+          "name": "event_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "payload_json": {
+          "name": "payload_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "idx_band_reservation_events_reservation": {
+          "name": "idx_band_reservation_events_reservation",
+          "columns": [
+            "reservation_id",
+            "created_at"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "band_reservation_events_reservation_id_band_reservations_id_fk": {
+          "name": "band_reservation_events_reservation_id_band_reservations_id_fk",
+          "tableFrom": "band_reservation_events",
+          "tableTo": "band_reservations",
+          "columnsFrom": [
+            "reservation_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "band_reservations": {
+      "name": "band_reservations",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "reservation_no": {
+          "name": "reservation_no",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "sale_id": {
+          "name": "sale_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "customer_name": {
+          "name": "customer_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "customer_phone": {
+          "name": "customer_phone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "idempotency_key": {
+          "name": "idempotency_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "quantity": {
+          "name": "quantity",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "unit_price": {
+          "name": "unit_price",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "total_amount": {
+          "name": "total_amount",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "deposit_amount": {
+          "name": "deposit_amount",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "pickup_window": {
+          "name": "pickup_window",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'confirmed'"
+        },
+        "payment_status": {
+          "name": "payment_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'test_paid'"
+        },
+        "payment_provider": {
+          "name": "payment_provider",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'test'"
+        },
+        "payment_tid": {
+          "name": "payment_tid",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "policy_version": {
+          "name": "policy_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "policy_agreed_at": {
+          "name": "policy_agreed_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "cancelled_at": {
+          "name": "cancelled_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "picked_up_at": {
+          "name": "picked_up_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "no_show_at": {
+          "name": "no_show_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "idx_band_reservations_no": {
+          "name": "idx_band_reservations_no",
+          "columns": [
+            "reservation_no"
+          ],
+          "isUnique": true
+        },
+        "idx_band_reservations_idempotency": {
+          "name": "idx_band_reservations_idempotency",
+          "columns": [
+            "idempotency_key"
+          ],
+          "isUnique": true
+        },
+        "idx_band_reservations_sale_status": {
+          "name": "idx_band_reservations_sale_status",
+          "columns": [
+            "sale_id",
+            "status"
+          ],
+          "isUnique": false
+        },
+        "idx_band_reservations_phone": {
+          "name": "idx_band_reservations_phone",
+          "columns": [
+            "customer_phone",
+            "created_at"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "band_reservations_sale_id_band_sales_id_fk": {
+          "name": "band_reservations_sale_id_band_sales_id_fk",
+          "tableFrom": "band_reservations",
+          "tableTo": "band_sales",
+          "columnsFrom": [
+            "sale_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "band_reservations_quantity_positive": {
+          "name": "band_reservations_quantity_positive",
+          "value": "\"band_reservations\".\"quantity\" > 0"
+        },
+        "band_reservations_amount_nonnegative": {
+          "name": "band_reservations_amount_nonnegative",
+          "value": "\"band_reservations\".\"total_amount\" >= 0 and \"band_reservations\".\"deposit_amount\" >= 0"
+        },
+        "band_reservations_status_valid": {
+          "name": "band_reservations_status_valid",
+          "value": "\"band_reservations\".\"status\" in ('confirmed','picked_up','cancelled','no_show')"
+        }
+      }
+    },
+    "band_sales": {
+      "name": "band_sales",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "product_id": {
+          "name": "product_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "subtitle": {
+          "name": "subtitle",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
+        "price": {
+          "name": "price",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "production_limit": {
+          "name": "production_limit",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "reserved_qty": {
+          "name": "reserved_qty",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "deposit_per_unit": {
+          "name": "deposit_per_unit",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1000
+        },
+        "reservation_start_at": {
+          "name": "reservation_start_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "reservation_end_at": {
+          "name": "reservation_end_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "production_lock_at": {
+          "name": "production_lock_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "pickup_date": {
+          "name": "pickup_date",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "pickup_start": {
+          "name": "pickup_start",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'10:00'"
+        },
+        "pickup_end": {
+          "name": "pickup_end",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'19:00'"
+        },
+        "pickup_location": {
+          "name": "pickup_location",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'draft'"
+        },
+        "active": {
+          "name": "active",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "idx_band_sales_active_start": {
+          "name": "idx_band_sales_active_start",
+          "columns": [
+            "active",
+            "reservation_start_at"
+          ],
+          "isUnique": false
+        },
+        "idx_band_sales_pickup_date": {
+          "name": "idx_band_sales_pickup_date",
+          "columns": [
+            "pickup_date"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "band_sales_product_id_products_id_fk": {
+          "name": "band_sales_product_id_products_id_fk",
+          "tableFrom": "band_sales",
+          "tableTo": "products",
+          "columnsFrom": [
+            "product_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "band_sales_limit_positive": {
+          "name": "band_sales_limit_positive",
+          "value": "\"band_sales\".\"production_limit\" > 0"
+        },
+        "band_sales_reserved_nonnegative": {
+          "name": "band_sales_reserved_nonnegative",
+          "value": "\"band_sales\".\"reserved_qty\" >= 0"
+        },
+        "band_sales_deposit_nonnegative": {
+          "name": "band_sales_deposit_nonnegative",
+          "value": "\"band_sales\".\"deposit_per_unit\" >= 0"
+        },
+        "band_sales_status_valid": {
+          "name": "band_sales_status_valid",
+          "value": "\"band_sales\".\"status\" in ('draft','open','closed','completed')"
+        }
+      }
+    },
     "categories": {
       "name": "categories",
       "columns": {
@@ -81,7 +573,7 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "CURRENT_TIMESTAMP"
+          "default": "''"
         },
         "updated_at": {
           "name": "updated_at",
@@ -3632,7 +4124,7 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "''"
+          "default": "CURRENT_TIMESTAMP"
         },
         "updated_at": {
           "name": "updated_at",
@@ -4578,498 +5070,6 @@
           "value": "\"work_items\".\"work_status\" in ('received', 'confirmed', 'in_progress', 'ready', 'completed', 'cancelled')"
         }
       }
-    },
-    "band_sales": {
-      "name": "band_sales",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "product_id": {
-          "name": "product_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "title": {
-          "name": "title",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "subtitle": {
-          "name": "subtitle",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "''"
-        },
-        "price": {
-          "name": "price",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "production_limit": {
-          "name": "production_limit",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "reserved_qty": {
-          "name": "reserved_qty",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "deposit_per_unit": {
-          "name": "deposit_per_unit",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 1000
-        },
-        "reservation_start_at": {
-          "name": "reservation_start_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "reservation_end_at": {
-          "name": "reservation_end_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "production_lock_at": {
-          "name": "production_lock_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "pickup_date": {
-          "name": "pickup_date",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "pickup_start": {
-          "name": "pickup_start",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'10:00'"
-        },
-        "pickup_end": {
-          "name": "pickup_end",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'19:00'"
-        },
-        "pickup_location": {
-          "name": "pickup_location",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "''"
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'draft'"
-        },
-        "active": {
-          "name": "active",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "idx_band_sales_active_start": {
-          "name": "idx_band_sales_active_start",
-          "columns": [
-            "active",
-            "reservation_start_at"
-          ],
-          "isUnique": false
-        },
-        "idx_band_sales_pickup_date": {
-          "name": "idx_band_sales_pickup_date",
-          "columns": [
-            "pickup_date"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "band_sales_product_id_products_id_fk": {
-          "name": "band_sales_product_id_products_id_fk",
-          "tableFrom": "band_sales",
-          "tableTo": "products",
-          "columnsFrom": [
-            "product_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {
-        "band_sales_limit_positive": {
-          "name": "band_sales_limit_positive",
-          "value": "\"band_sales\".\"production_limit\" > 0"
-        },
-        "band_sales_reserved_nonnegative": {
-          "name": "band_sales_reserved_nonnegative",
-          "value": "\"band_sales\".\"reserved_qty\" >= 0"
-        },
-        "band_sales_deposit_nonnegative": {
-          "name": "band_sales_deposit_nonnegative",
-          "value": "\"band_sales\".\"deposit_per_unit\" >= 0"
-        },
-        "band_sales_status_valid": {
-          "name": "band_sales_status_valid",
-          "value": "\"band_sales\".\"status\" in ('draft','open','closed','completed')"
-        }
-      }
-    },
-    "band_reservations": {
-      "name": "band_reservations",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "reservation_no": {
-          "name": "reservation_no",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "sale_id": {
-          "name": "sale_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "customer_name": {
-          "name": "customer_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "customer_phone": {
-          "name": "customer_phone",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "idempotency_key": {
-          "name": "idempotency_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "quantity": {
-          "name": "quantity",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "unit_price": {
-          "name": "unit_price",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "total_amount": {
-          "name": "total_amount",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "deposit_amount": {
-          "name": "deposit_amount",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "pickup_window": {
-          "name": "pickup_window",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'confirmed'"
-        },
-        "payment_status": {
-          "name": "payment_status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'test_paid'"
-        },
-        "payment_provider": {
-          "name": "payment_provider",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'test'"
-        },
-        "payment_tid": {
-          "name": "payment_tid",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "policy_version": {
-          "name": "policy_version",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "policy_agreed_at": {
-          "name": "policy_agreed_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "cancelled_at": {
-          "name": "cancelled_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "picked_up_at": {
-          "name": "picked_up_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "no_show_at": {
-          "name": "no_show_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "idx_band_reservations_no": {
-          "name": "idx_band_reservations_no",
-          "columns": [
-            "reservation_no"
-          ],
-          "isUnique": true
-        },
-        "idx_band_reservations_idempotency": {
-          "name": "idx_band_reservations_idempotency",
-          "columns": [
-            "idempotency_key"
-          ],
-          "isUnique": true
-        },
-        "idx_band_reservations_sale_status": {
-          "name": "idx_band_reservations_sale_status",
-          "columns": [
-            "sale_id",
-            "status"
-          ],
-          "isUnique": false
-        },
-        "idx_band_reservations_phone": {
-          "name": "idx_band_reservations_phone",
-          "columns": [
-            "customer_phone",
-            "created_at"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "band_reservations_sale_id_band_sales_id_fk": {
-          "name": "band_reservations_sale_id_band_sales_id_fk",
-          "tableFrom": "band_reservations",
-          "tableTo": "band_sales",
-          "columnsFrom": [
-            "sale_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {
-        "band_reservations_quantity_positive": {
-          "name": "band_reservations_quantity_positive",
-          "value": "\"band_reservations\".\"quantity\" > 0"
-        },
-        "band_reservations_amount_nonnegative": {
-          "name": "band_reservations_amount_nonnegative",
-          "value": "\"band_reservations\".\"total_amount\" >= 0 and \"band_reservations\".\"deposit_amount\" >= 0"
-        },
-        "band_reservations_status_valid": {
-          "name": "band_reservations_status_valid",
-          "value": "\"band_reservations\".\"status\" in ('confirmed','picked_up','cancelled','no_show')"
-        }
-      }
-    },
-    "band_reservation_events": {
-      "name": "band_reservation_events",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "reservation_id": {
-          "name": "reservation_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "event_type": {
-          "name": "event_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "payload_json": {
-          "name": "payload_json",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "''"
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "idx_band_reservation_events_reservation": {
-          "name": "idx_band_reservation_events_reservation",
-          "columns": [
-            "reservation_id",
-            "created_at"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "band_reservation_events_reservation_id_band_reservations_id_fk": {
-          "name": "band_reservation_events_reservation_id_band_reservations_id_fk",
-          "tableFrom": "band_reservation_events",
-          "tableTo": "band_reservations",
-          "columnsFrom": [
-            "reservation_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
     }
   },
   "views": {},
