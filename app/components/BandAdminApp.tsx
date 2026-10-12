@@ -73,7 +73,34 @@ export default function BandAdminApp() {
     }
   };
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([
+      fetch("/api/band-sales?admin=1", { cache: "no-store" }),
+      fetch("/api/band-reservations", { cache: "no-store" }),
+      fetch("/api/band-customers", { cache: "no-store" }),
+    ])
+      .then(async ([saleRes, reservationRes, customerRes]) => {
+        const [saleData, reservationData, customerData] = await Promise.all([
+          saleRes.json() as Promise<AdminSalesResponse>,
+          reservationRes.json() as Promise<AdminReservationsResponse>,
+          customerRes.json() as Promise<AdminCustomersResponse>,
+        ]);
+        if (!saleRes.ok) throw new Error(saleData.error || "판매회차를 불러오지 못했습니다.");
+        if (!reservationRes.ok) throw new Error(reservationData.error || "예약목록을 불러오지 못했습니다.");
+        if (!customerRes.ok) throw new Error(customerData.error || "고객DB를 불러오지 못했습니다.");
+        if (cancelled) return;
+        setProducts(saleData.products || []);
+        setSales(saleData.sales || []);
+        setPaymentMode(saleData.paymentMode || "test");
+        setReservations(reservationData.reservations || []);
+        setCustomers(customerData.customers || []);
+      })
+      .catch((caught) => {
+        if (!cancelled) setError(caught instanceof Error ? caught.message : "데이터를 불러오지 못했습니다.");
+      });
+    return () => { cancelled = true; };
+  }, []);
 
   const activeSale = useMemo(() => sales.find((sale) => sale.active) ?? null, [sales]);
   const activeReservations = useMemo(
